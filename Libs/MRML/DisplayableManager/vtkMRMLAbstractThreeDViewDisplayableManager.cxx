@@ -28,6 +28,8 @@
 // VTK includes
 #include <vtkObjectFactory.h>
 #include <vtkRenderWindowInteractor.h>
+#include <vtkBalloonRepresentation.h>
+#include <vtkBalloonWidget.h>
 
 // STD includes
 #include <cassert>
@@ -41,11 +43,18 @@ vtkStandardNewMacro(vtkMRMLAbstractThreeDViewDisplayableManager);
 //----------------------------------------------------------------------------
 vtkMRMLAbstractThreeDViewDisplayableManager::vtkMRMLAbstractThreeDViewDisplayableManager()
 {
+  this->BalloonRepresentation = vtkBalloonRepresentation::New();
+  this->BalloonRepresentation->SetBalloonLayoutToImageRight();
+
+  this->BalloonWidget = vtkBalloonWidget::New();
+  this->BalloonWidget->SetRepresentation(this->BalloonRepresentation);
 }
 
 //----------------------------------------------------------------------------
 vtkMRMLAbstractThreeDViewDisplayableManager::~vtkMRMLAbstractThreeDViewDisplayableManager()
 {
+  this->BalloonWidget->Delete();
+  this->BalloonRepresentation->Delete();
 }
 
 //----------------------------------------------------------------------------
@@ -165,5 +174,10 @@ void vtkMRMLAbstractThreeDViewDisplayableManager::PassThroughInteractorStyleEven
 
     return;
   }
+}
+
+vtkBalloonWidget *vtkMRMLAbstractThreeDViewDisplayableManager::GetBalloonWidget()
+{
+  return this->BalloonWidget;
 }
 

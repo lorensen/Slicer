@@ -38,6 +38,7 @@
 // VTK includes
 #include <vtkAlgorithmOutput.h>
 #include <vtkAssignAttribute.h>
+#include <vtkBalloonWidget.h>
 #include <vtkCellArray.h>
 #include <vtkClipPolyData.h>
 #include <vtkColorTransferFunction.h>
@@ -54,6 +55,7 @@
 #include <vtkPlane.h>
 #include <vtkPointData.h>
 #include <vtkPolyDataMapper.h>
+#include <vtkProp.h>
 #include <vtkProperty.h>
 #include <vtkRenderWindowInteractor.h>
 #include <vtkSmartPointer.h>
@@ -726,6 +728,7 @@ bool vtkMRMLModelDisplayableManager::OnMRMLDisplayableModelNodeModifiedEvent(
     {
     return false;
     }
+
   // If the node is already cached with an actor process only this one
   // If it was not visible and is still not visible do nothing
   int ndnodes = modelNode->GetNumberOfDisplayNodes();
@@ -745,6 +748,16 @@ bool vtkMRMLModelDisplayableManager::OnMRMLDisplayableModelNodeModifiedEvent(
       updateMRML = true;
       break;
       }
+    if (visible && hasActor)
+    {
+      std::cout << "DisplayableModified: " << modelNode->GetName() << std::endl;
+      vtkProp *prop = vtkProp::SafeDownCast(this->Internal->DisplayedActors.find(dnode->GetID())->second);
+      this->GetBalloonWidget()->SetInteractor(this->GetInteractor());
+      this->GetBalloonWidget()->AddBalloon(
+        prop,
+        std::string(modelNode->GetName()).c_str(), NULL);
+      this->GetBalloonWidget()->EnabledOn();
+    }
     // If the displayNode visibility has changed or displayNode is visible, then
     // update the model.
     if (!(!visible && this->GetDisplayedModelsVisibility(dnode) == 0))
@@ -1110,6 +1123,7 @@ void vtkMRMLModelDisplayableManager
     if (hasPolyData && ait == this->Internal->DisplayedActors.end())
       {
       this->GetRenderer()->AddViewProp(prop);
+//      std::cout << "Adding: " << modelDisplayNode->GetName() << std::endl;
       this->Internal->DisplayedActors[modelDisplayNode->GetID()] = prop;
       this->Internal->DisplayedNodes[std::string(modelDisplayNode->GetID())] = modelDisplayNode;
 
@@ -1340,6 +1354,7 @@ void vtkMRMLModelDisplayableManager::RemoveModelProps()
       this->GetMRMLScene() ? this->GetMRMLScene()->GetNodeByID(iter->first) : 0);
     if (modelDisplayNode == 0)
       {
+      std::cout << "Removing: " << modelDisplayNode->GetName() << std::endl;
       this->GetRenderer()->RemoveViewProp(iter->second);
       removedIDs.push_back(iter->first);
       }

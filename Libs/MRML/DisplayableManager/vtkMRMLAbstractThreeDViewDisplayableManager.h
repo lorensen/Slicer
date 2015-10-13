@@ -27,6 +27,8 @@
 #include "vtkMRMLDisplayableManagerWin32Header.h"
 
 class vtkMRMLViewNode;
+class vtkBalloonRepresentation;
+class vtkBalloonWidget;
 
 /// \brief Superclass for displayable manager classes.
 ///
@@ -45,6 +47,9 @@ public:
   /// Get MRML ViewNode
   vtkMRMLViewNode * GetMRMLViewNode();
 
+  /// Get the BalloonWidget
+  vtkBalloonWidget * GetBalloonWidget();
+
 protected:
 
   vtkMRMLAbstractThreeDViewDisplayableManager();
@@ -61,6 +66,9 @@ private:
 
   vtkMRMLAbstractThreeDViewDisplayableManager(const vtkMRMLAbstractThreeDViewDisplayableManager&); // Not implemented
   void operator=(const vtkMRMLAbstractThreeDViewDisplayableManager&);                    // Not implemented
+  vtkBalloonRepresentation *BalloonRepresentation;
+  vtkBalloonWidget         *BalloonWidget;
+
 };
 
 #endif
