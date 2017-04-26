@@ -1,5 +1,5 @@
-#ifndef __itkLevelTracingImageFilter_txx_
-#define __itkLevelTracingImageFilter_txx_
+#ifndef itkLevelTracingImageFilter_txx
+#define itkLevelTracingImageFilter_txx
 
 #include "itkLevelTracingImageFilter.h"
 #include "itkFloodFilledImageFunctionConditionalIterator.h"
@@ -12,13 +12,17 @@
 namespace itk
 {
 
+/** \class LevelTracingImageFunction
+ * \brief LevelTracingImageFunction used in LevelTracingImageFilter.
+ *
+ */
 template <class TInputImage, class TCoordRep = float>
 class LevelTracingImageFunction :
     public ImageFunction<TInputImage,bool,TCoordRep>
 {
 public:
   /** Standard class typedefs. */
-  typedef LevelTracingImageFunction              Self;
+  typedef LevelTracingImageFunction                 Self;
   typedef ImageFunction<TInputImage,bool,TCoordRep> Superclass;
   typedef SmartPointer<Self>                        Pointer;
   typedef SmartPointer<const Self>                  ConstPointer;
@@ -51,7 +55,6 @@ public:
   typedef typename Superclass::ContinuousIndexType ContinuousIndexType;
 
 
-
   /** BinaryThreshold the image at a point position
    *
    * Returns true if the image intensity at the specified point position
@@ -60,7 +63,7 @@ public:
    *
    * ImageFunction::IsInsideBuffer() can be used to check bounds before
    * calling the method. */
-  virtual bool Evaluate( const PointType& point ) const
+  virtual bool Evaluate( const PointType& point ) const ITK_OVERRIDE
     {
       IndexType index;
       this->ConvertPointToNearestIndex( point, index );
@@ -76,7 +79,7 @@ public:
    * ImageFunction::IsInsideBuffer() can be used to check bounds before
    * calling the method. */
   virtual bool EvaluateAtContinuousIndex(
-    const ContinuousIndexType & index ) const
+    const ContinuousIndexType & index ) const ITK_OVERRIDE
     {
       IndexType nindex;
 
@@ -92,7 +95,7 @@ public:
    *
    * ImageFunction::IsInsideBuffer() can be used to check bounds before
    * calling the method. */
-  virtual bool EvaluateAtIndex( const IndexType & index ) const
+  virtual bool EvaluateAtIndex( const IndexType & index ) const ITK_OVERRIDE
     {
       // Create an N-d neighborhood kernel, using a zeroflux boundary condition
       ConstNeighborhoodIterator<InputImageType>
@@ -147,14 +150,14 @@ protected:
     {
       m_Threshold = NumericTraits<PixelType>::min();
       m_Radius.Fill(1);
-    } ;
-  ~LevelTracingImageFunction(){};
+    }
+  ~LevelTracingImageFunction(){}
 
 private:
   LevelTracingImageFunction( const Self& ); //purposely not implemented
   void operator=( const Self& ); //purposely not implemented
 
-  PixelType m_Threshold;
+  PixelType     m_Threshold;
   InputSizeType m_Radius;
 };
 
@@ -300,6 +303,7 @@ LevelTracingImageFilter<TInputImage,TOutputImage>
   pix.Fill(0);
   pix[0]  = m_Seed[0];
   pix[1]  = m_Seed[1];
+  pixTemp.Fill(0);
 
 
   // 8 connected neighbor offsets

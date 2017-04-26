@@ -11,8 +11,8 @@
   See License.txt or http://www.slicer.org/copyright/copyright.txt for details.
 
 ==========================================================================*/
-#ifndef __itkDiffusionTensor3DNonRigidTransform_txx
-#define __itkDiffusionTensor3DNonRigidTransform_txx
+#ifndef itkDiffusionTensor3DNonRigidTransform_txx
+#define itkDiffusionTensor3DNonRigidTransform_txx
 
 #include "itkDiffusionTensor3DNonRigidTransform.h"
 
@@ -23,7 +23,6 @@ template <class TData>
 DiffusionTensor3DNonRigidTransform<TData>
 ::DiffusionTensor3DNonRigidTransform()
 {
-  m_LockGetJacobian = MutexLock::New();
 }
 
 template <class TData>
@@ -32,7 +31,6 @@ DiffusionTensor3DNonRigidTransform<TData>
 ::SetAffineTransformType(typename AffineTransform::Pointer transform)
 {
   m_Affine = transform;
-//  m_LockGetJacobian = MutexLock::New() ;
 }
 
 template <class TData>

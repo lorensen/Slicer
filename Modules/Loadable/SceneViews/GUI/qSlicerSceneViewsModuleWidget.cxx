@@ -3,6 +3,7 @@
 
 // CTK includes
 #include "ctkCollapsibleButton.h"
+#include "ctkMessageBox.h"
 
 // QT includes
 #include <QBuffer>
@@ -20,6 +21,7 @@
 #include <QMessageBox>
 #include <QPrintDialog>
 #include <QPrinter>
+#include <QPushButton>
 #include <QSettings>
 #include <QStatusBar>
 #include <QTextBrowser>
@@ -164,22 +166,14 @@ QString qSlicerSceneViewsModuleWidgetPrivate::htmlFromSceneView(vtkMRMLSceneView
       writer->SetFileName(thumbnailPath.toLatin1());
       vtkNew<vtkImageResize> resizeFilter;
       resizeFilter->SetResizeMethodToOutputDimensions();
-#if (VTK_MAJOR_VERSION <= 5)
-      resizeFilter->SetInput(sceneView->GetScreenShot());
-#else
       resizeFilter->SetInputData(sceneView->GetScreenShot());
-#endif
       // try to keep the aspect ratio while setting a height
       int dims[3];
       sceneView->GetScreenShot()->GetDimensions(dims);
       float newHeight = 200;
       float newWidth = (newHeight/(float)(dims[0])) * (float)(dims[1]);
       resizeFilter->SetOutputDimensions(newHeight, newWidth, 1);
-#if (VTK_MAJOR_VERSION <= 5)
-      writer->SetInput(resizeFilter->GetOutput());
-#else
       writer->SetInputConnection(resizeFilter->GetOutputPort());
-#endif
       try
         {
         writer->Write();
@@ -280,7 +274,69 @@ void qSlicerSceneViewsModuleWidget::restoreSceneView(const QString& mrmlId)
 {
   Q_D(qSlicerSceneViewsModuleWidget);
 
-  d->logic()->RestoreSceneView(mrmlId.toLatin1());
+  // by default, make sure no nodes from the current scene are lost, adding them to
+  // the scene view about to be restored
+  d->logic()->RestoreSceneView(mrmlId.toLatin1(), false);
+
+  // check if there was a problem restoring
+  if (this->mrmlScene()->GetErrorCode() != 0)
+    {
+    // reset the error state
+    this->mrmlScene()->SetErrorCode(0);
+    this->mrmlScene()->SetErrorMessage("");
+
+    // ask if the user wishes to save the current scene nodes, retore and delete them or cancel
+    ctkMessageBox missingNodesMsgBox;
+    missingNodesMsgBox.setWindowTitle("Data missing from Scene View");
+    vtkMRMLSceneViewNode* viewNode = vtkMRMLSceneViewNode::SafeDownCast(this->mrmlScene()->GetNodeByID(mrmlId.toLatin1()));
+    QString sceneViewName;
+    if (viewNode)
+      {
+      sceneViewName = QString(viewNode->GetName());
+      }
+    QString labelText = QString("Add data to scene view \"")
+      + sceneViewName
+      + QString("\" before restoring?\n"
+                "\n");
+    QString infoText = QString(
+      "Data is present in the current scene but not in the scene view.\n"
+      "\n"
+      "If you don't add and restore, data not already saved to disk"
+      ", or saved in another scene view,"
+      " will be permanently lost!\n");
+    missingNodesMsgBox.setText(labelText + infoText);
+    // until CTK bug is fixed, informative text will overlap the don't show
+    // again message so put it all in the label text
+    // missingNodesMsgBox.setInformativeText(infoText);
+    QPushButton *continueButton = missingNodesMsgBox.addButton(QMessageBox::Discard);
+    continueButton->setText("Restore without saving");
+    QPushButton *addButton = missingNodesMsgBox.addButton(QMessageBox::Save);
+    addButton->setText("Add and Restore");
+    missingNodesMsgBox.addButton(QMessageBox::Cancel);
+
+    missingNodesMsgBox.setIcon(QMessageBox::Warning);
+    missingNodesMsgBox.setDontShowAgainVisible(true);
+    missingNodesMsgBox.setDontShowAgainSettingsKey("SceneViewsModule/AlwaysRemoveNodes");
+    int ret = missingNodesMsgBox.exec();
+    switch (ret)
+      {
+      case QMessageBox::Discard:
+        d->logic()->RestoreSceneView(mrmlId.toLatin1(), true);
+        break;
+      case QMessageBox::Save:
+        if (viewNode)
+          {
+          viewNode->AddMissingNodes();
+
+          // and restore again
+          d->logic()->RestoreSceneView(mrmlId.toLatin1(), false);
+          }
+        break;
+      case QMessageBox::Cancel:
+      default:
+        break;
+      }
+    }
 
   qSlicerApplication::application()->mainWindow()->statusBar()->showMessage("The SceneView was restored including the attached scene.", 2000);
 }
@@ -496,3 +552,19 @@ void qSlicerSceneViewsModuleWidget::showSceneViewDialog()
   d->sceneViewDialog()->exec();
 }
 
+//-----------------------------------------------------------
+bool qSlicerSceneViewsModuleWidget::setEditedNode(vtkMRMLNode* node,
+                                                  QString role /* = QString()*/,
+                                                  QString context /* = QString()*/)
+{
+  Q_UNUSED(role);
+  Q_UNUSED(context);
+  if (vtkMRMLSceneViewNode::SafeDownCast(node))
+    {
+    // Scene view is a webview and does not support selection
+    // TODO: change the webview to a native view (webview looks quite bad anyway, especially on high-DPI screens)
+    return true;
+    }
+
+  return false;
+}

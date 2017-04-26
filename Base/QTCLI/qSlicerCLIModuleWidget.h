@@ -48,6 +48,10 @@ public:
   /// Get the current \a commandLineModuleNode
   Q_INVOKABLE vtkMRMLCommandLineModuleNode * currentCommandLineModuleNode()const;
 
+  // Node editing
+  virtual bool setEditedNode(vtkMRMLNode* node, QString role = QString(), QString context = QString());
+  virtual double nodeEditable(vtkMRMLNode* node);
+
 public slots:
   /// Set the current \a commandLineModuleNode
   void setCurrentCommandLineModuleNode(vtkMRMLNode* commandLineModuleNode);
@@ -64,6 +68,9 @@ public slots:
 protected:
   ///
   virtual void setup();
+
+  /// Set up the GUI from mrml when entering
+  virtual void enter();
 
   /// Run a command line module given \a parameterNode
   /// If \a waitForCompletion is True, the call will return only upon completion of

@@ -34,6 +34,7 @@
 #include "qSlicerTransformsModule.h"
 #include "qSlicerTransformsModuleWidget.h"
 #include "qSlicerTransformsReader.h"
+#include "vtkMRMLLinearTransformsDisplayableManager3D.h"
 #include "vtkMRMLTransformsDisplayableManager2D.h"
 #include "vtkMRMLTransformsDisplayableManager3D.h"
 
@@ -146,16 +147,29 @@ void qSlicerTransformsModule::setup()
     new qSlicerTransformsReader(transformLogic, this));
   app->coreIOManager()->registerIO(new qSlicerNodeWriter(
     "Transforms", QString("TransformFile"),
-    QStringList() << "vtkMRMLTransformNode", this));
+    QStringList() << "vtkMRMLTransformNode", true, this));
 
   // Use the displayable manager class to make sure the the containing library is loaded
-  vtkSmartPointer<vtkMRMLTransformsDisplayableManager2D> dm2d=vtkSmartPointer<vtkMRMLTransformsDisplayableManager2D>::New();
-  vtkSmartPointer<vtkMRMLTransformsDisplayableManager3D> dm3d=vtkSmartPointer<vtkMRMLTransformsDisplayableManager3D>::New();
+  vtkSmartPointer<vtkMRMLTransformsDisplayableManager2D> dm2d=
+    vtkSmartPointer<vtkMRMLTransformsDisplayableManager2D>::New();
+  vtkSmartPointer<vtkMRMLTransformsDisplayableManager3D> dm3d=
+    vtkSmartPointer<vtkMRMLTransformsDisplayableManager3D>::New();
+  vtkSmartPointer<vtkMRMLLinearTransformsDisplayableManager3D> ldm3d=
+    vtkSmartPointer<vtkMRMLLinearTransformsDisplayableManager3D>::New();
 
   // Register displayable managers
   vtkMRMLSliceViewDisplayableManagerFactory::GetInstance()->RegisterDisplayableManager("vtkMRMLTransformsDisplayableManager2D");
   vtkMRMLThreeDViewDisplayableManagerFactory::GetInstance()->RegisterDisplayableManager("vtkMRMLTransformsDisplayableManager3D");
+  vtkMRMLThreeDViewDisplayableManagerFactory::GetInstance()->RegisterDisplayableManager("vtkMRMLLinearTransformsDisplayableManager3D");
 
   // Register Subject Hierarchy core plugins
   qSlicerSubjectHierarchyPluginHandler::instance()->registerPlugin(new qSlicerSubjectHierarchyTransformsPlugin());
+}
+
+//-----------------------------------------------------------------------------
+QStringList qSlicerTransformsModule::associatedNodeTypes() const
+{
+  return QStringList()
+    << "vtkMRMLTransformNode"
+    << "vtkMRMLTransformDisplayNode";
 }

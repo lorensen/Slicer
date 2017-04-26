@@ -74,6 +74,7 @@ public:
   /// object is used to cache the current settings for the module.
   const ModuleDescription& GetModuleDescription() const;
   ModuleDescription& GetModuleDescription();
+  std::string GetModuleDescriptionAsString() const;
   void SetModuleDescription(const ModuleDescription& description);
 
   typedef enum {
@@ -117,6 +118,16 @@ public:
   /// Return current status as a string for display.
   /// \sa GetStatus(), IsBusy()
   const char* GetStatusString() const;
+
+  /// Set output messages generated during latest execution.
+  void SetOutputText(const std::string& text, bool modify = true);
+  /// Set output messages generated during latest execution.
+  const std::string GetOutputText() const;
+
+  /// Set error messages generated during latest execution.
+  void SetErrorText(const std::string& text, bool modify = true);
+  /// Get error messages generated during latest execution.
+  const std::string GetErrorText() const;
 
   /// Return true if the module is in a busy state: Scheduled, Running,
   /// Cancelling, Completing.
@@ -188,15 +199,15 @@ public:
 
   /// Return the last time the module was ran.
   /// \sa GetParameterMTime(), GetInputMTime(), GetMTime()
-  unsigned long GetLastRunTime()const;
+  vtkMTimeType GetLastRunTime()const;
 
   /// Return the last time a parameter was modified
   /// \sa GetInputMTime(), GetMTime()
-  unsigned long GetParameterMTime()const;
+  vtkMTimeType GetParameterMTime()const;
 
   /// Return the last time an input parameter was modified.
   /// \sa GetParameterMTime(), GetMTime()
-  unsigned long GetInputMTime()const;
+  vtkMTimeType GetInputMTime()const;
 
   /// Read a parameter file. This will set any parameters that
   /// parameters in this ModuleDescription.

@@ -11,8 +11,8 @@
   See License.txt or http://www.slicer.org/copyright/copyright.txt for details.
 
 ==========================================================================*/
-#ifndef __itkDiffusionTensor3DAffineTransform_h
-#define __itkDiffusionTensor3DAffineTransform_h
+#ifndef itkDiffusionTensor3DAffineTransform_h
+#define itkDiffusionTensor3DAffineTransform_h
 
 #include "itkDiffusionTensor3DMatrix3x3Transform.h"
 #include <itkAffineTransform.h>
@@ -45,6 +45,10 @@ public:
   typedef MatrixExtended<double, 4, 4>                     MatrixTransform4x4Type;
   typedef AffineTransform<double, 3>                       AffineTransformType;
   typedef typename Superclass::VectorType                  VectorType;
+
+  /** Run-time type information (and related methods). */
+  itkTypeMacro(DiffusionTensor3DAffineTransform, DiffusionTensor3DMatrix3x3Transform);
+
   /** Set the transformation matrix from an itk::AffineTransform< double , 3 > object
   */
   void SetTransform( typename AffineTransformType::Pointer transform );

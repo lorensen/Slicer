@@ -98,6 +98,11 @@ class VTK_MRML_EXPORT vtkMRMLTransformDisplayNode : public vtkMRMLDisplayNode
   vtkMRMLNode* GetRegionNode();
   void SetAndObserveRegionNode(vtkMRMLNode* node);
 
+  /// A node that defines glyph starting point positions.
+  /// If not set then glyphs positions are arranged evenly in the full region.
+  vtkMRMLNode* GetGlyphPointsNode();
+  void SetAndObserveGlyphPointsNode(vtkMRMLNode* node);
+
   vtkSetMacro(VisualizationMode, int);
   vtkGetMacro(VisualizationMode, int);
   /// Convert visualization mode index to a string for serialization.
@@ -162,6 +167,31 @@ class VTK_MRML_EXPORT vtkMRMLTransformDisplayNode : public vtkMRMLDisplayNode
   vtkSetMacro(ContourOpacity, double);
   vtkGetMacro(ContourOpacity, double);
 
+  // Interaction Parameters
+  vtkGetMacro(EditorVisibility, bool);
+  vtkSetMacro(EditorVisibility, bool);
+  vtkBooleanMacro(EditorVisibility, bool);
+  vtkGetMacro(EditorSliceIntersectionVisibility, bool);
+  vtkSetMacro(EditorSliceIntersectionVisibility, bool);
+  vtkBooleanMacro(EditorSliceIntersectionVisibility, bool);
+  vtkGetMacro(EditorTranslationEnabled, bool);
+  vtkSetMacro(EditorTranslationEnabled, bool);
+  vtkBooleanMacro(EditorTranslationEnabled, bool);
+  vtkGetMacro(EditorRotationEnabled, bool);
+  vtkSetMacro(EditorRotationEnabled, bool);
+  vtkBooleanMacro(EditorRotationEnabled, bool);
+  vtkGetMacro(EditorScalingEnabled, bool);
+  vtkSetMacro(EditorScalingEnabled, bool);
+  vtkBooleanMacro(EditorScalingEnabled, bool);
+
+  /// Ask the editor to recompute its bounds by invoking the
+  /// TransformUpdateEditorBoundsEvent event.
+  void UpdateEditorBounds();
+  enum
+    {
+    TransformUpdateEditorBoundsEvent = 2750
+    };
+
   /// Set the default color table
   /// Create and a procedural color node with default colors and use it for visualization.
   void SetDefaultColors();
@@ -204,6 +234,13 @@ protected:
   /// Opacity of the 3D contour. Between 0 and 1.
   double ContourOpacity;
   std::vector<double> ContourLevelsMm;
+
+  // Interaction Parameters
+  bool EditorVisibility;
+  bool EditorSliceIntersectionVisibility;
+  bool EditorTranslationEnabled;
+  bool EditorRotationEnabled;
+  bool EditorScalingEnabled;
 
  protected:
   vtkMRMLTransformDisplayNode ( );

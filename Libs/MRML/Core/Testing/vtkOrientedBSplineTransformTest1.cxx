@@ -20,6 +20,7 @@
 
 // VTK includes
 #include "vtkImageData.h"
+#include "vtkMatrix4x4.h"
 #include "vtkNew.h"
 
 typedef itk::BSplineDeformableTransform<double,3,3> itkBSplineType;
@@ -36,13 +37,7 @@ void CreateBSplineVtk(vtkOrientedBSplineTransform* bsplineTransform,
   bsplineCoefficients->SetOrigin(origin);
   bsplineCoefficients->SetSpacing(spacing);
 
-#if (VTK_MAJOR_VERSION <= 5)
-  bsplineCoefficients->SetScalarType(VTK_DOUBLE);
-  bsplineCoefficients->SetNumberOfScalarComponents(3);
-  bsplineCoefficients->AllocateScalars();
-#else
   bsplineCoefficients->AllocateScalars(VTK_DOUBLE, 3);
-#endif
 
 
   // Fill with 0
@@ -72,11 +67,7 @@ void CreateBSplineVtk(vtkOrientedBSplineTransform* bsplineTransform,
     }
 
   bsplineTransform->SetGridDirectionMatrix(gridOrientation.GetPointer());
-#if (VTK_MAJOR_VERSION <= 5)
-  bsplineTransform->SetCoefficients(bsplineCoefficients.GetPointer());
-#else
   bsplineTransform->SetCoefficientData(bsplineCoefficients.GetPointer());
-#endif  
   bsplineTransform->SetBulkTransformMatrix(bulkTransform.GetPointer());
 
   bsplineTransform->SetBorderModeToZero();
@@ -86,11 +77,7 @@ void CreateBSplineVtk(vtkOrientedBSplineTransform* bsplineTransform,
 //----------------------------------------------------------------------------
 void SetBSplineNodeVtk(vtkOrientedBSplineTransform* bsplineTransform,int nodeIndex[3], double nodeValue[3])
 {
-#if (VTK_MAJOR_VERSION <= 5)
-  vtkImageData* bsplineCoefficients=bsplineTransform->GetCoefficients();
-#else
   vtkImageData* bsplineCoefficients=bsplineTransform->GetCoefficientData();
-#endif
 
   bsplineCoefficients->SetScalarComponentFromDouble(nodeIndex[0],nodeIndex[1],nodeIndex[2],0, nodeValue[0]);
   bsplineCoefficients->SetScalarComponentFromDouble(nodeIndex[0],nodeIndex[1],nodeIndex[2],1, nodeValue[1]);

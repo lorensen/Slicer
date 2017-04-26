@@ -211,15 +211,13 @@ public:
     vtkScalarsToColors* lut, vtkVolumeProperty* node);
 
   /// Update DisplayNode from VolumeNode,
-  /// If needed create vtkMRMLVolumePropertyNode and vtkMRMLAnnotationROINode
-  /// and initialize them from VolumeNode
-  void UpdateDisplayNodeFromVolumeNode(vtkMRMLVolumeRenderingDisplayNode *paramNode,
+  /// Can pass a VolumePropertyNode and a AnnotationROINode to be the display node.
+  /// If they are NULL and the display node does not already have any, new ones
+  /// will be created then set and observed to the display node.
+  void UpdateDisplayNodeFromVolumeNode(vtkMRMLVolumeRenderingDisplayNode *displayNode,
                                        vtkMRMLVolumeNode *volumeNode,
-                                       vtkMRMLVolumePropertyNode **propNode,
-                                       vtkMRMLAnnotationROINode **roiNode);
-  /// Utility function that calls UpdateDisplayNodeFromVolumeNode()
-  inline void UpdateDisplayNodeFromVolumeNode(vtkMRMLVolumeRenderingDisplayNode *paramNode,
-                                              vtkMRMLVolumeNode *volumeNode);
+                                       vtkMRMLVolumePropertyNode *propNode = NULL,
+                                       vtkMRMLAnnotationROINode *roiNode = NULL);
 
   /// \deprecated
   /// Create and add into the scene a vtkMRMLVolumeRenderingScenarioNode
@@ -272,6 +270,22 @@ public:
   /// module share directory
   /// \sa vtkMRMLVolumePropertyNode, GetModuleShareDirectory()
   vtkMRMLScene* GetPresetsScene();
+  
+  /// Add a preset to the preset scene.
+  /// If the optional icon image is specified then that will be used to
+  /// in preset selector widgets. The icon is stored as a volume node
+  /// in the preset scene.
+  /// \sa GetPresetsScene(), GetIconVolumeReferenceRole()
+  void AddPreset(vtkMRMLVolumePropertyNode* preset, vtkImageData* icon = NULL);
+  
+  /// Removes a preset and its associated icon (if specified) from the preset scene.
+  /// \sa GetPresetsScene(), GetIconVolumeReferenceRole()
+  void RemovePreset(vtkMRMLVolumePropertyNode* preset);
+  
+  /// This node reference role name allows linking from a preset node to a volume
+  /// node that contains an icon for the preset node.
+  /// For example, the icon is used for representing the node in qSlicerPresetComboBox.
+  static const char* GetIconVolumeReferenceRole() { return "IconVolume"; };
 
   /// Return the preset \a presetName contained in the presets scene
   /// loaded using \a GetPresetsScene().
@@ -327,15 +341,5 @@ private:
   vtkSlicerVolumeRenderingLogic(const vtkSlicerVolumeRenderingLogic&); // Not implemented
   void operator=(const vtkSlicerVolumeRenderingLogic&);               // Not implemented
 };
-
-//----------------------------------------------------------------------------
-void vtkSlicerVolumeRenderingLogic
-::UpdateDisplayNodeFromVolumeNode(vtkMRMLVolumeRenderingDisplayNode *paramNode,
-                                  vtkMRMLVolumeNode *volumeNode)
-{
-  vtkMRMLVolumePropertyNode *propNode = NULL;
-  vtkMRMLAnnotationROINode *roiNode = NULL;
-  this->UpdateDisplayNodeFromVolumeNode(paramNode, volumeNode, &propNode, &roiNode);
-}
 
 #endif

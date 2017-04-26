@@ -22,10 +22,22 @@ if(NOT DEFINED qRestAPI_DIR)
     set(git_protocol "git")
   endif()
 
+  ExternalProject_SetIfNotDefined(
+    ${CMAKE_PROJECT_NAME}_${proj}_GIT_REPOSITORY
+    "${git_protocol}://github.com/commontk/qRestAPI.git"
+    QUIET
+    )
+
+  ExternalProject_SetIfNotDefined(
+    ${CMAKE_PROJECT_NAME}_${proj}_GIT_TAG
+    "d1b07cc3e9dfd0a8a58e41546469a8f7ef5d0998"
+    QUIET
+    )
+
   ExternalProject_Add(${proj}
     ${${proj}_EP_ARGS}
-    GIT_REPOSITORY "${git_protocol}://github.com/commontk/qRestAPI.git"
-    GIT_TAG "5a81c92f91c379e1ea1198c858b6147a14f82fbe"
+    GIT_REPOSITORY "${${CMAKE_PROJECT_NAME}_${proj}_GIT_REPOSITORY}"
+    GIT_TAG "${${CMAKE_PROJECT_NAME}_${proj}_GIT_TAG}"
     SOURCE_DIR ${CMAKE_BINARY_DIR}/${proj}
     BINARY_DIR ${proj}-build
     CMAKE_CACHE_ARGS
@@ -40,6 +52,9 @@ if(NOT DEFINED qRestAPI_DIR)
     DEPENDS
       ${${proj}_DEPENDENCIES}
     )
+
+  ExternalProject_GenerateProjectDescription_Step(${proj})
+
   set(qRestAPI_DIR ${CMAKE_BINARY_DIR}/${proj}-build)
 
 else()

@@ -1,14 +1,19 @@
 import os
-from __main__ import vtk
+import vtk
 import vtkITK
-from __main__ import ctk
-from __main__ import qt
-from __main__ import slicer
-from EditOptions import EditOptions
-from EditorLib import EditorLib
+import ctk
+import qt
+import slicer
+from EditOptions import HelpButton
 import Effect
 import IslandEffect
 
+__all__ = [
+  'IdentifyIslandsEffectOptions',
+  'IdentifyIslandsEffectTool',
+  'IdentifyIslandsEffectLogic',
+  'IdentifyIslandsEffect'
+  ]
 
 #########################################################
 #
@@ -52,7 +57,7 @@ class IdentifyIslandsEffectOptions(IslandEffect.IslandEffectOptions):
 
     self.connections.append( (self.apply, 'clicked()', self.onApply) )
 
-    EditorLib.HelpButton(self.frame, "IdentifyIslands: create a unique label for islands larger than minimum size (label number is ordered by size of island)")
+    HelpButton(self.frame, "IdentifyIslands: create a unique label for islands larger than minimum size (label number is ordered by size of island)")
 
     # Add vertical spacer
     self.frame.layout().addStretch(1)
@@ -142,19 +147,13 @@ class IdentifyIslandsEffectLogic(IslandEffect.IslandEffectLogic):
     # note that island operation happens in unsigned long space
     # but the slicer editor works in Short
     castIn = vtk.vtkImageCast()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      castIn.SetInput( self.getScopedLabelInput() )
-    else:
-      castIn.SetInputData( self.getScopedLabelInput() )
+    castIn.SetInputData( self.getScopedLabelInput() )
     castIn.SetOutputScalarTypeToUnsignedLong()
 
     # now identify the islands in the inverted volume
     # and find the pixel that corresponds to the background
     islandMath = vtkITK.vtkITKIslandMath()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      islandMath.SetInput( castIn.GetOutput() )
-    else:
-      islandMath.SetInputConnection( castIn.GetOutputPort() )
+    islandMath.SetInputConnection( castIn.GetOutputPort() )
     islandMath.SetFullyConnected( fullyConnected )
     islandMath.SetMinimumSize( minimumSize )
     # TODO: $this setProgressFilter $islandMath "Calculating Islands..."
@@ -162,10 +161,7 @@ class IdentifyIslandsEffectLogic(IslandEffect.IslandEffectLogic):
     # note that island operation happens in unsigned long space
     # but the slicer editor works in Short
     castOut = vtk.vtkImageCast()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      castOut.SetInput( islandMath.GetOutput() )
-    else:
-      castOut.SetInputConnection( islandMath.GetOutputPort() )
+    castOut.SetInputConnection( islandMath.GetOutputPort() )
     castOut.SetOutputScalarTypeToShort()
     castOut.SetOutput( self.getScopedLabelOutput() )
 

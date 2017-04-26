@@ -1,26 +1,24 @@
 import os
-from __main__ import vtk, qt, ctk, slicer
-import EditorLib
-from EditorLib.EditOptions import HelpButton
-from EditorLib.EditOptions import EditOptions
-from EditorLib import EditUtil
+import vtk, qt, ctk, slicer
+from EditOptions import HelpButton
+from EditUtil import EditUtil
 import Effect
 import LabelEffect
 
 import math
 
-HAVE_SIMPLEITK=True
-try:
-  import SimpleITK as sitk
-  import sitkUtils
-except ImportError:
-  HAVE_SIMPLEITK=False
-
+__all__ = [
+  'WatershedFromMarkerEffectOptions',
+  'WatershedFromMarkerEffectTool',
+  'WatershedFromMarkerEffectLogic',
+  'WatershedFromMarkerEffectExtension',
+  'WatershedFromMarkerEffect'
+  ]
 
 #
 # The Editor Extension itself.
 #
-# This needs to define the hooks to be come an editor effect.
+# This needs to define the hooks to become an editor effect.
 #
 
 #
@@ -41,14 +39,17 @@ class WatershedFromMarkerEffectOptions(Effect.EffectOptions):
   def create(self):
     super(WatershedFromMarkerEffectOptions,self).create()
 
-    if not HAVE_SIMPLEITK:
+    try:
+      import SimpleITK as sitk
+      import sitkUtils
+    except ImportError:
       self.warningLabel = qt.QLabel()
       self.warningLabel.text = "WatershedFromMarker is not available because\nSimpleITK is not available in this build"
       self.widgets.append(self.warningLabel)
       self.frame.layout().addWidget(self.warningLabel)
       return
 
-    labelVolume = self.editUtil.getLabelVolume()
+    labelVolume = EditUtil.getLabelVolume()
     if labelVolume and labelVolume.GetImageData():
       spacing = labelVolume.GetSpacing()
       self.minimumSigma = 0.1 * min(spacing)
@@ -101,7 +102,7 @@ class WatershedFromMarkerEffectOptions(Effect.EffectOptions):
     helpDoc = \
         """Use this effect to apply the watershed from markers segmentation from multiple initial labels.
 
-The input to this filter is current labelmap image which is expected to contain multiple labels as initial markss. The marks or labels are grown to fill the image and with edges defining the bondaries between. To segment a single object, mark the object, and then it is suggested to surround the object with a negative label on each axis.
+The input to this filter is current labelmap image which is expected to contain multiple labels as initial marks. The marks or labels are grown to fill the image and with edges defining the bondaries between. To segment a single object, mark the object, and then it is suggested to surround the object with a negative label on each axis.
 
 The "Object Scale" parameter is use to adjust the smoothness of the output image and prevent leakage. It is used internally for the sigma of the gradient magnitude.
     """
@@ -127,7 +128,7 @@ The "Object Scale" parameter is use to adjust the smoothness of the output image
   # in each leaf subclass so that "self" in the observer
   # is of the correct type
   def updateParameterNode(self, caller, event):
-    node = EditUtil.EditUtil().getParameterNode()
+    node = EditUtil.getParameterNode()
     if node != self.parameterNode:
       if self.parameterNode:
         node.RemoveObserver(self.parameterNodeTag)
@@ -157,7 +158,7 @@ The "Object Scale" parameter is use to adjust the smoothness of the output image
     self.updatingGUI = False
 
   def onApply(self):
-    logic = WatershedFromMarkerEffectLogic( self.editUtil.getSliceLogic() )
+    logic = WatershedFromMarkerEffectLogic( EditUtil.getSliceLogic() )
     logic.undoRedo = self.undoRedo
 
     logic.sigma = float( self.sigmaSpinBox.value )
@@ -202,7 +203,6 @@ class WatershedFromMarkerEffectTool(LabelEffect.LabelEffectTool):
     """
     pass
 
-
 #
 # WatershedFromMarkerEffectLogic
 #
@@ -226,13 +226,10 @@ class WatershedFromMarkerEffectLogic(LabelEffect.LabelEffectLogic):
   def apply(self,xy):
     pass
 
-  try:
+  def doit(self):
+
     import SimpleITK as sitk
     import sitkUtils
-  except ImportError:
-    pass
-
-  def doit(self):
 
     labelLogic = self.sliceLogic.GetLabelLayer()
     labelNode = labelLogic.GetVolumeNode()
@@ -259,8 +256,8 @@ class WatershedFromMarkerEffectLogic(LabelEffect.LabelEffectLogic):
     del featureImage
 
     # The output of the watershed is the same as the input.
-    # But Slicer exepects labelMaps to be Int16, so convert to that
-    # type to impove compatibility, just in cast if needed.
+    # But Slicer expects labelMaps to be Int16, so convert to that
+    # type to improve compatibility, just in case if needed.
     if labelImage.GetPixelID() != sitk.sitkInt16:
       labelImage = sitk.Cast( labelImage, sitk.sitkInt16 )
 

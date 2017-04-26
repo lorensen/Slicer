@@ -4,13 +4,6 @@ project(MRMLCore)
 cmake_minimum_required(VERSION 2.8.4)
 #-----------------------------------------------------------------------------
 
-#-----------------------------------------------------------------------------
-# See http://cmake.org/cmake/help/cmake-2-8-docs.html#section_Policies for details
-#-----------------------------------------------------------------------------
-if(POLICY CMP0017)
-  cmake_policy(SET CMP0017 OLD)
-endif()
-
 # --------------------------------------------------------------------------
 # Options
 # --------------------------------------------------------------------------
@@ -72,7 +65,9 @@ endif()
 set(include_dirs
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
+  ${vtkAddon_INCLUDE_DIRS}
   ${vtkITK_INCLUDE_DIRS}
+  ${vtkSegmentationCore_INCLUDE_DIRS}
   ${FreeSurfer_INCLUDE_DIRS}
   )
 if(MRML_USE_vtkTeem)
@@ -119,7 +114,7 @@ set(MRMLCore_SRCS
   vtkMRMLColors.cxx
   vtkMRMLColorTableNode.cxx
   vtkMRMLColorTableStorageNode.cxx
-  vtkMRMLCoreTestingMacros.cxx
+  vtkMRMLCoreTestingUtilities.cxx
   vtkMRMLCrosshairNode.cxx
   vtkMRMLDiffusionTensorDisplayPropertiesNode.cxx
   vtkMRMLDiffusionWeightedVolumeDisplayNode.cxx
@@ -137,7 +132,9 @@ set(MRMLCore_SRCS
   vtkMRMLDisplayableHierarchyNode.cxx
   vtkMRMLInteractionNode.cxx
   vtkMRMLLabelMapVolumeDisplayNode.cxx
+  vtkMRMLLabelMapVolumeNode.cxx
   vtkMRMLLinearTransformNode.cxx
+  vtkMRMLMarkupsStorageNode.cxx
   vtkMRMLModelDisplayNode.cxx
   vtkMRMLModelHierarchyNode.cxx
   vtkMRMLModelNode.cxx
@@ -155,27 +152,38 @@ set(MRMLCore_SRCS
   vtkMRMLSceneViewStorageNode.cxx
   vtkMRMLScriptedModuleNode.cxx
   vtkMRMLScriptedModuleNode.h
+  vtkMRMLSegmentationNode.cxx
+  vtkMRMLSegmentationNode.h
+  vtkMRMLSegmentationDisplayNode.cxx
+  vtkMRMLSegmentationDisplayNode.h
+  vtkMRMLSegmentationStorageNode.cxx
+  vtkMRMLSegmentationStorageNode.h
   vtkMRMLSelectionNode.cxx
   vtkMRMLSliceCompositeNode.cxx
   vtkMRMLSliceNode.cxx
   vtkMRMLSnapshotClipNode.cxx
   vtkMRMLStorableNode.cxx
   vtkMRMLStorageNode.cxx
+  vtkMRMLSubjectHierarchyConstants.h
+  vtkMRMLSubjectHierarchyNode.cxx
+  vtkMRMLSubjectHierarchyNode.h
+  vtkMRMLSubjectHierarchyLegacyNode.cxx
+  vtkMRMLSubjectHierarchyLegacyNode.h
+  vtkMRMLTableNode.cxx
+  vtkMRMLTableStorageNode.cxx
+  vtkMRMLTableSQLiteStorageNode.cxx
+  vtkMRMLTableViewNode.cxx
   vtkMRMLTransformNode.cxx
   vtkMRMLTransformStorageNode.cxx
   vtkMRMLTransformDisplayNode.cxx
   vtkMRMLTransformableNode.cxx
   vtkMRMLUnitNode.cxx
-  vtkMRMLUnstructuredGridDisplayNode.cxx
-  vtkMRMLUnstructuredGridNode.cxx
-  vtkMRMLUnstructuredGridStorageNode.cxx
   vtkMRMLVectorVolumeDisplayNode.cxx
   vtkMRMLViewNode.cxx
   vtkMRMLVolumeArchetypeStorageNode.cxx
   vtkMRMLVolumeDisplayNode.cxx
   vtkMRMLGlyphableVolumeDisplayNode.cxx
   vtkMRMLGlyphableVolumeSliceDisplayNode.cxx
-  vtkMRMLGlyphableVolumeDisplayPropertiesNode.cxx
   vtkMRMLVolumeHeaderlessStorageNode.cxx
   vtkMRMLVolumeNode.cxx
   vtkObservation.cxx
@@ -196,9 +204,6 @@ set(MRMLCore_SRCS
   # Classes for 2D Plotting
   vtkMRMLDoubleArrayNode.cxx
   vtkMRMLDoubleArrayStorageNode.cxx
-  # Classes for transforms computation
-  vtkOrientedBSplineTransform.cxx
-  vtkOrientedGridTransform.cxx
   # Note: when you add new node types, add
   # register code to the vtkMRMLScene constructor
   )
@@ -215,6 +220,11 @@ if(MRML_USE_vtkTeem)
     vtkMRMLVectorVolumeNode.cxx
     )
 endif()
+
+set_source_files_properties(
+  vtkMRMLCoreTestingUtilities.cxx
+  WRAP_EXCLUDE
+  )
 
 # Abstract/pure virtual classes
 
@@ -243,24 +253,13 @@ set(srcs ${MRMLCore_SRCS} ${MRMLCore_SRCS_HEADERS})
 set(lib_name ${PROJECT_NAME})
 add_library(${lib_name} ${srcs})
 
-if(${VTK_VERSION_MAJOR} GREATER 5)
-  # Minimum set of libraries already specified using components
-else()
-  set(VTK_LIBRARIES
-    #vtkCommon # Provided by vtkITK, FreeSurfer
-    #vtkFiltering # Provided by vtkITK, FreeSurfer
-    vtkGraphics
-    vtkHybrid
-    vtkInfovis
-    #vtkIO # Provided by FreeSurfer
-    #vtkImaging # Provided by vtkITK
-    )
-endif()
-
 set(libs
+  vtkAddon
   vtkITK
+  vtkSegmentationCore
   ${ITK_LIBRARIES}
   ${VTK_LIBRARIES}
+  vtkIOInfovis
   FreeSurfer
   )
 if(MRML_USE_vtkTeem)
@@ -378,5 +377,5 @@ endif()
 # --------------------------------------------------------------------------
 # Set INCLUDE_DIRS variable
 # --------------------------------------------------------------------------
-set(${PROJECT_NAME}_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}
+set(${PROJECT_NAME}_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${vtkAddon_INCLUDE_DIRS} ${vtkSegmentationCore_INCLUDE_DIRS}
   CACHE INTERNAL "${PROJECT_NAME} include dirs" FORCE)

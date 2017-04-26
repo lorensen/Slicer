@@ -74,7 +74,7 @@ qSlicerDataModule::~qSlicerDataModule()
 //-----------------------------------------------------------------------------
 QIcon qSlicerDataModule::icon()const
 {
-  return QIcon(":/Icons/Data.png");
+  return QIcon(":/Icons/SubjectHierarchy.png");
 }
 
 //-----------------------------------------------------------------------------
@@ -171,9 +171,9 @@ QString qSlicerDataModule::acknowledgementText()const
 QStringList qSlicerDataModule::contributors()const
 {
   QStringList moduleContributors;
+  moduleContributors << QString("Csaba Pinter (Queen's)");
   moduleContributors << QString("Julien Finet (Kitware)");
   moduleContributors << QString("Alex Yarmarkovich (Isomics)");
   moduleContributors << QString("Nicole Aucoin (SPL, BWH)");
-  moduleContributors << QString("Csaba Pinter (Queen's)");
   return moduleContributors;
 }

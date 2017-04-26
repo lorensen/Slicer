@@ -16,7 +16,8 @@
 #define __vtkMRMLTransformableNode_h
 
 // MRML includes
-#include "vtkMRMLNode.h"
+#include "vtkMRMLStorableNode.h"
+#include "vtkVector.h"
 class vtkMRMLTransformNode;
 
 // VTK includes
@@ -27,10 +28,10 @@ class vtkMatrix4x4;
 ///
 /// A superclass for other nodes that can have a transform to parent node
 /// like volume, model and transformation nodes.
-class VTK_MRML_EXPORT vtkMRMLTransformableNode : public vtkMRMLNode
+class VTK_MRML_EXPORT vtkMRMLTransformableNode : public vtkMRMLStorableNode
 {
 public:
-  vtkTypeMacro(vtkMRMLTransformableNode,vtkMRMLNode);
+  vtkTypeMacro(vtkMRMLTransformableNode,vtkMRMLStorableNode);
   void PrintSelf(ostream& os, vtkIndent indent);
 
   virtual vtkMRMLNode* CreateNodeInstance() = 0;
@@ -67,31 +68,42 @@ public:
       TransformModifiedEvent = 15000
     };
 
-  /// Returns true if the transformable node can apply non linear transforms
+  /// Returns true if the transformable node can apply non-linear transforms.
+  /// A transformable node is always expected to apply linear transforms.
   /// \sa ApplyTransformMatrix, ApplyTransform
   virtual bool CanApplyNonLinearTransforms()const;
 
-  /// Concatenate a matrix to the current transform matrix.
-  /// \sa SetAndObserveTransformNodeID, ApplyTransform,
-  /// CanApplyNonLinearTransforms
+  /// Convenience function to allow transforming a node by specifying a
+  /// transformation matrix.
+  /// \sa ApplyTransformMatrix, ApplyTransform
   virtual void ApplyTransformMatrix(vtkMatrix4x4* transformMatrix);
 
-  /// Concatenate a transform to the current transform matrix.
-  /// \sa SetAndObserveTransformNodeID, ApplyMatrix,
-  /// CanApplyNonLinearTransforms
+  /// Transforms the node with the provided non-linear transform.
+  /// \sa SetAndObserveTransformNodeID, ApplyTransformMatrix, CanApplyNonLinearTransforms
   virtual void ApplyTransform(vtkAbstractTransform* transform);
 
-  /// Apply the observed transform to the input point.
+  /// Utility function to convert a point position in the node's coordinate system to world coordinate system.
   /// \sa TransformPointFromWorld, SetAndObserveTransformNodeID
-  virtual void TransformPointToWorld(const double in[4], double out[4]);
+  virtual void TransformPointToWorld(const double inLocal[3], double outWorld[3]);
 
-  /// Apply the invert of the observed transform to the input point.
+  /// Utility function to convert a point position in the node's coordinate system to world coordinate system.
   /// \sa TransformPointToWorld, SetAndObserveTransformNodeID
-  virtual void TransformPointFromWorld(const double in[4], double out[4]);
+  virtual void TransformPointToWorld(const vtkVector3d &inLocal, vtkVector3d &outWorld);
+
+  /// Utility function to convert a point position in world coordinate system to markup node's coordinate system
+  /// \sa TransformPointToWorld, SetAndObserveTransformNodeID
+  virtual void TransformPointFromWorld(const double inWorld[3], double outLocal[3]);
+
+  /// Utility function to convert a point position in world coordinate system to markup node's coordinate system
+  /// \sa TransformPointToWorld, SetAndObserveTransformNodeID
+  virtual void TransformPointFromWorld(const vtkVector3d &inWorld, vtkVector3d &outLocal);
 
   /// Get referenced transform node id
   const char *GetTransformNodeID();
 
+  /// Apply the associated transform to the transformable node. Return true
+  /// on success, false otherwise.
+  bool HardenTransform();
 
 protected:
   vtkMRMLTransformableNode();
@@ -112,7 +124,7 @@ protected:
     Superclass::OnNodeReferenceAdded(reference);
     if (std::string(reference->GetReferenceRole()) == this->TransformNodeReferenceRole)
       {
-      this->InvokeEvent(vtkMRMLTransformableNode::TransformModifiedEvent, reference->ReferencedNode);
+      this->InvokeCustomModifiedEvent(vtkMRMLTransformableNode::TransformModifiedEvent, reference->GetReferencedNode());
       }
   }
 
@@ -123,7 +135,7 @@ protected:
     Superclass::OnNodeReferenceModified(reference);
     if (std::string(reference->GetReferenceRole()) == this->TransformNodeReferenceRole)
     {
-      this->InvokeEvent(vtkMRMLTransformableNode::TransformModifiedEvent, reference->ReferencedNode);
+      this->InvokeCustomModifiedEvent(vtkMRMLTransformableNode::TransformModifiedEvent, reference->GetReferencedNode());
     }
   }
 
@@ -134,7 +146,7 @@ protected:
     Superclass::OnNodeReferenceRemoved(reference);
     if (std::string(reference->GetReferenceRole()) == this->TransformNodeReferenceRole)
     {
-      this->InvokeEvent(vtkMRMLTransformableNode::TransformModifiedEvent, reference->ReferencedNode);
+      this->InvokeCustomModifiedEvent(vtkMRMLTransformableNode::TransformModifiedEvent, reference->GetReferencedNode());
     }
   }
 

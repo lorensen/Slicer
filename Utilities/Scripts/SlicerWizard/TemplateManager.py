@@ -82,7 +82,7 @@ class TemplateManager(object):
 
     # Read file contents
     p = os.path.join(template, inFile)
-    with open(p) as fp:
+    with open(p, "rb") as fp:
       contents = fp.read()
 
     # Replace template key with copy name
@@ -111,11 +111,11 @@ class TemplateManager(object):
         pass
 
     # Write adjusted contents
-    with open(outFile, "w") as fp:
+    with open(outFile, "wb") as fp:
       fp.write(contents)
 
   #---------------------------------------------------------------------------
-  def copyTemplate(self, destination, category, kind, name):
+  def copyTemplate(self, destination, category, kind, name, createInSubdirectory=True, requireEmptyDirectory=True):
     """Copy (instantiate) a template.
 
     :param destination: Directory in which to create the template copy.
@@ -126,6 +126,10 @@ class TemplateManager(object):
     :type kind: :class:`basestring`
     :param name: Name for the instantiated template.
     :type name: :class:`basestring`
+    :param createInSubdirectory: If True then files are copied to ``destination/name/``, else ``destination/``.
+    :type name: :class:`bool`
+    :param requireEmptyDirectory: If True then files are only copied if the target directory is empty.
+    :type name: :class:`bool`
 
     :return:
       Path to the new instance (``os.path.join(destination, name)``).
@@ -153,8 +157,10 @@ class TemplateManager(object):
 
     kind = kind.lower()
 
-    destination = os.path.join(destination, name)
-    if os.path.exists(destination):
+    if createInSubdirectory:
+      destination = os.path.join(destination, name)
+
+    if requireEmptyDirectory and os.path.exists(destination):
       raise IOError("create %s: refusing to overwrite"
                     " existing directory '%s'" % (category, destination))
 
@@ -388,4 +394,4 @@ class TemplateManager(object):
         if len(tkParts) != 2:
           die("template key '%s' malformatted: expected 'NAME=KEY'" % tk)
 
-        self.setKey(tkParts[0], tkParts[1])
+        self.setKey(tkParts[0].lower(), tkParts[1])

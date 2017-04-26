@@ -17,24 +17,31 @@
 
 // MRML includes
 #include "vtkMRMLCoreTestingMacros.h"
+#include "vtkMRMLInteractionNode.h"
 #include "vtkMRMLMarkupsNode.h"
 #include "vtkMRMLSelectionNode.h"
 #include "vtkMRMLScene.h"
+#include "vtkMRMLSelectionNode.h"
 #include "vtkMRMLSliceCompositeNode.h"
 #include "vtkMRMLMarkupsDisplayNode.h"
 #include "vtkSlicerMarkupsLogic.h"
 // VTK includes
 #include <vtkNew.h>
-
+#include <vtkTestingOutputWindow.h>
 
 int vtkSlicerMarkupsLogicTest1(int , char * [] )
 {
   vtkSmartPointer<vtkMRMLScene> scene = vtkSmartPointer<vtkMRMLScene>::New();
+/*vtkNew<vtkMRMLInteractionNode> interactionNode;
+  scene->AddNode(interactionNode.GetPointer());*/
+
   vtkNew<vtkSlicerMarkupsLogic> logic1;
 
   // test without a scene
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   std::string id = logic1->AddNewFiducialNode();
-  if (id.compare("") != 0)
+  TESTING_OUTPUT_ASSERT_ERRORS_END();
+  if (!id.empty())
     {
     std::cerr << "Failure to add a new markup node to empty scene, got id of '" << id.c_str() << "'" << std::endl;
     return EXIT_FAILURE;
@@ -44,7 +51,9 @@ int vtkSlicerMarkupsLogicTest1(int , char * [] )
     std::cout << "Passed adding a node to no scene." << std::endl;
     }
 
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   int fidIndex = logic1->AddFiducial();
+  TESTING_OUTPUT_ASSERT_ERRORS_END();
   if (fidIndex != -1)
     {
     std::cerr << "Failure to add a new fiducial point to empty scene, got fidIndex of '" << fidIndex << "'" << std::endl;
@@ -55,7 +64,9 @@ int vtkSlicerMarkupsLogicTest1(int , char * [] )
     std::cout << "Passed adding a fiducial point to no scene." << std::endl;
     }
 
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   int sliceIntersectionVisibility = logic1->GetSliceIntersectionsVisibility();
+  TESTING_OUTPUT_ASSERT_ERRORS_END();
   if (sliceIntersectionVisibility != -1)
     {
     std::cerr << "Failed to get no scene slice intersections visibility of -1, got "
@@ -65,11 +76,16 @@ int vtkSlicerMarkupsLogicTest1(int , char * [] )
   logic1->SetSliceIntersectionsVisibility(true);
 
   // test with a scene
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   logic1->SetMRMLScene(scene);
+  TESTING_OUTPUT_ASSERT_ERRORS(1); // one error is expected to be reported due to lack of selection node
+  TESTING_OUTPUT_ASSERT_ERRORS_END();
 
   const char *testName = "Test node 2";
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   id = logic1->AddNewFiducialNode(testName);
-  if (id.compare("") == 0)
+  TESTING_OUTPUT_ASSERT_ERRORS_END(); // error is expected to be reported due to lack of selection node
+  if (id.empty())
     {
     std::cerr << "Failure to add a new node to a valid scene, got id of '" << id.c_str() << "'" << std::endl;
     return EXIT_FAILURE;
@@ -184,7 +200,9 @@ int vtkSlicerMarkupsLogicTest1(int , char * [] )
     }
 
   // test without a selection node
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   fidIndex = logic1->AddFiducial(5.0, 6.0, -7.0);
+  TESTING_OUTPUT_ASSERT_ERRORS_END(); // error is expected to be reported due to lack of selection node
   if (fidIndex != -1)
     {
     std::cerr << "Failed on adding a fiducial to the scene with no selection node, expected index of -1, but got: "
@@ -192,14 +210,16 @@ int vtkSlicerMarkupsLogicTest1(int , char * [] )
       return EXIT_FAILURE;
     }
 
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   if (logic1->StartPlaceMode(0))
     {
     std::cerr << "Failed to fail starting place mode!" << std::endl;
     return EXIT_FAILURE;
     }
+  TESTING_OUTPUT_ASSERT_ERRORS_END(); // error is expected to be reported due to lack of selection node
 
   // add a selection node
-  vtkMRMLApplicationLogic* applicationLogic = vtkMRMLApplicationLogic::New();
+  vtkNew<vtkMRMLApplicationLogic> applicationLogic;
   applicationLogic->SetMRMLScene(scene);
 
   if (!logic1->StartPlaceMode(1))
@@ -222,7 +242,7 @@ int vtkSlicerMarkupsLogicTest1(int , char * [] )
     }
 
   // adding with app logic
-  logic1->SetMRMLApplicationLogic(applicationLogic);
+  logic1->SetMRMLApplicationLogic(applicationLogic.GetPointer());
   fidIndex = logic1->AddFiducial(-11, 10.0, 50.0);
   if (fidIndex == -1)
     {
@@ -245,7 +265,6 @@ int vtkSlicerMarkupsLogicTest1(int , char * [] )
   if (!activeMarkupsNode)
     {
     std::cerr << "Failed to get active markups list from id " << activeListID.c_str() << std::endl;
-    applicationLogic->Delete();
     return EXIT_FAILURE;
     }
 
@@ -264,7 +283,6 @@ int vtkSlicerMarkupsLogicTest1(int , char * [] )
     {
     std::cerr << "After rename, expected " << expectedLabel.c_str()
               << ", but got " << newLabel.c_str() << std::endl;
-    applicationLogic->Delete();
     return EXIT_FAILURE;
     }
   std::cout << "After renaming:" << std::endl;
@@ -323,9 +341,6 @@ int vtkSlicerMarkupsLogicTest1(int , char * [] )
               << sliceIntersectionVisibility << std::endl;
     return EXIT_FAILURE;
     }
-
-  // cleanup
-  applicationLogic->Delete();
 
   return EXIT_SUCCESS;
 }

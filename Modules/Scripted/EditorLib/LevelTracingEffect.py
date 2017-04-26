@@ -1,13 +1,18 @@
 import os
-from __main__ import vtk
+import vtk
 import vtkITK
-from __main__ import ctk
-from __main__ import qt
-from __main__ import slicer
-from EditOptions import EditOptions
-from EditorLib import EditorLib
+import ctk
+import qt
+import slicer
+from EditOptions import HelpButton
 import LabelEffect
 
+__all__ = [
+  'LevelTracingEffectOptions',
+  'LevelTracingEffectTool',
+  'LevelTracingEffectLogic',
+  'LevelTracingEffect'
+  ]
 
 #########################################################
 #
@@ -40,7 +45,7 @@ class LevelTracingEffectOptions(LabelEffect.LabelEffectOptions):
   def create(self):
     super(LevelTracingEffectOptions,self).create()
 
-    EditorLib.HelpButton(self.frame, "Use this tool to track around similar intensity levels.\n\nAs you move the mouse, the current background voxel is used to find a closed path that follows the same intensity value back to the starting point within the current slice.  Pressing the left mouse button fills the the path according to the current labeling rules.")
+    HelpButton(self.frame, "Use this tool to track around similar intensity levels.\n\nAs you move the mouse, the current background voxel is used to find a closed path that follows the same intensity value back to the starting point within the current slice.  Pressing the left mouse button fills the the path according to the current labeling rules.")
 
     # Add vertical spacer
     self.frame.layout().addStretch(1)
@@ -113,10 +118,7 @@ class LevelTracingEffectTool(LabelEffect.LabelEffectTool):
     property_ = self.actor.GetProperty()
     property_.SetColor( 107/255., 190/255., 99/255. )
     property_.SetLineWidth( 1 )
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      self.mapper.SetInput(self.polyData)
-    else:
-      self.mapper.SetInputData(self.polyData)
+    self.mapper.SetInputData(self.polyData)
     self.actor.SetMapper(self.mapper)
     property_ = self.actor.GetProperty()
     property_.SetColor(1,1,0)
@@ -168,10 +170,7 @@ class LevelTracingEffectTool(LabelEffect.LabelEffectTool):
       # so only accept the point if it is inside the image and is at least one pixel away from the edge
       if ijk[index] < 1 or ijk[index] >= dimensions[index]-1:
         return
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      self.tracingFilter.SetInput( self.editUtil.getBackgroundImage() )
-    else:
-      self.tracingFilter.SetInputData( self.editUtil.getBackgroundImage() )
+    self.tracingFilter.SetInputData( self.editUtil.getBackgroundImage() )
     self.tracingFilter.SetSeed( ijk )
 
     # select the plane corresponding to current slice orientation

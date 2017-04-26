@@ -23,6 +23,7 @@
 
 // MRML includes
 #include "vtkMRMLCoreTestingMacros.h"
+#include "vtkMRMLScene.h"
 
 // VTK includes
 #include <vtkAssignAttribute.h>
@@ -38,11 +39,38 @@
 namespace
 {
 bool testDTIPipeline();
-};
+}
 
 //----------------------------------------------------------------------------
 int vtkMRMLSliceLayerLogicTest(int , char * [] )
 {
+  // Test setting volume node and then scene
+  {
+    vtkNew<vtkMRMLSliceLayerLogic> logic;
+
+    EXERCISE_BASIC_OBJECT_METHODS(logic.GetPointer());
+
+    TEST_GET_OBJECT(logic, Reslice);
+    TEST_GET_OBJECT(logic, ResliceUVW);
+
+    vtkNew<vtkMRMLScalarVolumeNode> VolumeNode;
+    TEST_SET_GET_VALUE(logic, VolumeNode, VolumeNode.GetPointer());
+
+    vtkNew<vtkMRMLScene> MRMLScene;
+    TEST_SET_GET_VALUE(logic, MRMLScene, MRMLScene.GetPointer());
+  }
+
+  // Test setting scene and then the volume
+  {
+    vtkNew<vtkMRMLSliceLayerLogic> logic;
+
+    vtkNew<vtkMRMLScene> MRMLScene;
+    TEST_SET_GET_VALUE(logic, MRMLScene, MRMLScene.GetPointer());
+
+    vtkNew<vtkMRMLScalarVolumeNode> VolumeNode;
+    TEST_SET_GET_VALUE(logic, VolumeNode, VolumeNode.GetPointer());
+  }
+
   bool res = true;
   res = res && testDTIPipeline();
   return res ? EXIT_SUCCESS : EXIT_FAILURE;
@@ -69,13 +97,9 @@ bool testDTIPipeline()
   vtkNew<vtkTrivialProducer> tp;
   tp->SetOutput(imageData.GetPointer());
   // \fixme Set scalar type to Float should not be needed VTK#14692
-#if VTK_MAJOR_VERSION <= 5
-  imageData->SetScalarType(VTK_FLOAT);
-#else
   tp->UpdateInformation();
   vtkDataObject::SetPointDataActiveScalarInfo(
     tp->GetOutputInformation(0), VTK_FLOAT, 9);
-#endif
 
   vtkNew<vtkAssignAttribute> tensorsToScalars;
   tensorsToScalars->Assign(vtkDataSetAttributes::TENSORS,
@@ -112,4 +136,4 @@ bool testDTIPipeline()
   return true;
 }
 
-};
+}

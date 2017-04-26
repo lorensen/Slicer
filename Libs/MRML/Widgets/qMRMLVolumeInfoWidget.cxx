@@ -29,7 +29,6 @@
 #include "ui_qMRMLVolumeInfoWidget.h"
 
 // MRML includes
-#include <vtkMRMLLabelMapVolumeDisplayNode.h>
 #include <vtkMRMLScene.h>
 #include <vtkMRMLScalarVolumeNode.h>
 #include <vtkMRMLScalarVolumeDisplayNode.h>
@@ -57,14 +56,13 @@ public:
   void init();
   bool centeredOrigin(double* origin)const;
 
-  vtkMRMLVolumeNode* VolumeNode;
+  vtkWeakPointer<vtkMRMLVolumeNode> VolumeNode;
 };
 
 //------------------------------------------------------------------------------
 qMRMLVolumeInfoWidgetPrivate::qMRMLVolumeInfoWidgetPrivate(qMRMLVolumeInfoWidget& object)
   : q_ptr(&object)
 {
-  this->VolumeNode = 0;
 }
 
 //------------------------------------------------------------------------------
@@ -93,6 +91,7 @@ void qMRMLVolumeInfoWidgetPrivate::init()
                    q, SLOT(setImageOrigin(double*)));
   QObject::connect(this->CenterVolumePushButton, SIGNAL(clicked()),
                    q, SLOT(center()));
+
   // setScanOrder is dangerous, it can loose orientation information because
   // ComputeScanOrderFromIJKToRAS is not the exact opposite of
   // ComputeIJKToRASFromScanOrder
@@ -106,12 +105,9 @@ void qMRMLVolumeInfoWidgetPrivate::init()
                    q, SLOT(setNumberOfScalars(int)));
   QObject::connect(this->ScalarTypeComboBox, SIGNAL(currentIndexChanged(int)),
                    q, SLOT(setScalarType(int)));
-  // Filename is read-only
-  QObject::connect(this->LabelMapCheckBox, SIGNAL(toggled(bool)),
-                   q, SLOT(setLabelMap(bool)));
+
   // Window level presets are read-only
   q->setDataTypeEditable(false);
-  q->setLabelMapEditable(true);
   q->setEnabled(this->VolumeNode != 0);
 }
 
@@ -205,20 +201,6 @@ bool qMRMLVolumeInfoWidget::isDataTypeEditable()const
 }
 
 //------------------------------------------------------------------------------
-void qMRMLVolumeInfoWidget::setLabelMapEditable(bool enable)
-{
-  Q_D(qMRMLVolumeInfoWidget);
-  d->LabelMapCheckBox->setEnabled(enable);
-}
-
-//------------------------------------------------------------------------------
-bool qMRMLVolumeInfoWidget::isLabelMapEditable()const
-{
-  Q_D(const qMRMLVolumeInfoWidget);
-  return d->LabelMapCheckBox->isEnabledTo(const_cast<qMRMLVolumeInfoWidget*>(this));
-}
-
-//------------------------------------------------------------------------------
 void qMRMLVolumeInfoWidget::updateWidgetFromMRML()
 {
   Q_D(qMRMLVolumeInfoWidget);
@@ -247,7 +229,7 @@ void qMRMLVolumeInfoWidget::updateWidgetFromMRML()
 
     d->FileNameLineEdit->setText("");
 
-    d->LabelMapCheckBox->setChecked(false);
+    d->VolumeTagLabel->setText("");
 
     d->WindowLevelPresetsListWidget->clear();
 
@@ -315,10 +297,24 @@ void qMRMLVolumeInfoWidget::updateWidgetFromMRML()
   vtkMRMLStorageNode* storageNode = d->VolumeNode->GetStorageNode();
   d->FileNameLineEdit->setText(storageNode ? storageNode->GetFileName() : "");
 
-  d->LabelMapCheckBox->setEnabled(d->VolumeNode->IsA("vtkMRMLScalarVolumeNode")
-                               && !d->VolumeNode->IsA("vtkMRMLTensorVolumeNode") );
   vtkMRMLScalarVolumeNode *scalarNode = vtkMRMLScalarVolumeNode::SafeDownCast( d->VolumeNode );
-  d->LabelMapCheckBox->setChecked(scalarNode ? scalarNode->GetLabelMap() : false);
+
+  // Remove "Volume" postfix from node tag name to get only the volume type
+  QString volumeType(d->VolumeNode->GetNodeTagName());
+  if (volumeType.endsWith("Volume"))
+    {
+    volumeType.chop(6);
+    // Workaround for not having the "Scalar" tag in scalar volumes
+    if (volumeType.isEmpty())
+      {
+      volumeType = QString("Scalar");
+      }
+    }
+  else
+    {
+    qWarning() << __FUNCTION__ << "Invalid volume node tag '" << volumeType << "'!";
+    }
+  d->VolumeTagLabel->setText(volumeType);
 
   vtkMRMLScalarVolumeDisplayNode *displayNode =
     scalarNode ? scalarNode->GetScalarVolumeDisplayNode() : 0;
@@ -382,10 +378,7 @@ void qMRMLVolumeInfoWidget::center()
     {
     return;
     }
-  //volumeNode->SetDisableModifiedEvent(1);
   d->VolumeNode->SetOrigin(origin);
-  //volumeNode->SetDisableModifiedEvent(0);
-  //volumeNode->InvokePendingModifiedEvent();
 }
 
 //------------------------------------------------------------------------------
@@ -424,15 +417,11 @@ void qMRMLVolumeInfoWidget::setNumberOfScalars(int number)
     {
     return;
     }
-#if (VTK_MAJOR_VERSION <= 5)
-  imageData->SetNumberOfScalarComponents(number);
-#else
   vtkNew<vtkTrivialProducer> tp;
   tp->SetOutput(imageData);
   vtkInformation* outInfo = tp->GetOutputInformation(0);
   vtkDataObject::SetPointDataActiveScalarInfo(outInfo,
       vtkImageData::GetScalarType(outInfo), number);
-#endif
 }
 
 //------------------------------------------------------------------------------
@@ -445,54 +434,9 @@ void qMRMLVolumeInfoWidget::setScalarType(int index)
     return;
     }
   int type = d->ScalarTypeComboBox->itemData(index).toInt();
-#if (VTK_MAJOR_VERSION <= 5)
-  imageData->SetScalarType(type);
-#else
   vtkNew<vtkTrivialProducer> tp;
   tp->SetOutput(imageData);
   vtkInformation* outInfo = tp->GetOutputInformation(0);
   vtkDataObject::SetPointDataActiveScalarInfo(outInfo, type,
     vtkImageData::GetNumberOfScalarComponents(outInfo));
-#endif
 }
-
-//------------------------------------------------------------------------------
-void qMRMLVolumeInfoWidget::setLabelMap(bool labelMap)
-{
-  Q_D(qMRMLVolumeInfoWidget);
-  vtkMRMLScalarVolumeNode *scalarNode =
-    vtkMRMLScalarVolumeNode::SafeDownCast(d->VolumeNode);
-  if (scalarNode == 0 ||
-      scalarNode->IsA("vtkMRMLTensorVolumeNode") ||
-      static_cast<bool>(scalarNode->GetLabelMap()) == labelMap)
-    {
-    return;
-    }
-
-  vtkWeakPointer<vtkMRMLDisplayNode> oldDisplayNode = scalarNode->GetDisplayNode();
-
-  vtkMRMLVolumeDisplayNode* displayNode = 0;
-  if (labelMap)
-    {
-    displayNode = vtkMRMLLabelMapVolumeDisplayNode::New();
-    }
-  else
-    {
-    displayNode = vtkMRMLScalarVolumeDisplayNode::New();
-    }
-  displayNode->SetAndObserveColorNodeID (
-    labelMap ? "vtkMRMLColorTableNodeLabels" : "vtkMRMLColorTableNodeGrey");
-  scalarNode->GetScene()->AddNode(displayNode);
-  scalarNode->SetLabelMap( labelMap );
-  scalarNode->SetAndObserveDisplayNodeID( displayNode->GetID() );
-  displayNode->Delete();
-
-  // We need to remove it after the new display node is set otherwise the
-  // slice layer logic would create one between the scene removal and the set.
-  if (oldDisplayNode.GetPointer())
-    {
-    scalarNode->GetScene()->RemoveNode(oldDisplayNode);
-    }
-}
-
-

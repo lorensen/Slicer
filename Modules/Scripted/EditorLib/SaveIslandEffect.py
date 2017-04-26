@@ -1,14 +1,19 @@
 import os
-from __main__ import vtk
+import vtk
 import vtkITK
-from __main__ import ctk
-from __main__ import qt
-from __main__ import slicer
-from EditOptions import EditOptions
-from EditorLib import EditorLib
+import ctk
+import qt
+import slicer
+from EditOptions import HelpButton
 import Effect
 import IslandEffect
 
+__all__ = [
+  'SaveIslandEffectOptions',
+  'SaveIslandEffectTool',
+  'SaveIslandEffectLogic',
+  'SaveIslandEffect'
+  ]
 
 #########################################################
 #
@@ -50,7 +55,7 @@ class SaveIslandEffectOptions(IslandEffect.IslandEffectOptions):
     self.helpLabel = qt.QLabel("Click on segmented region to remove all\nsegmentation not directly connected to it.", self.frame)
     self.frame.layout().addWidget(self.helpLabel)
 
-    EditorLib.HelpButton(self.frame, "Save the connected region (island) where you click.")
+    HelpButton(self.frame, "Save the connected region (island) where you click.")
 
     # Add vertical spacer
     self.frame.layout().addStretch(1)
@@ -143,10 +148,7 @@ class SaveIslandEffectLogic(IslandEffect.IslandEffectLogic):
 
     connectivity = slicer.vtkImageConnectivity()
     connectivity.SetFunctionToSaveIsland()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      connectivity.SetInput( self.getScopedLabelInput() )
-    else:
-      connectivity.SetInputData( self.getScopedLabelInput() )
+    connectivity.SetInputData( self.getScopedLabelInput() )
     connectivity.SetOutput( self.getScopedLabelOutput() )
     connectivity.SetSeed( ijk )
     # TODO: $this setProgressFilter $connectivity "Save Island"

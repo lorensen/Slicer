@@ -21,8 +21,7 @@ int vtkMRMLAnnotationAngleNodeTest1(int , char * [] )
 
     vtkSmartPointer< vtkMRMLAnnotationAngleNode > node1 = vtkSmartPointer< vtkMRMLAnnotationAngleNode >::New();
     // node1->Initialize(mrmlScene);
-
-    EXERCISE_BASIC_OBJECT_METHODS( node1 );
+    EXERCISE_ALL_BASIC_MRML_METHODS(node1);
 
     node1->UpdateReferences();
     node2->Copy( node1 );
@@ -44,7 +43,7 @@ int vtkMRMLAnnotationAngleNodeTest1(int , char * [] )
   // ======================
   // Modify Properties
   // ======================
-  node2->Reset();
+  node2->Reset(NULL);
   node2->StartModify();
   // node2->Initialize(mrmlScene);
 

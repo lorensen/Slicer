@@ -1,4 +1,4 @@
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 
 #
 # PerformanceTests
@@ -40,6 +40,7 @@ class PerformanceTestsWidget:
     tests = (
         ( 'Get Sample Data', self.downloadMRHead ),
         ( 'Reslicing', self.reslicing ),
+        ( 'Crosshair Jump', self.crosshairJump ),
         ( 'Chart Test', self.chartTest ),
         ( 'Web View Test', self.webViewTest ),
         ( 'Fill Out Web Form Test', self.webViewFormTest ),
@@ -62,24 +63,12 @@ class PerformanceTestsWidget:
     self.layout.addStretch(1)
 
   def downloadMRHead(self):
-    self.downloadVolume('http://www.slicer.org/slicerWiki/images/4/43/MR-head.nrrd', 'MRHead')
-
-  def downloadVolume(self, uri, name):
-    self.log.insertHtml('<b>Requesting download</b> <i>%s</i> from %s...\n' % (name,uri))
+    import SampleData
+    sampleDataLogic = SampleData.SampleDataLogic()
+    self.log.insertHtml('<b>Requesting downloading MRHead')
     self.log.repaint()
-    slicer.app.processEvents(qt.QEventLoop.ExcludeUserInputEvents)
-    vl = slicer.modules.volumes.logic()
-    volumeNode = vl.AddArchetypeVolume(uri, name, 0)
-    if volumeNode:
-      storageNode = volumeNode.GetStorageNode()
-      # Automatically select the volume to display
-      self.log.insertHtml('<i>Displaying...</i>')
-      self.log.insertPlainText('\n')
-      self.log.repaint()
-      mrmlLogic = slicer.app.mrmlApplicationLogic()
-      selNode = mrmlLogic.GetSelectionNode()
-      selNode.SetReferenceActiveVolumeID(volumeNode.GetID())
-      mrmlLogic.PropagateVolumeSelection(1)
+    mrHeadVolume = sampleDataLogic.downloadMRHead()
+    if mrHeadVolume:
       self.log.insertHtml('<i>finished.</i>\n')
       self.log.insertPlainText('\n')
       self.log.repaint()
@@ -106,7 +95,7 @@ class PerformanceTestsWidget:
     self.log.ensureCursorVisible()
     self.log.repaint()
 
-  def reslicing(self, iters=10):
+  def reslicing(self, iters=50):
     """ go into a loop that stresses the reslice performance
     """
     import time
@@ -131,6 +120,38 @@ class PerformanceTestsWidget:
     self.log.ensureCursorVisible()
     self.log.repaint()
 
+  def crosshairJump(self, iters=15):
+    """ go into a loop that stresses jumping to slices by moving crosshair
+    """
+    import time
+    sliceNode = slicer.util.getNode('vtkMRMLSliceNodeRed')
+    dims = sliceNode.GetDimensions()
+    layoutManager = slicer.app.layoutManager()
+    sliceViewNames = layoutManager.sliceViewNames()
+    # Order of slice view names is random, prefer 'Red' slice to make results more predictable
+    firstSliceViewName = 'Red' if 'Red' in sliceViewNames else sliceViewNames[0]
+    firstSliceWidget = layoutManager.sliceWidget(firstSliceViewName)
+    elapsedTime = 0
+    startPoint = (int(dims[0]*0.3), int(dims[1]*0.3))
+    endPoint = (int(dims[0]*0.6), int(dims[1]*0.6))
+    for i in xrange(iters):
+      startTime = time.time()
+      slicer.util.clickAndDrag(firstSliceWidget, button = None, modifiers = ['Shift'], start=startPoint, end=endPoint, steps=2)
+      slicer.app.processEvents()
+      endTime1 = time.time()
+      slicer.util.clickAndDrag(firstSliceWidget, button = None, modifiers = ['Shift'], start=endPoint, end=startPoint, steps=2)
+      slicer.app.processEvents()
+      endTime2 = time.time()
+      delta = ((endTime1-startTime) + (endTime2 - endTime1)) / 2.
+      elapsedTime += delta
+    fps = iters / elapsedTime
+    result = "number of slice views = %d, fps = %g (%g ms per frame)" % (len(sliceViewNames), fps, 1000./fps)
+    print (result)
+    self.log.insertHtml('<i>%s</i>' % result)
+    self.log.insertPlainText('\n')
+    self.log.ensureCursorVisible()
+    self.log.repaint()
+
   def chartMouseOverCallback(self, mrmlID, pointIndex, x, y):
     node = slicer.util.getNode(mrmlID)
     name = node.GetName()
@@ -140,14 +161,11 @@ class PerformanceTestsWidget:
   def chartCallback(self, mrmlID, pointIndex, x, y):
     node = slicer.util.getNode(mrmlID)
     name = node.GetName()
-    qt.QMessageBox.information(
-        slicer.util.mainWindow(), "Chart Callback",
-        """Clicked at point {x}, {y}
-on node {name} (id {mrmlID})
-with point index of {pointIndex}
-        """.format(x=x,y=y,name=name,mrmlID=mrmlID,pointIndex=pointIndex))
-
-
+    slicer.util.infoDisplay("""Clicked at point {x}, {y}
+                               on node {name} (id {mrmlID})
+                               with point index of {pointIndex}
+                            """.format(x=x,y=y,name=name,mrmlID=mrmlID,pointIndex=pointIndex),
+                            windowTitle="Chart Callback")
 
   def chartTest(self):
     import math,random

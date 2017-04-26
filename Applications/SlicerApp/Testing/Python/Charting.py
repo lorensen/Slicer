@@ -4,7 +4,7 @@ import math
 import datetime
 import time
 import random
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 
 #
 # Charting
@@ -131,7 +131,7 @@ class ChartingLogic:
     if not volumeNode:
       print('no volume node')
       return False
-    if volumeNode.GetImageData() == None:
+    if volumeNode.GetImageData() is None:
       print('no image data')
       return False
     return True
@@ -195,7 +195,7 @@ class ChartingTest(unittest.TestCase):
 
     #volumeNode = slicer.util.getNode(pattern="FA")
     #logic = ChartingLogic()
-    #self.assertTrue( logic.hasImageData(volumeNode) )
+    #self.assertIsNotNone( logic.hasImageData(volumeNode) )
 
     # Change the layout to one that has a chart.  This created the ChartView
     ln = slicer.util.getNode(pattern='vtkMRMLLayoutNode*')

@@ -17,7 +17,8 @@ list(APPEND ITK_INCLUDE_DIRS
 include(${ITK_USE_FILE})
 
 #-----------------------------------------------------------------------------
-set(INPUT "${MRMLCore_SOURCE_DIR}/Testing/TestData/")
+set(MRML_CORE_INPUT "${MRMLCore_SOURCE_DIR}/Testing/TestData/")
+set(INPUT ${CMAKE_CURRENT_SOURCE_DIR}/../Data/Input)
 
 #-----------------------------------------------------------------------------
 set(KIT_TEST_SRCS
@@ -43,14 +44,15 @@ slicerMacroConfigureModuleCxxTestDriver(
   SOURCES ${KIT_TEST_SRCS}
   TARGET_LIBRARIES vtkSlicerVolumesModuleLogic
   WITH_VTK_DEBUG_LEAKS_CHECK
+  WITH_VTK_ERROR_OUTPUT_CHECK
   )
 
 #-----------------------------------------------------------------------------
 simple_test(qMRMLVolumePropertyNodeWidgetTest1)
 simple_test(qSlicerPresetComboBoxTest)
 simple_test(qSlicer${MODULE_NAME}ModuleWidgetTest1)
-simple_test(qSlicer${MODULE_NAME}ModuleWidgetTest2 ${INPUT}/fixed.nrrd)
-simple_test(vtkMRMLVolumePropertyNodeTest1)
+simple_test(qSlicer${MODULE_NAME}ModuleWidgetTest2 ${MRML_CORE_INPUT}/fixed.nrrd)
+simple_test(vtkMRMLVolumePropertyNodeTest1 ${INPUT}/volRender.mrml)
 simple_test(vtkMRMLVolumePropertyStorageNodeTest1)
 simple_test(vtkMRMLVolumeRenderingDisplayableManagerTest1)
 simple_test(vtkMRMLVolumeRenderingMultiVolumeTest)

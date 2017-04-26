@@ -1,13 +1,18 @@
 import os
-from __main__ import vtk
-from __main__ import ctk
-from __main__ import qt
-from __main__ import slicer
-from EditOptions import EditOptions
-from EditorLib import EditorLib
+import vtk
+import ctk
+import qt
+import slicer
+from EditOptions import HelpButton
 import Effect
 import MorphologyEffect
 
+__all__ = [
+  'DilateEffectOptions',
+  'DilateEffectTool',
+  'DilateEffectLogic',
+  'DilateEffect'
+  ]
 
 #########################################################
 #
@@ -44,7 +49,7 @@ class DilateEffectOptions(MorphologyEffect.MorphologyEffectOptions):
     self.frame.layout().addWidget(self.apply)
     self.widgets.append(self.apply)
 
-    EditorLib.HelpButton(self.frame, "Use this tool to remove pixels from the boundary of the current label.")
+    HelpButton(self.frame, "Use this tool to remove pixels from the boundary of the current label.")
 
     self.connections.append( (self.apply, 'clicked()', self.onApply) )
 
@@ -131,10 +136,7 @@ class DilateEffectLogic(MorphologyEffect.MorphologyEffectLogic):
   def erode(self,fill,neighborMode,iterations):
 
     eroder = slicer.vtkImageErode()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      eroder.SetInput( self.getScopedLabelInput() )
-    else:
-      eroder.SetInputData( self.getScopedLabelInput() )
+    eroder.SetInputData( self.getScopedLabelInput() )
     eroder.SetOutput( self.getScopedLabelOutput() )
 
     eroder.SetForeground( fill )

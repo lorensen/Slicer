@@ -19,6 +19,7 @@
 
 #include "vtkMRML.h"
 #include "vtkMRMLModelDisplayNode.h"
+#include "vtkPolyData.h"
 
 class vtkTransform;
 class vtkTransformPolyDataFilter;
@@ -85,13 +86,13 @@ class VTK_MRML_EXPORT vtkMRMLGlyphableVolumeSliceDisplayNode : public vtkMRMLMod
   /// The output is connected as the input of the slice transform.
   /// It must be reimplemented in subclasses.
   /// \sa GetOutputPolyData(), GetSliceOutputPort()
-  virtual vtkAlgorithmOutput* GetOutputPolyDataConnection();
+  virtual vtkAlgorithmOutput* GetOutputMeshConnection();
 
   /// Return the glyph polydata for the input slice image.
   /// This is the polydata to use in a 3D view.
   /// Reimplemented to by-pass the check on the input polydata.
   /// \sa GetSliceOutputPolyData(), GetOutputPolyDataConnection()
-  virtual vtkPolyData* GetOutputPolyData();
+  virtual vtkPolyData* GetOutputMesh();
 
   /// Return the glyph polyData transfomed to slice XY.
   /// This is the polydata to use in a 2D slice.
@@ -100,19 +101,14 @@ class VTK_MRML_EXPORT vtkMRMLGlyphableVolumeSliceDisplayNode : public vtkMRMLMod
 
   ///
   /// Update the pipeline based on this node attributes
-  virtual void UpdatePolyDataPipeline();
+  virtual void UpdateAssignedAttribute();
 
   ///
   /// Set imageData of a volume slice. This is used as the input of the display
   /// pipeline instead of SetInputPolyData().
   /// \sa GetOutputPolyData(), SetInputPolyData()
-#if (VTK_MAJOR_VERSION <= 5)
-  virtual void SetSliceImage(vtkImageData *image);
-  vtkGetObjectMacro(SliceImage, vtkImageData);
-#else
   virtual void SetSliceImagePort(vtkAlgorithmOutput *imagePort);
   vtkGetObjectMacro(SliceImagePort, vtkAlgorithmOutput);
-#endif
   /// Return the glyph output transfomed to slice XY.
   /// Return the output of the glyph producer for the entire volume.
   /// \sa GetSliceOutputPolyData(), GetOutputPolyDataConnection()
@@ -201,17 +197,9 @@ class VTK_MRML_EXPORT vtkMRMLGlyphableVolumeSliceDisplayNode : public vtkMRMLMod
   void operator= ( const vtkMRMLGlyphableVolumeSliceDisplayNode& );
 
   /// Ignore input polydata as it takes a volume slice as input.
-#if (VTK_MAJOR_VERSION <= 5)
-  virtual void SetInputToPolyDataPipeline(vtkPolyData *glyphPolyData);
-#else
   virtual void SetInputToPolyDataPipeline(vtkAlgorithmOutput* glyphPolyData);
-#endif
 
-#if (VTK_MAJOR_VERSION <= 5)
-    vtkImageData             *SliceImage;
-#else
     vtkAlgorithmOutput       *SliceImagePort;
-#endif
     vtkTransform             *SliceToXYTransform;
     vtkTransformPolyDataFilter *SliceToXYTransformer;
     vtkMatrix4x4             *SliceToXYMatrix;

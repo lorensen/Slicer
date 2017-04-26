@@ -50,6 +50,7 @@
 #include <vtkCollection.h>
 #include <vtkNew.h>
 #include <vtkObjectFactory.h>
+#include <vtkRenderWindow.h>
 #include <vtkSmartPointer.h>
 
 //--------------------------------------------------------------------------
@@ -148,6 +149,14 @@ void qMRMLSliceViewPrivate::init()
   this->LightBoxRendererManagerProxy->SetLightBoxRendererManager(
     q->lightBoxRendererManager());
   this->initDisplayableManagers();
+
+  // Force an initial render to ensure that the render window creates an OpenGL
+  // context. If operations that require a context--such as hardware
+  // picking--are performed when no context exists, OpenGL errors will occur.
+  // When using the VTK OpenGL2 backend the errors may be followed by a
+  // segfault. Such a scenario can occur when the app is started using a layout
+  // that hides one or more of the slice views.
+  q->renderWindow()->Render();
 }
 
 //---------------------------------------------------------------------------
@@ -162,6 +171,8 @@ void qMRMLSliceViewPrivate::initDisplayableManagers()
   displayableManagers << "vtkMRMLVolumeGlyphSliceDisplayableManager";
   displayableManagers << "vtkMRMLModelSliceDisplayableManager";
   displayableManagers << "vtkMRMLCrosshairDisplayableManager";
+  displayableManagers << "vtkMRMLOrientationMarkerDisplayableManager";
+  displayableManagers << "vtkMRMLRulerDisplayableManager";
   foreach(const QString& displayableManager, displayableManagers)
     {
     if (!factory->IsDisplayableManagerRegistered(displayableManager.toLatin1()))
@@ -325,9 +336,9 @@ vtkSliceViewInteractorStyle* qMRMLSliceView::sliceViewInteractorStyle()const
 }
 
 // --------------------------------------------------------------------------
-QList<double> qMRMLSliceView::convertDeviceToXYZ(const QList<int>& xy)
+QList<double> qMRMLSliceView::convertDeviceToXYZ(const QList<int>& xy)const
 {
-  Q_D(qMRMLSliceView);
+  Q_D(const qMRMLSliceView);
 
   // Grab a displayable manager that is derived from
   // AbstractSliceViewDisplayableManager, like the CrosshairDisplayableManager
@@ -350,9 +361,9 @@ QList<double> qMRMLSliceView::convertDeviceToXYZ(const QList<int>& xy)
 }
 
 // --------------------------------------------------------------------------
-QList<double> qMRMLSliceView::convertRASToXYZ(const QList<double>& ras)
+QList<double> qMRMLSliceView::convertRASToXYZ(const QList<double>& ras)const
 {
-  Q_D(qMRMLSliceView);
+  Q_D(const qMRMLSliceView);
 
   // Grab a displayable manager that is derived from
   // AbstractSliceViewDisplayableManager, like the CrosshairDisplayableManager
@@ -376,9 +387,9 @@ QList<double> qMRMLSliceView::convertRASToXYZ(const QList<double>& ras)
 }
 
 // --------------------------------------------------------------------------
-QList<double> qMRMLSliceView::convertXYZToRAS(const QList<double>& xyz)
+QList<double> qMRMLSliceView::convertXYZToRAS(const QList<double>& xyz)const
 {
-  Q_D(qMRMLSliceView);
+  Q_D(const qMRMLSliceView);
 
   // Grab a displayable manager that is derived from
   // AbstractSliceViewDisplayableManager, like the CrosshairDisplayableManager

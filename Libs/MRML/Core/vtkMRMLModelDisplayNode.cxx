@@ -13,14 +13,20 @@ Version:   $Revision: 1.3 $
 =========================================================================auto=*/
 // MRML includes
 #include "vtkMRMLModelDisplayNode.h"
+#include "vtkMRMLColorNode.h"
 
 // VTK includes
 #include <vtkAlgorithmOutput.h>
 #include <vtkAssignAttribute.h>
 #include <vtkCommand.h>
+#include <vtkLookupTable.h>
 #include <vtkObjectFactory.h>
 #include <vtkPassThrough.h>
+#include <vtkPointData.h>
+#include <vtkPointSet.h>
 #include <vtkPolyData.h>
+#include <vtkThreshold.h>
+#include <vtkUnstructuredGrid.h>
 #include <vtkVersion.h>
 
 //----------------------------------------------------------------------------
@@ -31,13 +37,12 @@ vtkMRMLModelDisplayNode::vtkMRMLModelDisplayNode()
 {
   this->PassThrough = vtkPassThrough::New();
   this->AssignAttribute = vtkAssignAttribute::New();
+  this->ThresholdFilter = vtkThreshold::New();
+  this->ThresholdEnabled = false;
 
   // the default behavior for models is to use the scalar range of the data
   // to reset the display scalar range, so use the Data flag
   this->SetScalarRangeFlag(vtkMRMLDisplayNode::UseDataScalarRange);
-
-  // Be careful, virtualization doesn't work in constructors
-  this->UpdatePolyDataPipeline();
 }
 
 //-----------------------------------------------------------------------------
@@ -45,6 +50,7 @@ vtkMRMLModelDisplayNode::~vtkMRMLModelDisplayNode()
 {
   this->PassThrough->Delete();
   this->AssignAttribute->Delete();
+  this->ThresholdFilter->Delete();
 }
 
 //---------------------------------------------------------------------------
@@ -56,85 +62,109 @@ void vtkMRMLModelDisplayNode::ProcessMRMLEvents(vtkObject *caller,
 
   if (event == vtkCommand::ModifiedEvent)
     {
-    this->UpdatePolyDataPipeline();
+    this->UpdateScalarRange();
     }
 }
 
 //---------------------------------------------------------------------------
-#if (VTK_MAJOR_VERSION <= 5)
-void vtkMRMLModelDisplayNode::SetInputPolyData(vtkPolyData* polyData)
+void vtkMRMLModelDisplayNode
+::SetInputMeshConnection(vtkAlgorithmOutput* meshConnection)
 {
-  if (this->GetInputPolyData() == polyData)
+  if (this->GetInputMeshConnection() == meshConnection)
     {
     return;
     }
-  this->SetInputToPolyDataPipeline(polyData);
-  this->Modified();
+  this->SetInputToMeshPipeline(meshConnection);
 }
-#else
+
+//---------------------------------------------------------------------------
 void vtkMRMLModelDisplayNode
 ::SetInputPolyDataConnection(vtkAlgorithmOutput* polyDataConnection)
 {
-  if (this->GetInputPolyDataConnection() == polyDataConnection)
-    {
-    return;
-    }
-  this->SetInputToPolyDataPipeline(polyDataConnection);
-  this->Modified();
+  // Wrapping `SetInputMeshConnection` for backward compatibility
+  this->SetInputMeshConnection(polyDataConnection);
 }
-#endif
 
 //---------------------------------------------------------------------------
-#if (VTK_MAJOR_VERSION <= 5)
-void vtkMRMLModelDisplayNode::SetInputToPolyDataPipeline(vtkPolyData* polyData)
-{
-  this->PassThrough->SetInput(polyData);
-  this->AssignAttribute->SetInput(polyData);
-}
-#else
 void vtkMRMLModelDisplayNode
-::SetInputToPolyDataPipeline(vtkAlgorithmOutput* polyDataConnection)
+::SetInputToMeshPipeline(vtkAlgorithmOutput* meshConnection)
 {
-  this->PassThrough->SetInputConnection(polyDataConnection);
-  this->AssignAttribute->SetInputConnection(polyDataConnection);
+  this->PassThrough->SetInputConnection(meshConnection);
+  this->AssignAttribute->SetInputConnection(meshConnection);
+  this->ThresholdFilter->SetInputConnection(this->AssignAttribute->GetOutputPort());
+
+  this->Modified();
 }
-#endif
+
+//---------------------------------------------------------------------------
+vtkPointSet* vtkMRMLModelDisplayNode::GetInputMesh()
+{
+  return vtkPointSet::SafeDownCast(this->AssignAttribute->GetInput());
+}
 
 //---------------------------------------------------------------------------
 vtkPolyData* vtkMRMLModelDisplayNode::GetInputPolyData()
 {
-  return vtkPolyData::SafeDownCast(this->AssignAttribute->GetInput());
+  return vtkPolyData::SafeDownCast(this->GetInputMesh());
 }
 
-#if (VTK_MAJOR_VERSION > 5)
 //---------------------------------------------------------------------------
-vtkAlgorithmOutput* vtkMRMLModelDisplayNode::GetInputPolyDataConnection()
+vtkUnstructuredGrid* vtkMRMLModelDisplayNode::GetInputUnstructuredGrid()
+{
+  return vtkUnstructuredGrid::SafeDownCast(this->GetInputMesh());
+}
+
+//---------------------------------------------------------------------------
+vtkAlgorithmOutput* vtkMRMLModelDisplayNode::GetInputMeshConnection()
 {
   return this->AssignAttribute->GetNumberOfInputConnections(0) ?
     this->AssignAttribute->GetInputConnection(0,0) : 0;
 }
-#endif
+
+//---------------------------------------------------------------------------
+vtkAlgorithmOutput* vtkMRMLModelDisplayNode::GetInputPolyDataConnection()
+{
+  // Wrapping `GetInputMeshConnection` for backward compatibility
+  return this->GetInputMeshConnection();
+}
+
+//---------------------------------------------------------------------------
+vtkPointSet* vtkMRMLModelDisplayNode::GetOutputMesh()
+{
+  if (!this->GetInputMeshConnection())
+    {
+    return NULL;
+    }
+
+  vtkAlgorithmOutput* outputConnection = this->GetOutputMeshConnection();
+  vtkAlgorithm* producer =  outputConnection? outputConnection->GetProducer() : 0;
+  producer->Update();
+  return vtkPointSet::SafeDownCast(
+    producer ? producer->GetOutputDataObject(outputConnection->GetIndex()) : 0);
+}
 
 //---------------------------------------------------------------------------
 vtkPolyData* vtkMRMLModelDisplayNode::GetOutputPolyData()
 {
-  if (!this->GetOutputPolyDataConnection())
-    {
-    return 0;
-    }
-  if (!this->GetInputPolyData())
-    {
-    return 0;
-    }
-  return vtkPolyData::SafeDownCast(
-    this->GetOutputPolyDataConnection()->GetProducer()->GetOutputDataObject(
-      this->GetOutputPolyDataConnection()->GetIndex()));
+  return vtkPolyData::SafeDownCast(this->GetOutputMesh());
 }
 
 //---------------------------------------------------------------------------
-vtkAlgorithmOutput* vtkMRMLModelDisplayNode::GetOutputPolyDataConnection()
+vtkUnstructuredGrid* vtkMRMLModelDisplayNode::GetOutputUnstructuredGrid()
 {
-  if (this->GetActiveScalarName())
+  return vtkUnstructuredGrid::SafeDownCast(this->GetOutputMesh());
+}
+
+//---------------------------------------------------------------------------
+vtkAlgorithmOutput* vtkMRMLModelDisplayNode::GetOutputMeshConnection()
+{
+  if (this->GetActiveScalarName() &&
+      this->GetScalarVisibility() && // do not threshold if scalars hidden
+      this->ThresholdEnabled)
+    {
+    return this->ThresholdFilter->GetOutputPort();
+    }
+  else if (this->GetActiveScalarName())
     {
     return this->AssignAttribute->GetOutputPort();
     }
@@ -145,41 +175,166 @@ vtkAlgorithmOutput* vtkMRMLModelDisplayNode::GetOutputPolyDataConnection()
 }
 
 //---------------------------------------------------------------------------
+vtkAlgorithmOutput* vtkMRMLModelDisplayNode::GetOutputPolyDataConnection()
+{
+  vtkWarningMacro("vtkMRMLModelDisplayNode::GetOutputPolyDataConnection is "
+                  << "deprecated. Favor GetOutputMeshConnection().");
+  return this->GetOutputMeshConnection();
+}
+
+//---------------------------------------------------------------------------
+void vtkMRMLModelDisplayNode::SetThresholdRange(double min, double max)
+{
+  vtkMTimeType mtime = this->ThresholdFilter->GetMTime();
+  this->ThresholdFilter->ThresholdBetween(min, max);
+  if (this->ThresholdFilter->GetMTime() > mtime)
+    {
+    this->Modified();
+    }
+}
+
+//---------------------------------------------------------------------------
+void vtkMRMLModelDisplayNode::SetThresholdRange(double range[2])
+{
+  this->SetThresholdRange(range[0], range[1]);
+}
+
+//---------------------------------------------------------------------------
+double vtkMRMLModelDisplayNode::GetThresholdMin()
+{
+  return this->ThresholdFilter->GetLowerThreshold();
+}
+
+//---------------------------------------------------------------------------
+double vtkMRMLModelDisplayNode::GetThresholdMax()
+{
+  return this->ThresholdFilter->GetUpperThreshold();
+}
+
+//---------------------------------------------------------------------------
+void vtkMRMLModelDisplayNode::GetThresholdRange(double range[2])
+{
+  range[0] = this->GetThresholdMin();
+  range[1] = this->GetThresholdMax();
+}
+
+//---------------------------------------------------------------------------
 void vtkMRMLModelDisplayNode::SetActiveScalarName(const char *scalarName)
 {
+  if (scalarName && this->ActiveScalarName && !strcmp(scalarName, this->ActiveScalarName))
+    {
+    return;
+    }
+  if (scalarName == 0 && this->ActiveScalarName == 0)
+    {
+    return;
+    }
   int wasModifying = this->StartModify();
   this->Superclass::SetActiveScalarName(scalarName);
-  this->UpdatePolyDataPipeline();
+  this->UpdateAssignedAttribute();
   this->EndModify(wasModifying);
 }
 
 //---------------------------------------------------------------------------
 void vtkMRMLModelDisplayNode::SetActiveAttributeLocation(int location)
 {
+  if (location == this->ActiveAttributeLocation)
+    {
+    return;
+    }
   int wasModifying = this->StartModify();
   this->Superclass::SetActiveAttributeLocation(location);
-  this->UpdatePolyDataPipeline();
+  this->UpdateAssignedAttribute();
   this->EndModify(wasModifying);
 }
 
 //---------------------------------------------------------------------------
-void vtkMRMLModelDisplayNode::UpdatePolyDataPipeline()
+void vtkMRMLModelDisplayNode::SetScalarRangeFlag(int flag)
+{
+  if (flag == this->ScalarRangeFlag)
+    {
+    return;
+    }
+  int wasModifying = this->StartModify();
+  this->Superclass::SetScalarRangeFlag(flag);
+  this->UpdateScalarRange();
+  this->EndModify(wasModifying);
+}
+
+//---------------------------------------------------------------------------
+void vtkMRMLModelDisplayNode::UpdateAssignedAttribute()
 {
   this->AssignAttribute->Assign(
     this->GetActiveScalarName(),
     this->GetActiveScalarName() ? vtkDataSetAttributes::SCALARS : -1,
     this->GetActiveAttributeLocation());
-  if (this->GetOutputPolyData())
+
+  if (this->GetScalarRangeFlag() != vtkMRMLDisplayNode::UseManualScalarRange)
     {
-#if (VTK_MAJOR_VERSION <= 5)
-    this->GetOutputPolyData()->Update();
-#else
-    this->GetOutputPolyDataConnection()->GetProducer()->Update();
-#endif
-    if (this->GetAutoScalarRange())
+    this->UpdateScalarRange();
+    }
+}
+
+//---------------------------------------------------------------------------
+void vtkMRMLModelDisplayNode::UpdateScalarRange()
+{
+  if (!this->GetInputMesh())
+    {
+    return;
+    }
+
+  int flag = this->GetScalarRangeFlag();
+  if (flag == vtkMRMLDisplayNode::UseDataScalarRange)
+    {
+    if (this->GetActiveScalarName())
       {
-      vtkDebugMacro("UpdatePolyDataPipeline: Auto flag is on, resetting scalar range!");
-      this->SetScalarRange(this->GetOutputPolyData()->GetScalarRange());
+      // Use output of AssignAttribute instead of this->GetOutputMesh()
+      // since the data scalar range should not be retrieved from a
+      // thresholded mesh even when thresholding is enabled.
+      // Need to call Update() since we need to use GetOutput() on the
+      // AssignAttribuet filter to retrieve its output mesh scalar range.
+      this->AssignAttribute->Update();
+      vtkPointSet* mesh = vtkPointSet::SafeDownCast(this->AssignAttribute->GetOutput());
+      if (mesh)
+        {
+        this->SetScalarRange(mesh->GetScalarRange());
+        }
+      else
+        {
+        vtkErrorMacro("Can not use data scalar range: the output of the "
+                      << "AssignAttribute filter is not a valid vtkPointSet.");
+        }
+      }
+    }
+  else if (flag == vtkMRMLDisplayNode::UseColorNodeScalarRange)
+    {
+    if (!this->GetColorNode())
+      {
+      vtkWarningMacro("Can not use color node scalar range since model "
+                      << "display node does not have a color node.");
+      }
+    else if (vtkLookupTable* lut = this->GetColorNode()->GetLookupTable())
+      {
+      this->SetScalarRange(lut->GetRange());
+      }
+    else
+      {
+      vtkWarningMacro("Can not use color node scalar range since model "
+                      << "display node color node does not have a lookup table.");
+      }
+    }
+  else if (flag == vtkMRMLDisplayNode::UseDataTypeScalarRange)
+    {
+    vtkPointData* pData = this->GetOutputMesh()->GetPointData();
+    vtkDataArray *dataArray = pData ? pData->GetArray(this->GetActiveScalarName()) : NULL;
+    if (dataArray)
+      {
+      this->SetScalarRange(dataArray->GetDataTypeMin(), dataArray->GetDataTypeMax());
+      }
+    else
+      {
+      vtkWarningMacro("Can not use data type scalar range since the model display node's"
+                      << "mesh does not have an active scalar array.");
       }
     }
 }

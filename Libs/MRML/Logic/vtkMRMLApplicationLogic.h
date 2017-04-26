@@ -27,6 +27,7 @@
 #include "vtkMRMLLogicWin32Header.h"
 
 class vtkMRMLColorLogic;
+class vtkMRMLModelDisplayNode;
 class vtkMRMLSliceNode;
 class vtkMRMLSliceLogic;
 class vtkMRMLModelHierarchyLogic;
@@ -62,6 +63,8 @@ public:
   vtkCollection* GetSliceLogics()const;
   vtkMRMLSliceLogic* GetSliceLogic(vtkMRMLSliceNode* sliceNode) const;
   vtkMRMLSliceLogic* GetSliceLogicByLayoutName(const char* layoutName) const;
+  /// Get slice logic from slice model display node
+  vtkMRMLSliceLogic* GetSliceLogicByModelDisplayNode(vtkMRMLModelDisplayNode* displayNode) const;
 
   /// Get ModelHierarchyLogic
   vtkMRMLModelHierarchyLogic* GetModelHierarchyLogic() const;
@@ -73,16 +76,57 @@ public:
   void SetColorLogic(vtkMRMLColorLogic* newColorLogic);
   vtkMRMLColorLogic* GetColorLogic()const;
 
-  ///
   /// Apply the active volumes in the SelectionNode to the slice composite nodes
   /// Perform the default behavior related to selecting a volume
   /// (in this case, making it the background for all SliceCompositeNodes)
-  void PropagateVolumeSelection(int fit);
-  void PropagateVolumeSelection() {this->PropagateVolumeSelection(1);}
+  /// \sa vtkInternal::PropagateVolumeSelection()
+  /// \sa FitSliceToAll()
+  /// \sa vtkMRMLSelectionNode::SetActiveVolumeID()
+  /// \sa vtkMRMLSelectionNode::SetSecondaryVolumeID()
+  /// \sa vtkMRMLSelectionNode::SetActiveLabelVolumeID()
+  void PropagateVolumeSelection(int fit = 1);
 
+  /// Propagate only active background volume in the SelectionNode to slice composite
+  /// nodes
+  /// \sa FitSliceToAll()
+  /// \sa vtkMRMLSelectionNode::SetActiveVolumeID()
+  /// \sa Layers::BackgroundLayer
+  void PropagateBackgroundVolumeSelection(int fit = 1);
+
+  /// Propagate only active foreground volume in the SelectionNode to slice composite
+  /// nodes
+  /// \sa FitSliceToAll()
+  /// \sa vtkMRMLSelectionNode::SetSecondaryVolumeID()
+  /// \sa Layers::ForegroundLayer
+  void PropagateForegroundVolumeSelection(int fit = 1);
+
+  /// Propagate only active label volume in the SelectionNode to slice composite
+  /// nodes
+  /// \sa FitSliceToAll()
+  /// \sa vtkMRMLSelectionNode::SetActiveLabelVolumeID()
+  /// \sa Layers::LabelLayer
+  void PropagateLabelVolumeSelection(int fit = 1);
+
+  enum Layers
+  {
+    LabelLayer = 0x1,
+    ForegroundLayer = 0x2,
+    BackgroundLayer = 0x4,
+    AllLayers = LabelLayer | ForegroundLayer | BackgroundLayer
+  };
+
+  /// Propagate selected volume layer in the SelectionNode to the slice composite
+  /// nodes.
+  /// \sa Layers
+  void PropagateVolumeSelection(int layer, int fit);
 
   /// Fit all the volumes into their views
-  void FitSliceToAll();
+  /// If onlyIfPropagateVolumeSelectionAllowed is true then field of view will be reset on
+  /// only those slices where propagate volume selection is allowed
+  void FitSliceToAll(bool onlyIfPropagateVolumeSelectionAllowed=false);
+
+  /// Propagate selected table in the SelectionNode to table view nodes.
+  void PropagateTableSelection();
 
   /// zip the directory into a zip file
   /// Returns success or failure.
@@ -104,6 +148,8 @@ public:
   std::string PercentEncode(std::string s);
 
   /// Save the scene into a self contained directory, sdbDir
+  /// Called by the qSlicerSceneWriter, which can be accessed via
+  /// \sa qSlicerCoreIOManager::saveScene
   /// If screenShot is not null, use it as the screen shot for a scene view
   /// Returns false if the save failed
   bool SaveSceneToSlicerDataBundleDirectory(const char *sdbDir, vtkImageData *screenShot = NULL);
@@ -172,7 +218,10 @@ protected:
 private:
 
   std::map<vtkMRMLStorageNode*, std::string> OriginalStorageNodeDirs;
-  std::map<vtkMRMLStorageNode*, std::string> OriginalStorageNodeFileNames;
+  /// use a map to store the file names from a storage node, the 0th one is by
+  /// definition the GetFileName returned value, then the rest are at index n+1
+  /// from GetNthFileName(n)
+  std::map<vtkMRMLStorageNode*, std::vector<std::string> > OriginalStorageNodeFileNames;
 
   vtkMRMLApplicationLogic(const vtkMRMLApplicationLogic&);
   void operator=(const vtkMRMLApplicationLogic&);

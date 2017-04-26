@@ -12,8 +12,8 @@
 
 =========================================================================auto=*/
 
-#ifndef __itkMRMLIDImageIO_h
-#define __itkMRMLIDImageIO_h
+#ifndef itkMRMLIDImageIO_h
+#define itkMRMLIDImageIO_h
 
 #ifdef _MSC_VER
 #pragma warning ( disable : 4786 )
@@ -59,8 +59,8 @@ class MRMLIDImageIO_EXPORT MRMLIDImageIO : public ImageIOBase
 {
 public:
   /** Standard class typedefs. */
-  typedef MRMLIDImageIO            Self;
-  typedef ImageIOBase  Superclass;
+  typedef MRMLIDImageIO       Self;
+  typedef ImageIOBase         Superclass;
   typedef SmartPointer<Self>  Pointer;
 
   /** Method for creation through the object factory. */
@@ -71,44 +71,40 @@ public:
 
   /** Determine the file type. Returns true if this ImageIO can read the
    * file specified. */
-  virtual bool CanReadFile(const char*);
+  virtual bool CanReadFile(const char*) ITK_OVERRIDE;
 
   virtual bool CanUseOwnBuffer();
   virtual void ReadUsingOwnBuffer();
   virtual void * GetOwnBuffer();
 
   /** Set the spacing and dimension information for the set filename. */
-  virtual void ReadImageInformation();
+  virtual void ReadImageInformation() ITK_OVERRIDE;
 
   /** Reads the data from disk into the memory buffer provided. */
-  virtual void Read(void* buffer);
+  virtual void Read(void* buffer) ITK_OVERRIDE;
 
   /*-------- This part of the interfaces deals with writing data. ----- */
 
   /** Determine the file type. Returns true if this ImageIO can read the
    * file specified. */
-  virtual bool CanWriteFile(const char*);
+  virtual bool CanWriteFile(const char*) ITK_OVERRIDE;
 
   /** Writes the header of the image.
    * Assumes SetFileName has been called with a valid file name. */
-  virtual void WriteImageInformation();
+  virtual void WriteImageInformation() ITK_OVERRIDE;
 
   /** Writes the data to disk from the memory buffer provided. Make sure
    * that the IORegion has been set properly. */
-  virtual void Write(const void* buffer);
+  virtual void Write(const void* buffer) ITK_OVERRIDE;
 
 protected:
   MRMLIDImageIO();
   ~MRMLIDImageIO();
-  void PrintSelf(std::ostream& os, Indent indent) const;
+  void PrintSelf(std::ostream& os, Indent indent) const ITK_OVERRIDE;
 
   /** Write the image information to the node and specified image */
-#if (VTK_MAJOR_VERSION <= 5)
-  virtual void WriteImageInformation(vtkMRMLVolumeNode *, vtkImageData*);
-#else
   virtual void WriteImageInformation(vtkMRMLVolumeNode *, vtkImageData*,
                                      int *scalarType, int *numberOfScalarComponents);
-#endif
 
   /** Take information in a Slicer node and transfer it the
    *  MetaDataDictionary in ITK */
@@ -137,14 +133,13 @@ private:
   bool IsAVolumeNode(const char*);
   vtkMRMLVolumeNode* FileNameToVolumeNodePtr(const char*);
 
-  std::string Scheme;
-  std::string Authority;
-  std::string SceneID;
-  std::string NodeID;
+  std::string m_Scheme;
+  std::string m_Authority;
+  std::string m_SceneID;
+  std::string m_NodeID;
 
 };
 
 
 } /// end namespace itk
-#endif /// __itkMRMLIDImageIO_h
-
+#endif /// itkMRMLIDImageIO_h

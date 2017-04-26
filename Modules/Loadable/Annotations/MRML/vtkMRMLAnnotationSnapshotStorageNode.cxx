@@ -40,6 +40,7 @@ vtkMRMLNodeNewMacro(vtkMRMLAnnotationSnapshotStorageNode);
 //----------------------------------------------------------------------------
 vtkMRMLAnnotationSnapshotStorageNode::vtkMRMLAnnotationSnapshotStorageNode()
 {
+  this->DefaultWriteFileExtension = "png";
 }
 
 //----------------------------------------------------------------------------
@@ -66,7 +67,7 @@ int vtkMRMLAnnotationSnapshotStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
     vtkMRMLAnnotationSnapshotNode::SafeDownCast(refNode);
 
   std::string fullName = this->GetFullNameFromFileName();
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("ReadData: File name not specified");
     return 0;
@@ -144,9 +145,6 @@ int vtkMRMLAnnotationSnapshotStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
   sceneViewNode->SetScreenShot(imageData.GetPointer());
   sceneViewNode->GetScreenShot()->SetSpacing(1.0, 1.0, 1.0);
   sceneViewNode->GetScreenShot()->SetOrigin(0.0, 0.0, 0.0);
-#if (VTK_MAJOR_VERSION <= 5)
-  sceneViewNode->GetScreenShot()->SetScalarType(VTK_UNSIGNED_CHAR);
-#endif
 
   return result;
 }
@@ -163,7 +161,7 @@ int vtkMRMLAnnotationSnapshotStorageNode::WriteDataInternal(vtkMRMLNode *refNode
     }
 
   std::string fullName = this->GetFullNameFromFileName();
-  if (fullName == std::string(""))
+  if (fullName.empty())
   {
     vtkErrorMacro("vtkMRMLAnnotationSnapshotNode: File name not specified");
     return 0;
@@ -176,11 +174,7 @@ int vtkMRMLAnnotationSnapshotStorageNode::WriteDataInternal(vtkMRMLNode *refNode
     {
     vtkNew<vtkPNGWriter> writer;
     writer->SetFileName(fullName.c_str());
-#if (VTK_MAJOR_VERSION <= 5)
-    writer->SetInput( sceneViewNode->GetScreenShot() );
-#else
     writer->SetInputData( sceneViewNode->GetScreenShot() );
-#endif
     try
       {
       writer->Write();
@@ -194,11 +188,7 @@ int vtkMRMLAnnotationSnapshotStorageNode::WriteDataInternal(vtkMRMLNode *refNode
     {
     vtkNew<vtkJPEGWriter> writer;
     writer->SetFileName(fullName.c_str());
-#if (VTK_MAJOR_VERSION <= 5)
-    writer->SetInput( sceneViewNode->GetScreenShot() );
-#else
     writer->SetInputData( sceneViewNode->GetScreenShot() );
-#endif
     try
       {
       writer->Write();
@@ -212,11 +202,7 @@ int vtkMRMLAnnotationSnapshotStorageNode::WriteDataInternal(vtkMRMLNode *refNode
     {
     vtkNew<vtkTIFFWriter> writer;
     writer->SetFileName(fullName.c_str());
-#if (VTK_MAJOR_VERSION <= 5)
-    writer->SetInput( sceneViewNode->GetScreenShot() );
-#else
     writer->SetInputData( sceneViewNode->GetScreenShot() );
-#endif
     try
       {
       writer->Write();
@@ -230,11 +216,7 @@ int vtkMRMLAnnotationSnapshotStorageNode::WriteDataInternal(vtkMRMLNode *refNode
     {
     vtkNew<vtkBMPWriter> writer;
     writer->SetFileName(fullName.c_str());
-#if (VTK_MAJOR_VERSION <= 5)
-    writer->SetInput( sceneViewNode->GetScreenShot() );
-#else
     writer->SetInputData( sceneViewNode->GetScreenShot() );
-#endif
     try
       {
       writer->Write();
@@ -271,10 +253,4 @@ void vtkMRMLAnnotationSnapshotStorageNode::InitializeSupportedWriteFileTypes()
   this->SupportedWriteFileTypes->InsertNextValue("JPEG (.jpeg)");
   this->SupportedWriteFileTypes->InsertNextValue("TIFF (.tiff)");
   this->SupportedWriteFileTypes->InsertNextValue("BMP (.bmp)");
-}
-
-//----------------------------------------------------------------------------
-const char* vtkMRMLAnnotationSnapshotStorageNode::GetDefaultWriteFileExtension()
-{
-  return "png";
 }

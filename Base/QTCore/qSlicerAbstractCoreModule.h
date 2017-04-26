@@ -107,6 +107,15 @@ class Q_SLICER_BASE_QTCORE_EXPORT qSlicerAbstractCoreModule : public QObject
   /// \sa isHidden
   Q_PROPERTY(bool hidden READ isHidden)
 
+  /// This property holds whether the module should be able to create new
+  /// widget representations or not.
+  /// By default, modules can create new widget representations.
+  /// \sa isWidgetRepresentationCreationEnabled
+  /// \sa setWidgetRepresentationCreationEnabled
+  Q_PROPERTY(bool widgetRepresentationCreationEnabled
+             READ isWidgetRepresentationCreationEnabled
+             WRITE setWidgetRepresentationCreationEnabled)
+
   /// This property holds the help of the module.
   /// The help is displayed inside the module as a tab.
   /// \a helpText must be reimplemented for each module.
@@ -158,6 +167,23 @@ class Q_SLICER_BASE_QTCORE_EXPORT qSlicerAbstractCoreModule : public QObject
   /// reimplemented in each module.
   Q_PROPERTY(bool isInstalled READ isInstalled)
 
+  /// This property holds whether module is a built-in Slicer module or
+  /// one from an extension or any user-specified folder.
+  /// \a isBuiltIn is set by the module factory and shouldn't be
+  /// reimplemented in each module.
+  Q_PROPERTY(bool isBuiltIn READ isBuiltIn)
+
+  /// This property specifies node classes this module is associated with.
+  /// All children node classes are also associated with the module.
+  /// Currently association is only used for editing node properties.
+  /// If a node class is specified in this property and setEditedNode() and
+  /// nodeEditable() methods are implemented in the module's widget then
+  /// "Edit properties" function in node selector widgets will activate this
+  /// module and select the chosen node.
+  /// Any module can associate nodes with any module, by calling
+  /// qSlicerApplication::application()->registerNodeModule() method.
+  Q_PROPERTY(QStringList associatedNodeTypes READ associatedNodeTypes)
+
 public:
 
   typedef QObject Superclass;
@@ -199,9 +225,10 @@ public:
   /// Return the category index of the module.
   virtual int index()const;
 
-  /// Returns true if the module should be hidden to the user.
-  /// By default, modules are not hidden.
-  /// \sa hidden
+  /// Returns \a true if the module should be hidden to the user.
+  /// By default, interactive modules are visible and non-interactive
+  /// modules are hidden.
+  /// \sa hidden, widgetRepresentationAvailable
   virtual bool isHidden()const;
 
   /// Return the contributors of the module
@@ -215,6 +242,12 @@ public:
   /// Must be reimplemented in the derived classes
   virtual QString acknowledgementText()const;
 
+  /// Set/Get if the module should be able to create new widget
+  /// representations or not.
+  /// \sa widgetRepresentation()
+  bool isWidgetRepresentationCreationEnabled()const;
+  void setWidgetRepresentationCreationEnabled(bool value);
+
   /// This method allows to get a pointer to the WidgetRepresentation.
   /// If no WidgetRepresentation already exists, one will be created calling
   /// 'createWidgetRepresentation' method.
@@ -225,6 +258,7 @@ public:
   /// It does not return the widget of the module, but a new instance instead.
   /// It can be useful when embedding a module widget into another module.
   /// \sa widgetRepresentation(), createWidgetRepresentation()
+  /// \sa isWidgetRepresentationCreationEnabled()
   qSlicerAbstractModuleRepresentation* createNewWidgetRepresentation();
 
   /// Get/Set the application logic.
@@ -252,6 +286,14 @@ public:
   /// \todo Ideally this function should be added within the qSlicerLoadableModule.
   bool isInstalled()const;
   void setInstalled(bool value);
+
+  /// Determine if this module is a built-in Slicer module or one from an extension
+  /// or any user-specified folder.
+  bool isBuiltIn()const;
+  void setBuiltIn(bool value);
+
+  /// Return node types associated with this module (e.g., node types this module can edit)
+  virtual QStringList associatedNodeTypes()const;
 
 public slots:
 

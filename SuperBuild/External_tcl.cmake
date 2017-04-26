@@ -31,20 +31,17 @@ if(NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
   set(tcl_build ${CMAKE_CURRENT_BINARY_DIR}/tcl-build)
 
   set(tcl_DOWNLOAD_COMMAND)
+  set(tcl_PATCH_COMMAND)
 
   if(WIN32)
+    set(TCL_TK_VERSION_DOT "8.5")
+    set(TCL_TK_VERSION "85")
+    set(INCR_TCL_VERSION_DOT "3.4")
+    set(INCR_TCL_VERSION "34")
     if("${CMAKE_SIZEOF_VOID_P}" EQUAL 8)
-      set(TCL_TK_VERSION_DOT "8.5")
-      set(TCL_TK_VERSION "85")
-      set(INCR_TCL_VERSION_DOT "3.4")
-      set(INCR_TCL_VERSION "34")
       set(tcl_URL "http://slicer.kitware.com/midas3/download/item/159433/tcl85-x64-build.zip")
       set(tcl_MD5 "10f0a12590acaaef924dc22e80c9d70a")
     else()
-      set(TCL_TK_VERSION_DOT "8.4")
-      set(TCL_TK_VERSION "84")
-      set(INCR_TCL_VERSION_DOT "3.2")
-      set(INCR_TCL_VERSION "32")
       set(tcl_URL "http://slicer.kitware.com/midas3/download/item/159432/tcl85-build.zip")
       set(tcl_MD5 "07401cf7128a9a79403c8d9b745024a6")
     endif()
@@ -119,6 +116,13 @@ if(NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
 
     include(ExternalProjectForNonCMakeProject)
 
+    # patch: Since (1) a more recent version of itcl is provided by External_incrTcl
+    #        and (2) packages bundled with tcl are not used, the patch command
+    #        simply remove the 'pkgs' folder.
+    set(tcl_PATCH_COMMAND
+      PATCH_COMMAND ${CMAKE_COMMAND} -E remove_directory ${tcl_base}/tcl/pkgs
+      )
+
     # environment
     set(_env_script ${CMAKE_BINARY_DIR}/${proj}_Env.cmake)
     ExternalProject_Write_SetBuildEnv_Commands(${_env_script})
@@ -169,11 +173,16 @@ ExternalProject_Execute(${proj} \"install\" make install)
     UPDATE_COMMAND "" # Disable update
     SOURCE_DIR ${tcl_SOURCE_DIR}
     BUILD_IN_SOURCE ${tcl_BUILD_IN_SOURCE}
+    ${tcl_PATCH_COMMAND}
     CONFIGURE_COMMAND ${tcl_CONFIGURE_COMMAND}
     BUILD_COMMAND ${tcl_BUILD_COMMAND}
     INSTALL_COMMAND ${tcl_INSTALL_COMMAND}
     DEPENDS
       ${${proj}_DEPENDENCIES}
+    )
+
+  ExternalProject_GenerateProjectDescription_Step(${proj}
+    VERSION ${TCL_TK_VERSION_DOT}
     )
 
   #-----------------------------------------------------------------------------
@@ -199,6 +208,17 @@ ExternalProject_Execute(${proj} \"install\" make install)
   set(Slicer_TCL_DIR ${tcl_build})
 
   #-----------------------------------------------------------------------------
+  # Sanity checks
+
+  foreach(varname IN ITEMS
+      PYTHON_STDLIB_SUBDIR
+      )
+    if("${${varname}}" STREQUAL "")
+      message(FATAL_ERROR "${varname} CMake variable is expected to be set")
+    endif()
+  endforeach()
+
+  #-----------------------------------------------------------------------------
   # Launcher setting specific to build tree
 
   # library paths
@@ -215,14 +235,10 @@ ExternalProject_Execute(${proj} \"install\" make install)
     )
 
   set(_pythonhome ${CMAKE_BINARY_DIR}/python-install)
-  set(pythonpath_subdir lib/python2.7)
-  if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(pythonpath_subdir Lib)
-  endif()
 
   # pythonpath
   set(${proj}_PYTHONPATH_LAUNCHER_BUILD
-    ${_pythonhome}/${pythonpath_subdir}/lib-tk
+    ${_pythonhome}/${PYTHON_STDLIB_SUBDIR}/lib-tk
     )
   mark_as_superbuild(
     VARS ${proj}_PYTHONPATH_LAUNCHER_BUILD
@@ -256,7 +272,7 @@ ExternalProject_Execute(${proj} \"install\" make install)
 
   # pythonpath
   set(${proj}_PYTHONPATH_LAUNCHER_INSTALLED
-    <APPLAUNCHER_DIR>/lib/Python/${pythonpath_subdir}/lib-tk
+    <APPLAUNCHER_DIR>/lib/Python/${PYTHON_STDLIB_SUBDIR}/lib-tk
     )
   mark_as_superbuild(
     VARS ${proj}_PYTHONPATH_LAUNCHER_INSTALLED

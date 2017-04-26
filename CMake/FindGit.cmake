@@ -22,6 +22,7 @@
 # The module defines the following variables:
 #   GIT_EXECUTABLE - path to git command line client
 #   GIT_FOUND - true if the command line client was found
+#   GIT_VERSION_STRING - the version of git found (since CMake 2.8.8)
 #
 # If the command line client executable is found the macro
 #  GIT_WC_INFO(<dir> <var-prefix>)
@@ -81,8 +82,20 @@ find_program(GIT_EXECUTABLE ${git_names}
     "C:/Program Files (x86)/Git/bin"
   DOC "git command line client")
 mark_as_advanced(GIT_EXECUTABLE)
+# XXX Explicitly define a CACHE variable to workaround https://gitlab.kitware.com/cmake/cmake/issues/15448
+#     It fixes https://www.na-mic.org/Bug/view.php?id=4311
+set(GIT_EXECUTABLE ${GIT_EXECUTABLE} CACHE FILEPATH "Git command line client")
 
 if(GIT_EXECUTABLE)
+  execute_process(COMMAND ${GIT_EXECUTABLE} --version
+                  OUTPUT_VARIABLE git_version
+                  ERROR_QUIET
+                  OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if (git_version MATCHES "^git version [0-9]")
+    string(REPLACE "git version " "" GIT_VERSION_STRING "${git_version}")
+  endif()
+  unset(git_version)
+
   macro(GIT_WC_INFO dir prefix)
     execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --verify -q --short=7 HEAD
        WORKING_DIRECTORY ${dir}

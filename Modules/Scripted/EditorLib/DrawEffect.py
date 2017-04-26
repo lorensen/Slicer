@@ -1,12 +1,17 @@
 import os
-from __main__ import vtk
-from __main__ import ctk
-from __main__ import qt
-from __main__ import slicer
-from EditOptions import EditOptions
-from EditorLib import EditorLib
+import vtk
+import ctk
+import qt
+import slicer
+from EditOptions import HelpButton
 import LabelEffect
 
+__all__ = [
+  'DrawEffectOptions',
+  'DrawEffectTool',
+  'DrawEffectLogic',
+  'DrawEffect'
+  ]
 
 #########################################################
 #
@@ -45,7 +50,7 @@ class DrawEffectOptions(LabelEffect.LabelEffectOptions):
     self.frame.layout().addWidget(self.apply)
     self.widgets.append(self.apply)
 
-    EditorLib.HelpButton(self.frame, "Use this tool to draw an outline.\n\nLeft Click: add point.\nLeft Drag: add multiple points.\nx: delete last point.\na: apply outline.")
+    HelpButton(self.frame, "Use this tool to draw an outline.\n\nLeft Click: add point.\nLeft Drag: add multiple points.\nx: delete last point.\na: apply outline.")
 
     self.connections.append( (self.apply, 'clicked()', self.onApply) )
 
@@ -122,10 +127,7 @@ class DrawEffectTool(LabelEffect.LabelEffectTool):
 
     self.mapper = vtk.vtkPolyDataMapper2D()
     self.actor = vtk.vtkActor2D()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      self.mapper.SetInput(self.polyData)
-    else:
-      self.mapper.SetInputData(self.polyData)
+    self.mapper.SetInputData(self.polyData)
     self.actor.SetMapper(self.mapper)
     property_ = self.actor.GetProperty()
     property_.SetColor(1,1,0)

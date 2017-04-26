@@ -35,6 +35,10 @@ vtkMRMLLabelMapVolumeDisplayNode::vtkMRMLLabelMapVolumeDisplayNode()
 {
   this->MapToColors = vtkImageMapToColors::New();
   this->MapToColors->SetOutputFormatToRGBA();
+
+  // set a thicker default slice intersection thickness for use when showing
+  // the outline of the label map
+  this->SliceIntersectionThickness = 3;
 }
 
 //----------------------------------------------------------------------------
@@ -67,17 +71,10 @@ void vtkMRMLLabelMapVolumeDisplayNode::ProcessMRMLEvents ( vtkObject *caller,
 }
 
 //---------------------------------------------------------------------------
-#if (VTK_MAJOR_VERSION <= 5)
-void vtkMRMLLabelMapVolumeDisplayNode::SetInputImageData(vtkImageData *imageData)
-{
-  this->MapToColors->SetInput(imageData);
-}
-#else
 void vtkMRMLLabelMapVolumeDisplayNode::SetInputImageDataConnection(vtkAlgorithmOutput *imageDataConnection)
 {
   this->MapToColors->SetInputConnection(imageDataConnection);
 }
-#endif
 
 //---------------------------------------------------------------------------
 vtkImageData* vtkMRMLLabelMapVolumeDisplayNode::GetInputImageData()
@@ -86,20 +83,17 @@ vtkImageData* vtkMRMLLabelMapVolumeDisplayNode::GetInputImageData()
 }
 
 //---------------------------------------------------------------------------
-#if (VTK_MAJOR_VERSION <= 5)
-vtkImageData* vtkMRMLLabelMapVolumeDisplayNode::GetOutputImageData()
-#else
 vtkAlgorithmOutput* vtkMRMLLabelMapVolumeDisplayNode::GetOutputImageDataConnection()
-#endif
 {
-  assert(!this->MapToColors->GetLookupTable() ||
-         !this->MapToColors->GetLookupTable()->IsA("vtkLookupTable") ||
-         vtkLookupTable::SafeDownCast(this->MapToColors->GetLookupTable())->GetNumberOfTableValues());
-#if (VTK_MAJOR_VERSION <= 5)
-  return this->MapToColors->GetOutput();
-#else
+  if (this->MapToColors->GetLookupTable() && this->MapToColors->GetLookupTable()->IsA("vtkLookupTable"))
+    {
+    if (vtkLookupTable::SafeDownCast(this->MapToColors->GetLookupTable())->GetNumberOfTableValues() == 0)
+      {
+      vtkErrorMacro("GetOutputImageData: Lookup table exists but empty!");
+      return NULL;
+      }
+    }
   return this->MapToColors->GetOutputPort();
-#endif
 }
 
 //---------------------------------------------------------------------------
@@ -149,6 +143,11 @@ void vtkMRMLLabelMapVolumeDisplayNode::UpdateImageDataPipeline()
     this->MapToColors->SetLookupTable(lookupTable);
     }
   // if there is no point, the mapping will fail (not sure)
-  assert(!lookupTable || !vtkLookupTable::SafeDownCast(lookupTable) ||
-         vtkLookupTable::SafeDownCast(lookupTable)->GetNumberOfTableValues());
+  if (lookupTable && lookupTable->IsA("vtkLookupTable"))
+    {
+    if (vtkLookupTable::SafeDownCast(lookupTable)->GetNumberOfTableValues() == 0)
+      {
+      vtkErrorMacro("GetOutputImageData: Lookup table exists but empty!");
+      }
+    }
 }

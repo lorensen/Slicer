@@ -51,6 +51,7 @@ vtkMRMLLayoutNode::~vtkMRMLLayoutNode()
     this->LayoutRootElement->Delete();
     this->LayoutRootElement = NULL;
     }
+  this->SetCurrentLayoutDescription(0);
 }
 
 
@@ -61,24 +62,23 @@ void vtkMRMLLayoutNode::WriteXML(ostream& of, int nIndent)
   // order here.
 
   Superclass::WriteXML(of, nIndent);
-  vtkIndent indent(nIndent);
 
-  of << indent << " currentViewArrangement=\"" << this->ViewArrangement << "\"";
-  of << indent << " guiPanelVisibility=\"" << this->GUIPanelVisibility << "\"";
-  of << indent << " bottomPanelVisibility =\"" << this->BottomPanelVisibility << "\"";
-  of << indent << " guiPanelLR=\"" << this->GUIPanelLR << "\"";
-  of << indent << " collapseSliceControllers=\"" << this->CollapseSliceControllers << "\"" << std::endl;
-  of << indent << " numberOfCompareViewRows=\"" << this->NumberOfCompareViewRows << "\"";
-  of << indent << " numberOfCompareViewColumns=\"" << this->NumberOfCompareViewColumns << "\"";
-  of << indent << " numberOfLightboxRows=\"" << this->NumberOfCompareViewLightboxRows << "\"";
-  of << indent << " numberOfLightboxColumns=\"" << this->NumberOfCompareViewLightboxColumns << "\"";
-  of << indent << " mainPanelSize=\"" << this->MainPanelSize << "\"";
-  of << indent << " secondaryPanelSize=\"" << this->SecondaryPanelSize << "\"";
+  of << " currentViewArrangement=\"" << this->ViewArrangement << "\"";
+  of << " guiPanelVisibility=\"" << this->GUIPanelVisibility << "\"";
+  of << " bottomPanelVisibility =\"" << this->BottomPanelVisibility << "\"";
+  of << " guiPanelLR=\"" << this->GUIPanelLR << "\"";
+  of << " collapseSliceControllers=\"" << this->CollapseSliceControllers << "\"" << std::endl;
+  of << " numberOfCompareViewRows=\"" << this->NumberOfCompareViewRows << "\"";
+  of << " numberOfCompareViewColumns=\"" << this->NumberOfCompareViewColumns << "\"";
+  of << " numberOfLightboxRows=\"" << this->NumberOfCompareViewLightboxRows << "\"";
+  of << " numberOfLightboxColumns=\"" << this->NumberOfCompareViewLightboxColumns << "\"";
+  of << " mainPanelSize=\"" << this->MainPanelSize << "\"";
+  of << " secondaryPanelSize=\"" << this->SecondaryPanelSize << "\"";
   if (this->SelectedModule != NULL)
     {
-    of << indent << " selectedModule=\"" << (this->SelectedModule != NULL ? this->SelectedModule : "") << "\"";
+    of << " selectedModule=\"" << (this->SelectedModule != NULL ? this->SelectedModule : "") << "\"";
     }
-  //of << indent << " layout=\"" << this->CurrentLayoutDescription << "\"";
+  //of << " layout=\"" << this->CurrentLayoutDescription << "\"";
 }
 
 
@@ -276,12 +276,19 @@ void vtkMRMLLayoutNode::UpdateCurrentLayoutDescription()
 //----------------------------------------------------------------------------
 void vtkMRMLLayoutNode::SetAndParseCurrentLayoutDescription(const char* description)
 {
-  // Be carefull that it matches the ViewArrangement value
+  // Be careful that it matches the ViewArrangement value
   if (this->LayoutRootElement)
     {
     this->LayoutRootElement->Delete();
     }
   this->LayoutRootElement = this->ParseLayout(description);
+  if (this->LayoutRootElement == NULL)
+    {
+    // ParseLayout has already logged an error, if there was any
+    this->SetCurrentLayoutDescription("");
+    return;
+    }
+
   this->SetCurrentLayoutDescription(description);
 }
 
@@ -299,6 +306,12 @@ vtkXMLDataElement* vtkMRMLLayoutNode::ParseLayout(const char* description)
   parser->Parse();
 
   vtkXMLDataElement* root = parser->GetRootElement();
+  if (root==NULL)
+    {
+    vtkErrorWithObjectMacro(parser, "vtkMRMLLayoutNode::ParseLayout: failed to parse layout description");
+    return NULL;
+    }
+
   // if we don't register, then the root element will be destroyed when the
   // parser gets out of scope
   root->Register(0);

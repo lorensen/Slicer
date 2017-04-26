@@ -29,9 +29,7 @@
 #include <vtkNew.h>
 #include <vtkObjectFactory.h>
 #include <vtkProperty.h>
-#if (VTK_MAJOR_VERSION >= 6)
 #include <vtkPickingManager.h>
-#endif
 #include <vtkRenderWindowInteractor.h>
 #include <vtkSeedRepresentation.h>
 #include <vtkSeedWidget.h>
@@ -233,16 +231,18 @@ void vtkMRMLMarkupsDisplayableManagerHelper::UpdateLocked(vtkMRMLMarkupsNode *no
           continue;
           }
         bool isLockedOnNthMarkup = node->GetNthMarkupLocked(i);
-        bool isLockedOnNthSeed = seedWidget->GetSeed(i)->GetProcessEvents() == 0;
+        bool isLockedOnNthSeed = seedWidget->GetSeed(i)->GetEnableTranslation() == 0;
         if (isLockedOnNthMarkup && !isLockedOnNthSeed)
           {
           // lock it
-          seedWidget->GetSeed(i)->ProcessEventsOff();
+          seedWidget->GetSeed(i)->ProcessEventsOn();
+          seedWidget->GetSeed(i)->EnableTranslationOff();
           }
         else if (!isLockedOnNthMarkup && isLockedOnNthSeed)
           {
           // unlock it
           seedWidget->GetSeed(i)->ProcessEventsOn();
+          seedWidget->GetSeed(i)->EnableTranslationOn();
           }
         }
       }
@@ -492,7 +492,6 @@ void vtkMRMLMarkupsDisplayableManagerHelper::PlaceSeed(double x, double y, vtkRe
     vtkSeedWidget * seedWidget = vtkSeedWidget::New();
     seedWidget->SetRepresentation(rep.GetPointer());
 
-#if (VTK_MAJOR_VERSION >= 6)
     if (interactor->GetPickingManager())
       {
       if (!(interactor->GetPickingManager()->GetEnabled()))
@@ -502,7 +501,6 @@ void vtkMRMLMarkupsDisplayableManagerHelper::PlaceSeed(double x, double y, vtkRe
         interactor->GetPickingManager()->EnabledOn();
         }
       }
-#endif
 
     seedWidget->SetInteractor(interactor);
     seedWidget->SetCurrentRenderer(renderer);
@@ -620,7 +618,7 @@ int vtkMRMLMarkupsDisplayableManagerHelper::GetNodeGlyphType(vtkMRMLNode *displa
     // no record for this node
     return -1;
     }
-  if (iter->second.size() - 1 < (unsigned int)index)
+  if (index < 0 || iter->second.size() <= (unsigned int)index)
     {
     // no entry for this index
     return -1;

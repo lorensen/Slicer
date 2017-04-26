@@ -95,7 +95,7 @@ public:
   /// Get MRML scene that has been set by setMRMLScene(), there is no scene
   /// by default (0).
   /// \sa setMRMLScene
-  vtkMRMLScene* mrmlScene()const;
+  Q_INVOKABLE vtkMRMLScene* mrmlScene()const;
 
   /// Set/Get node types to display in the list
   /// NodeTypes are the class names, i.e. vtkMRMLViewNode,
@@ -124,10 +124,10 @@ public:
   inline QStringList hideChildNodeTypes()const;
 
   /// Add node type attribute that filter the nodes to
-  /// display. For example, labelmaps are defined with the "LabelMap"
-  /// attribute. In the following, the combobox only display the volume nodes
-  /// that are labelmaps.
-  /// \code addAttribute("vtkMRMLScalarVolumeNode", "LabelMap", "1"); \endcode
+  /// display. For example, colormap categories are defined with the "Category"
+  /// attribute. In the following, the combobox only display Discrete colormap
+  /// nodes.
+  /// \code addAttribute("vtkMRMLColorNode", "Category", "Discrete"); \endcode
   /// \note The attributes are used for filtering but also when "AddNode" is
   /// called: the attributes will be set to the new node
   /// \note An undefined attributeValue will match any value as long as the node
@@ -136,12 +136,24 @@ public:
   Q_INVOKABLE void addAttribute(const QString& nodeType,
                                 const QString& attributeName,
                                 const QVariant& attributeValue = QVariant());
+  /// Remove node type attribute filtering the displayed nodes
+  /// \sa addAttribute
+  Q_INVOKABLE void removeAttribute(const QString& nodeType,
+                                const QString& attributeName);
 
   /// BaseName is the name used to generate a node name for all the new created
   /// nodes.
-  /// TODO: Support different basename depending on the node type
-  void setBaseName(const QString& baseName);
-  QString baseName()const;
+  /// If nodeType is not specified for setBaseName() then base name is set for all already defined node types.
+  /// If nodeType is not specified for baseName() then base name of the first node type is returned.
+  void setBaseName(const QString& baseName, const QString& nodeType = "");
+  QString baseName(const QString& nodeType = "")const;
+
+  /// NodeTypeLabel is the name displayed to the user as node type. By default the node's tag is used.
+  /// Configuration is useful for cases when a more specific type name is preferred (e.g., instead of
+  /// the generic "Create new SubjectHierarchy" option, a module can set up the widget to show
+  /// "Create new Measurements"). If label is set to empty then the default label is used.
+  Q_INVOKABLE void setNodeTypeLabel(const QString& label, const QString& nodeType);
+  Q_INVOKABLE QString nodeTypeLabel(const QString& nodeType)const;
 
   /// return the number of nodes. it can be different from count()
   /// as count includes the "AddNode", "Remove Node"... items
@@ -244,7 +256,7 @@ public:
   /// Checks for action text duplicates and doesn't add them.
   /// Also checks for action text that will be hidden by the default action
   /// texts and doesn't add it.
-  virtual void addMenuAction(QAction *newAction);
+  Q_INVOKABLE virtual void addMenuAction(QAction *newAction);
 
 public slots:
   /// Set the scene the combobox listens to. The scene is observed and when new
@@ -268,8 +280,23 @@ public slots:
   /// \sa nodeCount, setCurrentNode(vtkMRMLNode* ), setCurrentNodeID(const QString&)
   void setCurrentNodeIndex(int index);
 
-  /// Creates a node of the same type than on the "node types" properties.
-  /// It's name is generated using \a basename.
+  /// \brief Creates a node of the same type as in the "node types" property.
+  ///
+  /// Its name is generated using \a basename.
+  ///
+  /// \return The new node or NULL if \a nodeType is not among the allowed
+  /// node types specified using setNodeTypes().
+  ///
+  /// \sa nodeTypes()
+  /// \sa baseName()
+  virtual vtkMRMLNode* addNode(QString nodeType);
+
+  /// \brief Creates a node of the same type as the first in the "node types" property.
+  ///
+  /// Its name is generated using \a basename.
+  ///
+  /// \sa nodeTypes()
+  /// \sa baseName()
   virtual vtkMRMLNode* addNode();
 
   /// Removes the current node from the scene. The node reference count gets

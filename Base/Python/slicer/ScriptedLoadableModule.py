@@ -1,7 +1,10 @@
 import os, string
 import unittest
-from __main__ import qt, ctk, slicer
+import qt, ctk, slicer
 import logging
+import importlib
+
+__all__ = ['ScriptedLoadableModule', 'ScriptedLoadableModuleWidget', 'ScriptedLoadableModuleLogic', 'ScriptedLoadableModuleTest']
 
 class ScriptedLoadableModule:
   def __init__(self, parent):
@@ -12,16 +15,14 @@ class ScriptedLoadableModule:
     parent.categories = []
     parent.dependencies = []
     parent.contributors = ["Andras Lasso (PerkLab, Queen's University), Steve Pieper (Isomics)"]
-
-    parent.helpText = string.Template("""
+    parent.helpText = """
 This module was created from a template and the help section has not yet been updated.
-Please refer to <a href=\"$a/Documentation/$b.$c/Modules/ScriptedLoadableModule\">the documentation</a>.
-    """).substitute({ 'a':parent.slicerWikiUrl, 'b':slicer.app.majorVersion, 'c':slicer.app.minorVersion })
+"""
 
     parent.acknowledgementText = """
 This work is supported by NA-MIC, NAC, BIRN, NCIGT, and the Slicer Community. See <a>http://www.slicer.org</a> for details.
 This work is partially supported by PAR-07-249: R01CA131718 NA-MIC Virtual Colonoscopy (See <a href=http://www.slicer.org>http://www.na-mic.org/Wiki/index.php/NA-MIC_NCBC_Collaboration:NA-MIC_virtual_colonoscopy</a>).
-    """
+"""
 
     # Set module icon from Resources/Icons/<ModuleName>.png
     moduleDir = os.path.dirname(self.parent.path)
@@ -38,10 +39,30 @@ This work is partially supported by PAR-07-249: R01CA131718 NA-MIC Virtual Colon
       slicer.selfTests = {}
     slicer.selfTests[self.moduleName] = self.runTest
 
+  def getDefaultModuleDocumentationLink(self, docPage=None):
+    """Return string that can be inserted into the application help text that contains
+    link to the module's documentation in current Slicer version's documentation.
+    Currently the text is "See the documentation for more information."
+    If docPage is not specified then the link points to Modules/(ModuleName).
+    """
+    if not docPage:
+      docPage = "Modules/"+self.moduleName
+    linkText = 'See <a href="{0}/Documentation/{1}.{2}/{3}">the documentation</a> for more information.'.format(
+      self.parent.slicerWikiUrl, slicer.app.majorVersion, slicer.app.minorVersion, docPage)
+    return linkText
+
   def runTest(self):
-    # Name of the tester class is expected to be MyModuleNameTest()
-    tester = eval(self.moduleName + 'Test()')
-    tester.runTest()
+    # Name of the test case class is expected to be <ModuleName>Test
+    module = importlib.import_module(self.__module__)
+    className = self.moduleName + 'Test'
+    try:
+      TestCaseClass = getattr(module, className)
+    except AttributeError:
+      # Treat missing test case class as a failure; provide useful error message
+      raise AssertionError('Test case class not found: %s.%s ' % (self.__module__, className))
+
+    testCase = TestCaseClass()
+    testCase.runTest()
 
 class ScriptedLoadableModuleWidget:
   def __init__(self, parent = None):
@@ -63,34 +84,52 @@ class ScriptedLoadableModuleWidget:
       self.parent.show()
 
   def setupDeveloperSection(self):
-
     if not self.developerMode:
       return
 
+    def createHLayout(elements):
+      widget = qt.QWidget()
+      rowLayout = qt.QHBoxLayout()
+      widget.setLayout(rowLayout)
+      for element in elements:
+        rowLayout.addWidget(element)
+      return widget
+
     #
     # Reload and Test area
-    #
-    reloadCollapsibleButton = ctk.ctkCollapsibleButton()
-    reloadCollapsibleButton.text = "Reload && Test"
-    self.layout.addWidget(reloadCollapsibleButton)
-    reloadFormLayout = qt.QFormLayout(reloadCollapsibleButton)
+    # Used during development, but hidden when delivering
+    # developer mode is turned off.
+    self.reloadCollapsibleButton = ctk.ctkCollapsibleButton()
+    self.reloadCollapsibleButton.text = "Reload && Test"
+    self.layout.addWidget(self.reloadCollapsibleButton)
+    reloadFormLayout = qt.QFormLayout(self.reloadCollapsibleButton)
 
     # reload button
-    # (use this during development, but remove it when delivering
-    #  your module to users)
     self.reloadButton = qt.QPushButton("Reload")
     self.reloadButton.toolTip = "Reload this module."
     self.reloadButton.name = "ScriptedLoadableModuleTemplate Reload"
-    reloadFormLayout.addWidget(self.reloadButton)
     self.reloadButton.connect('clicked()', self.onReload)
 
     # reload and test button
-    # (use this during development, but remove it when delivering
-    #  your module to users)
     self.reloadAndTestButton = qt.QPushButton("Reload and Test")
     self.reloadAndTestButton.toolTip = "Reload this module and then run the self tests."
-    reloadFormLayout.addWidget(self.reloadAndTestButton)
     self.reloadAndTestButton.connect('clicked()', self.onReloadAndTest)
+
+    # edit python source code
+    self.editSourceButton = qt.QPushButton("Edit")
+    self.editSourceButton.toolTip = "Edit the module's source code."
+    self.editSourceButton.connect('clicked()', self.onEditSource)
+
+    # restart Slicer button
+    # (use this during development, but remove it when delivering
+    #  your module to users)
+    self.restartButton = qt.QPushButton("Restart Slicer")
+    self.restartButton.toolTip = "Restart Slicer"
+    self.restartButton.name = "ScriptedLoadableModuleTemplate Restart"
+    self.restartButton.connect('clicked()', slicer.app.restart)
+
+    reloadFormLayout.addWidget(createHLayout([self.reloadButton, self.reloadAndTestButton, self.editSourceButton, self.restartButton]))
+
 
   def setup(self):
     # Instantiate and connect default widgets ...
@@ -104,22 +143,24 @@ class ScriptedLoadableModuleWidget:
     ModuleWizard will substitute correct default moduleName.
     Generic reload method for any scripted module.
     """
-    globals()[self.moduleName] = slicer.util.reloadScriptedModule(self.moduleName)
+    slicer.util.reloadScriptedModule(self.moduleName)
 
   def onReloadAndTest(self):
     try:
       self.onReload()
-      evalString = 'globals()["%s"].%sTest()' % (self.moduleName, self.moduleName)
-      tester = eval(evalString)
-      tester.runTest()
+      test = slicer.selfTests[self.moduleName]
+      test()
     except Exception, e:
       import traceback
       traceback.print_exc()
       errorMessage = "Reload and Test: Exception!\n\n" + str(e) + "\n\nSee Python Console for Stack Trace"
       slicer.util.errorDisplay(errorMessage)
 
-class ScriptedLoadableModuleLogic():
+  def onEditSource(self):
+    filePath = slicer.util.modulePath(self.moduleName)
+    qt.QDesktopServices.openUrl(qt.QUrl("file:///"+filePath, qt.QUrl.TolerantMode))
 
+class ScriptedLoadableModuleLogic():
   def __init__(self, parent = None):
     # Get module name by stripping 'Logic' from the class name
     self.moduleName = self.__class__.__name__
@@ -187,50 +228,23 @@ class ScriptedLoadableModuleLogic():
 
   def clickAndDrag(self,widget,button='Left',start=(10,10),end=(10,40),steps=20,modifiers=[]):
     """
-    Send synthetic mouse events to the specified widget (qMRMLSliceWidget or qMRMLThreeDView)
-    button : "Left", "Middle", "Right", or "None"
-    start, end : window coordinates for action
-    steps : number of steps to move in
-    modifiers : list containing zero or more of "Shift" or "Control"
+    Send synthetic mouse events to the specified widget (qMRMLSliceWidget or qMRMLThreeDView).
+    It is recommended to directly use slicer.util.clickAndDrag function.
+    This method is only kept for backward compatibility and may be removed in the future.
     """
-    style = widget.interactorStyle()
-    interator = style.GetInteractor()
-    if button == 'Left':
-      down = style.OnLeftButtonDown
-      up = style.OnLeftButtonUp
-    elif button == 'Right':
-      down = style.OnRightButtonDown
-      up = style.OnRightButtonUp
-    elif button == 'Middle':
-      down = style.OnMiddleButtonDown
-      up = style.OnMiddleButtonUp
-    elif button == 'None' or not button:
-      down = lambda : None
-      up = lambda : None
-    else:
-      raise Exception("Bad button - should be Left or Right, not %s" % button)
-    if 'Shift' in modifiers:
-      interator.SetShiftKey(1)
-    if 'Control' in modifiers:
-      interator.SetControlKey(1)
-    interator.SetEventPosition(*start)
-    down()
-    for step in xrange(steps):
-      frac = float(step)/steps
-      x = int(start[0] + frac*(end[0]-start[0]))
-      y = int(start[1] + frac*(end[1]-start[1]))
-      interator.SetEventPosition(x,y)
-      style.OnMouseMove()
-    up()
-    interator.SetShiftKey(0)
-    interator.SetControlKey(0)
+    slicer.util.clickAndDrag(widget,button=button,start=start,end=end,steps=steps,modifiers=modifiers)
 
 class ScriptedLoadableModuleTest(unittest.TestCase):
   """
   Base class for module tester class.
+  Setting messageDelay to something small, like 50 allows
+  faster development time.
   """
 
-  def delayDisplay(self,message,msec=1000):
+  def __init__(self, *args, **kwargs):
+    super(ScriptedLoadableModuleTest, self).__init__(*args, **kwargs)
+
+  def delayDisplay(self,message,requestedDelay=None):
     """
     Display messages to the user/tester during testing.
     This method can be temporarily overridden to allow tests running
@@ -249,6 +263,12 @@ class ScriptedLoadableModuleTest(unittest.TestCase):
     Error messages should be logged by logging.error() function
     and displayed to user by slicer.util.errorDisplay function.
     """
+    if hasattr(self, "messageDelay"):
+        msec = self.messageDelay
+    else:
+        msec = 1000
+    if requestedDelay:
+      msec = requestedDelay
     slicer.util.delayDisplay(message, msec)
 
   def runTest(self):

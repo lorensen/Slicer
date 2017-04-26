@@ -9,15 +9,12 @@ set(${KIT}_INCLUDE_DIRECTORIES
   ${vtkSlicer${MODULE_NAME}ModuleLogic_BINARY_DIR}
   ${vtkSlicer${MODULE_NAME}ModuleMRML_SOURCE_DIR}
   ${vtkSlicer${MODULE_NAME}ModuleMRML_BINARY_DIR}
-  ${VolumeRenderingReplacements_SOURCE_DIR}
-  ${VolumeRenderingReplacements_BINARY_DIR}
   )
 
 set(displayable_manager_SRCS
   vtkMRMLVolumeRenderingDisplayableManager.cxx
   )
 
-set(VTK_USE_INSTANTIATOR_NEW 1)
 VTK_MAKE_INSTANTIATOR3("${MODULE_NAME}Instantiator"
   displayable_manager_instantiator_SRCS
   "${displayable_manager_SRCS}"
@@ -31,22 +28,15 @@ set(${KIT}_SRCS
   ${displayable_manager_SRCS}
   )
 
-if(${VTK_VERSION_MAJOR} GREATER 5)
-  set(${KIT}_VTK_LIBRARIES
-    vtkRenderingVolume
-    vtkRenderingVolume${VTK_RENDERING_BACKEND}
-    )
-else()
-  set(${KIT}_TARGET_LIBRARIES
-    vtkRendering
-    )
-endif()
+set(${KIT}_VTK_LIBRARIES
+  vtkRenderingVolume
+  vtkRenderingVolume${VTK_RENDERING_BACKEND}
+  )
 
 set(${KIT}_TARGET_LIBRARIES
   vtkSlicerAnnotationsModuleMRML
   vtkSlicer${MODULE_NAME}ModuleLogic
   vtkSlicer${MODULE_NAME}ModuleMRML
-  VolumeRenderingReplacements
   ${MRML_LIBRARIES}
   ${ITK_LIBRARIES}
   ${${KIT}_VTK_LIBRARIES}

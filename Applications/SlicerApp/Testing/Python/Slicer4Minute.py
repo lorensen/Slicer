@@ -1,6 +1,6 @@
 import os
 import unittest
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 
 #
 # Slicer4Minute
@@ -127,7 +127,7 @@ class Slicer4MinuteLogic:
     if not volumeNode:
       print('no volume node')
       return False
-    if volumeNode.GetImageData() == None:
+    if volumeNode.GetImageData() is None:
       print('no image data')
       return False
     return True
@@ -199,7 +199,7 @@ class Slicer4MinuteTest(unittest.TestCase):
     # check volume is loaded out of scene
     volumeNode = slicer.util.getNode(pattern="grayscale")
     logic = Slicer4MinuteLogic()
-    self.assertTrue( logic.hasImageData(volumeNode) )
+    self.assertIsNotNone( logic.hasImageData(volumeNode) )
 
     # check the slice planes
     red = slicer.util.getNode(pattern="vtkMRMLSliceNode1")
@@ -230,7 +230,7 @@ class Slicer4MinuteTest(unittest.TestCase):
     hemispheric_white_matter = slicer.util.getNode(pattern='hemispheric_white_matter.vtk')
     hemispheric_white_matter.GetDisplayNode().SetClipping(1)
 
-    clip = slicer.util.getNode(pattern='vtkMRMLClipModelsNode1')
+    clip = slicer.util.getNode('ClipModelsParameters1')
     clip.SetRedSliceClipState(0)
     clip.SetYellowSliceClipState(0)
     clip.SetGreenSliceClipState(2)

@@ -24,7 +24,7 @@ def CloneSlicerNode( NodeName, NewNodeNamePrefix ):
     newvol = vl.CloneVolume(slicer.mrmlScene,n,NewNodeNamePrefix)
     return newvol.GetName()
 
-__sitk__VOLUME_TYPES__ = [ 'Scalar' ]
+__sitk__VOLUME_TYPES__ = [ 'Scalar', 'LabelMap' ]
 
 def checkVolumeNodeType(nodeType):
     """ Raise an error if the node type is not a recognized volume node
@@ -117,7 +117,11 @@ def PushToSlicer(sitkimage, NodeName, compositeView=0, overwrite=False):
     else:
         raise Exception('Unknown view option given: {0}. See help'.format(compositeView))
     EnsureRegistration()
-    newNode = CreateNewVolumeNode(NodeName,'vtkMRMLScalarVolumeNode', overwrite)
+    if imageType == 'label':
+        newNode = CreateNewVolumeNode(NodeName,'vtkMRMLLabelMapVolumeNode', overwrite)
+    else:
+        newNode = CreateNewVolumeNode(NodeName,'vtkMRMLScalarVolumeNode', overwrite)
+
     if not overwrite:
         newDisplayNode = CreateNewDisplayNode(NodeName)
     else:
@@ -139,13 +143,10 @@ def PushToSlicer(sitkimage, NodeName, compositeView=0, overwrite=False):
     elif imageType == 'background':
         selectionNode.SetReferenceActiveVolumeID(writtenNode.GetID())
     elif imageType == 'label':
-        vl = slicer.modules.volumes.logic()
-        vl.SetVolumeAsLabelMap(writtenNode, True)
         selectionNode.SetReferenceActiveLabelVolumeID(writtenNode.GetID())
 
     applicationLogic = slicer.app.applicationLogic()
     applicationLogic.PropagateVolumeSelection(0)
-    applicationLogic.FitSliceToAll()
 
 # Helper functions
 def PushBackground(sitkImage, nodeName, overwrite=False):

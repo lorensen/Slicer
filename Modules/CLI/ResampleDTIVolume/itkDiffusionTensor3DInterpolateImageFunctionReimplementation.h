@@ -11,8 +11,8 @@
   See License.txt or http://www.slicer.org/copyright/copyright.txt for details.
 
 ==========================================================================*/
-#ifndef __itkDiffusionTensor3DInterpolateImageFunctionReimplementation_h
-#define __itkDiffusionTensor3DInterpolateImageFunctionReimplementation_h
+#ifndef itkDiffusionTensor3DInterpolateImageFunctionReimplementation_h
+#define itkDiffusionTensor3DInterpolateImageFunctionReimplementation_h
 
 #include "itkDiffusionTensor3DInterpolateImageFunction.h"
 #include <itkImage.h>
@@ -60,6 +60,10 @@ public:
   typedef typename DiffusionImageType::RegionType                        itkRegionType;
   typedef typename DiffusionImageType::SizeType                          SizeType;
   typedef typename Superclass::ContinuousIndexType                       ContinuousIndexType;
+
+  /** Run-time type information (and related methods). */
+  itkTypeMacro(DiffusionTensor3DInterpolateImageFunctionReimplementation, DiffusionTensor3DInterpolateImageFunction);
+
   /** Evaluate the interpolated tensor at a position
    */
   // TensorDataType Evaluate( const PointType &point ) ;

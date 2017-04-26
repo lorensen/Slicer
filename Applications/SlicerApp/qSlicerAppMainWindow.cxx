@@ -35,6 +35,7 @@
 #include <QSettings>
 #include <QShowEvent>
 #include <QSignalMapper>
+#include <QTextEdit>
 #include <QTimer>
 #include <QToolButton>
 
@@ -101,7 +102,8 @@ qSlicerAppMainWindowPrivate::qSlicerAppMainWindowPrivate(qSlicerAppMainWindow& o
   : q_ptr(&object)
 {
 #ifdef Slicer_USE_PYTHONQT
-  this->PythonConsole = 0;
+  this->PythonConsoleDockWidget = 0;
+  this->PythonConsoleToggleViewAction = 0;
 #endif
   this->ErrorLogWidget = 0;
   this->ErrorLogToolButton = 0;
@@ -239,6 +241,12 @@ void qSlicerAppMainWindowPrivate::setupUi(QMainWindow * mainWindow)
                    qSlicerApplication::application()->ioManager(),
                    SLOT(openSceneViewsDialog()));
 
+  // if testing is enabled on the application level, add a time out to the pop ups
+  if (qSlicerApplication::application()->testAttribute(qSlicerCoreApplication::AA_EnableTesting))
+    {
+    this->CaptureToolBar->setPopupsTimeOut(true);
+    }
+
   QList<QAction*> toolBarActions;
   toolBarActions << this->MainToolBar->toggleViewAction();
   //toolBarActions << this->UndoRedoToolBar->toggleViewAction();
@@ -250,11 +258,8 @@ void qSlicerAppMainWindowPrivate::setupUi(QMainWindow * mainWindow)
   toolBarActions << this->CaptureToolBar->toggleViewAction();
   toolBarActions << this->ViewersToolBar->toggleViewAction();
   toolBarActions << this->DialogToolBar->toggleViewAction();
+  this->WindowToolBarsMenu->addActions(toolBarActions);
 
-  this->WindowToolBarsMenu->insertActions(
-    this->WindowToolbarsResetToDefaultAction, toolBarActions);
-  this->WindowToolBarsMenu->insertSeparator(
-    this->WindowToolbarsResetToDefaultAction);
   //----------------------------------------------------------------------------
   // Hide toolbars by default
   //----------------------------------------------------------------------------
@@ -318,6 +323,8 @@ void qSlicerAppMainWindowPrivate::setupUi(QMainWindow * mainWindow)
                    SLOT(setMRMLScene(vtkMRMLScene*)));
   QObject::connect(this->LayoutManager, SIGNAL(layoutChanged(int)),
                    q, SLOT(onLayoutChanged(int)));
+  QObject::connect(this->LayoutManager, SIGNAL(nodeAboutToBeEdited(vtkMRMLNode*)),
+                   qSlicerApplication::application(), SLOT(openNodeModule(vtkMRMLNode*)));
 
   // TODO: When module will be managed by the layoutManager, this should be
   //       revisited.
@@ -325,7 +332,7 @@ void qSlicerAppMainWindowPrivate::setupUi(QMainWindow * mainWindow)
                    this->ModuleSelectorToolBar, SLOT(selectModule(QString)));
 
   // Add menus for configuring compare view
-  QMenu *compareMenu = new QMenu(q->tr("Select number of viewers..."));
+  QMenu *compareMenu = new QMenu(q->tr("Select number of viewers..."), mainWindow);
   compareMenu->setObjectName("CompareMenuView");
   compareMenu->addAction(this->ViewLayoutCompare_2_viewersAction);
   compareMenu->addAction(this->ViewLayoutCompare_3_viewersAction);
@@ -339,7 +346,7 @@ void qSlicerAppMainWindowPrivate::setupUi(QMainWindow * mainWindow)
                    q, SLOT(onLayoutCompareActionTriggered(QAction*)));
 
   // ... and for widescreen version of compare view as well
-  compareMenu = new QMenu(q->tr("Select number of viewers..."));
+  compareMenu = new QMenu(q->tr("Select number of viewers..."), mainWindow);
   compareMenu->setObjectName("CompareMenuWideScreen");
   compareMenu->addAction(this->ViewLayoutCompareWidescreen_2_viewersAction);
   compareMenu->addAction(this->ViewLayoutCompareWidescreen_3_viewersAction);
@@ -353,7 +360,7 @@ void qSlicerAppMainWindowPrivate::setupUi(QMainWindow * mainWindow)
                    q, SLOT(onLayoutCompareWidescreenActionTriggered(QAction*)));
 
   // ... and for the grid version of the compare views
-  compareMenu = new QMenu(q->tr("Select number of viewers..."));
+  compareMenu = new QMenu(q->tr("Select number of viewers..."), mainWindow);
   compareMenu->setObjectName("CompareMenuGrid");
   compareMenu->addAction(this->ViewLayoutCompareGrid_2x2_viewersAction);
   compareMenu->addAction(this->ViewLayoutCompareGrid_3x3_viewersAction);
@@ -450,6 +457,51 @@ void qSlicerAppMainWindowPrivate::setupUi(QMainWindow * mainWindow)
   this->ErrorLogWidget = new ctkErrorLogWidget;
   this->ErrorLogWidget->setErrorLogModel(
     qSlicerApplication::application()->errorLogModel());
+
+  //----------------------------------------------------------------------------
+  // Python console
+  //----------------------------------------------------------------------------
+#ifdef Slicer_USE_PYTHONQT
+  if (q->pythonConsole())
+    {
+    if (QSettings().value("Python/DockableWindow").toBool())
+      {
+      this->PythonConsoleDockWidget = new QDockWidget(q->tr("Python Interactor"));
+      this->PythonConsoleDockWidget->setObjectName("PythonConsoleDockWidget");
+      this->PythonConsoleDockWidget->setAllowedAreas(Qt::AllDockWidgetAreas);
+      this->PythonConsoleDockWidget->setWidget(q->pythonConsole());
+      this->PythonConsoleToggleViewAction = this->PythonConsoleDockWidget->toggleViewAction();
+      // Set default state
+      q->addDockWidget(Qt::BottomDockWidgetArea, this->PythonConsoleDockWidget);
+      this->PythonConsoleDockWidget->hide();
+      }
+    else
+      {
+      ctkPythonConsole* pythonConsole = q->pythonConsole();
+      pythonConsole->setWindowTitle("Slicer Python Interactor");
+      pythonConsole->resize(600, 280);
+      pythonConsole->hide();
+      this->PythonConsoleToggleViewAction = new QAction("", this->ViewMenu);
+      this->PythonConsoleToggleViewAction->setCheckable(true);
+      }
+    QObject::connect(q->pythonConsole(), SIGNAL(aboutToExecute(const QString&)),
+      q, SLOT(onPythonConsoleUserInput(const QString&)));
+    // Set up show/hide action
+    this->PythonConsoleToggleViewAction->setText(q->tr("&Python Interactor"));
+    this->PythonConsoleToggleViewAction->setToolTip(q->tr(
+      "Show Python Interactor window for controlling the application's data, user interface, and internals"));
+    this->PythonConsoleToggleViewAction->setShortcut(QKeySequence("Ctrl+3"));
+    QObject::connect(this->PythonConsoleToggleViewAction, SIGNAL(toggled(bool)),
+      q, SLOT(onPythonConsoleToggled(bool)));
+    this->ViewMenu->insertAction(this->WindowToolBarsMenu->menuAction(), this->PythonConsoleToggleViewAction);
+    this->PythonConsoleToggleViewAction->setIcon(QIcon(":/python-icon.png"));
+    this->DialogToolBar->addAction(this->PythonConsoleToggleViewAction);
+    }
+  else
+    {
+    qWarning("qSlicerAppMainWindowPrivate::setupUi: Failed to create Python console");
+    }
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -698,22 +750,16 @@ qSlicerModuleSelectorToolBar* qSlicerAppMainWindow::moduleSelector()const
 //---------------------------------------------------------------------------
 ctkPythonConsole* qSlicerAppMainWindow::pythonConsole()const
 {
-  Q_D(const qSlicerAppMainWindow);
-  if (!d->PythonConsole)
+  return qSlicerCoreApplication::application()->pythonConsole();
+}
+
+//---------------------------------------------------------------------------
+void qSlicerAppMainWindow::onPythonConsoleUserInput(const QString& cmd)
+{
+  if (!cmd.isEmpty())
     {
-    // Lookup reference of 'PythonConsole' widget
-    // and cache the value
-    foreach(QWidget * widget, qApp->topLevelWidgets())
-      {
-      if(widget->objectName().compare(QLatin1String("pythonConsole")) == 0)
-        {
-        const_cast<qSlicerAppMainWindowPrivate*>(d)
-          ->PythonConsole = qobject_cast<ctkPythonConsole*>(widget);
-        break;
-        }
-      }
+    qDebug("Python console user input: %s", qPrintable(cmd));
     }
-  return d->PythonConsole;
 }
 #endif
 
@@ -891,14 +937,48 @@ void qSlicerAppMainWindow::on_WindowErrorLogAction_triggered()
 }
 
 //-----------------------------------------------------------------------------
-void qSlicerAppMainWindow::on_WindowPythonInteractorAction_triggered()
+void qSlicerAppMainWindow::onPythonConsoleToggled(bool toggled)
 {
+  Q_D(qSlicerAppMainWindow);
 #ifdef Slicer_USE_PYTHONQT
-  ctkPythonConsole* console = this->pythonConsole();
-  Q_ASSERT(console);
-  console->show();
-  console->activateWindow();
-  console->raise();
+  ctkPythonConsole* pythonConsole = this->pythonConsole();
+  if (!pythonConsole)
+    {
+    qCritical() << Q_FUNC_INFO << " failed: python console is not available";
+    return;
+    }
+  if (d->PythonConsoleDockWidget)
+    {
+    // Dockable Python console
+    if (toggled)
+      {
+      if (d->PythonConsoleDockWidget)
+        {
+        d->PythonConsoleDockWidget->activateWindow();
+        QTextEdit* textEditWidget = pythonConsole->findChild<QTextEdit*>();
+        if (textEditWidget)
+          {
+          textEditWidget->setFocus();
+          }
+        }
+      }
+    }
+  else
+    {
+    // Independent Python console
+    if (toggled)
+      {
+      pythonConsole->show();
+      pythonConsole->activateWindow();
+      pythonConsole->raise();
+      }
+    else
+      {
+      pythonConsole->hide();
+      }
+    }
+#else
+  Q_UNUSED(toggled);
 #endif
 }
 
@@ -1036,7 +1116,25 @@ void qSlicerAppMainWindow::showEvent(QShowEvent *event)
   if (!event->spontaneous())
     {
     this->disclaimer();
+    this->pythonConsoleInitialDisplay();
     }
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerAppMainWindow::pythonConsoleInitialDisplay()
+{
+  Q_D(qSlicerAppMainWindow);
+#ifdef Slicer_USE_PYTHONQT
+  qSlicerApplication * app = qSlicerApplication::application();
+  if (qSlicerCoreApplication::testAttribute(qSlicerCoreApplication::AA_DisablePython))
+    {
+    return;
+    }
+  if (app->commandOptions()->showPythonInteractor() && d->PythonConsoleDockWidget)
+    {
+    d->PythonConsoleDockWidget->show();
+    }
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1049,9 +1147,16 @@ void qSlicerAppMainWindow::disclaimer()
     {
     return;
     }
-  QString message = QString("Thank you for using %1!\n\n"
-                            "This software is not intended for clinical use.")
-    .arg(app->applicationName() + " " + app->applicationVersion());
+
+  QString message = QString(Slicer_DISCLAIMER_AT_STARTUP);
+  if (message.isEmpty())
+    {
+    // No disclaimer message to show, skip the popup
+    return;
+    }
+
+  // Replace "%1" in the text by the name and version of the application
+  message = message.arg(app->applicationName() + " " + app->applicationVersion());
 
   ctkMessageBox* disclaimerMessage = new ctkMessageBox(this);
   disclaimerMessage->setAttribute( Qt::WA_DeleteOnClose, true );
@@ -1071,9 +1176,11 @@ void qSlicerAppMainWindow::setupMenuActions()
   d->ViewLayoutConventionalQuantitativeAction->setData(vtkMRMLLayoutNode::SlicerLayoutConventionalQuantitativeView);
   d->ViewLayoutFourUpAction->setData(vtkMRMLLayoutNode::SlicerLayoutFourUpView);
   d->ViewLayoutFourUpQuantitativeAction->setData(vtkMRMLLayoutNode::SlicerLayoutFourUpQuantitativeView);
+  d->ViewLayoutFourUpTableAction->setData(vtkMRMLLayoutNode::SlicerLayoutFourUpTableView);
   d->ViewLayoutDual3DAction->setData(vtkMRMLLayoutNode::SlicerLayoutDual3DView);
   d->ViewLayoutTriple3DAction->setData(vtkMRMLLayoutNode::SlicerLayoutTriple3DEndoscopyView);
   d->ViewLayoutOneUp3DAction->setData(vtkMRMLLayoutNode::SlicerLayoutOneUp3DView);
+  d->ViewLayout3DTableAction->setData(vtkMRMLLayoutNode::SlicerLayout3DTableView);
   d->ViewLayoutOneUpQuantitativeAction->setData(vtkMRMLLayoutNode::SlicerLayoutOneUpQuantitativeView);
   d->ViewLayoutOneUpRedSliceAction->setData(vtkMRMLLayoutNode::SlicerLayoutOneUpRedSliceView);
   d->ViewLayoutOneUpYellowSliceAction->setData(vtkMRMLLayoutNode::SlicerLayoutOneUpYellowSliceView);
@@ -1155,10 +1262,6 @@ void qSlicerAppMainWindow::setupMenuActions()
 //---------------------------------------------------------------------------
 void qSlicerAppMainWindow::on_LoadDICOMAction_triggered()
 {
-//  Q_D(qSlicerAppMainWindow);
-// raise the dicom module....
-//  d->ModuleSelectorToolBar->selectModule("DICOM");
-
   qSlicerLayoutManager * layoutManager = qSlicerApplication::application()->layoutManager();
 
   if (!layoutManager)
@@ -1457,6 +1560,15 @@ bool qSlicerAppMainWindow::eventFilter(QObject* object, QEvent* event)
         && this->errorLogWidget()->isActiveWindow())
       {
       d->setErrorLogIconHighlighted(false);
+      }
+    }
+  if (object == this->pythonConsole())
+    {
+    if (event->type() == QEvent::Hide)
+      {
+      bool wasBlocked = d->PythonConsoleToggleViewAction->blockSignals(true);
+      d->PythonConsoleToggleViewAction->setChecked(false);
+      d->PythonConsoleToggleViewAction->blockSignals(wasBlocked);
       }
     }
   return this->Superclass::eventFilter(object, event);

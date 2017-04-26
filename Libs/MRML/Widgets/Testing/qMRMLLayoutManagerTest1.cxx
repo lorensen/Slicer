@@ -24,15 +24,97 @@
 #include <QWidget>
 
 // Slicer includes
+#include "qMRMLChartWidget.h"
 #include "qMRMLLayoutManager.h"
+#include "qMRMLSliceWidget.h"
+#include "qMRMLTableWidget.h"
+#include "qMRMLThreeDWidget.h"
 
 // MRML includes
 #include <vtkMRMLApplicationLogic.h>
+#include <vtkMRMLChartViewNode.h>
+#include <vtkMRMLLayoutNode.h>
 #include <vtkMRMLScene.h>
+#include <vtkMRMLSliceNode.h>
+#include <vtkMRMLTableViewNode.h>
+#include <vtkMRMLViewNode.h>
 
 // VTK includes
 #include <vtkNew.h>
 
+namespace
+{
+//------------------------------------------------------------------------------
+bool testLayoutManagerViewWidgetForChart(int line, qMRMLLayoutManager* layoutManager, int viewId)
+{
+  qMRMLChartWidget* widget = layoutManager->chartWidget(viewId);
+  vtkMRMLChartViewNode* node = widget ? widget->mrmlChartViewNode() : 0;
+  if (!widget || !node)
+    {
+    std::cerr << "Line " << line << " - Problem with qMRMLLayoutManager::chartWidget()" << std::endl;
+    return false;
+    }
+  if (layoutManager->viewWidget(node) != widget)
+    {
+    std::cerr << "Line " << line << " - Problem with qMRMLLayoutManager::viewWidget()" << std::endl;
+    return false;
+    }
+  return true;
+}
+//------------------------------------------------------------------------------
+bool testLayoutManagerViewWidgetForTable(int line, qMRMLLayoutManager* layoutManager, int viewId)
+{
+  qMRMLTableWidget* widget = layoutManager->tableWidget(viewId);
+  vtkMRMLTableViewNode* node = widget ? widget->mrmlTableViewNode() : 0;
+  if (!widget || !node)
+    {
+    std::cerr << "Line " << line << " - Problem with qMRMLLayoutManager::tableWidget()" << std::endl;
+    return false;
+    }
+  if (layoutManager->viewWidget(node) != widget)
+    {
+    std::cerr << "Line " << line << " - Problem with qMRMLLayoutManager::viewWidget()" << std::endl;
+    return false;
+    }
+  return true;
+}
+//------------------------------------------------------------------------------
+bool testLayoutManagerViewWidgetForSlice(int line, qMRMLLayoutManager* layoutManager, const char* viewName)
+{
+  qMRMLSliceWidget* widget = layoutManager->sliceWidget(viewName);
+  vtkMRMLSliceNode* node = widget ? widget->mrmlSliceNode() : 0;
+  if (!widget || !node)
+    {
+    std::cerr << "Line " << line << " - Problem with qMRMLLayoutManager::sliceWidget()" << std::endl;
+    return false;
+    }
+  if (layoutManager->viewWidget(node) != widget)
+    {
+    std::cerr << "Line " << line << " - Problem with qMRMLLayoutManager::viewWidget()" << std::endl;
+    return false;
+    }
+  return true;
+}
+//------------------------------------------------------------------------------
+bool testLayoutManagerViewWidgetForThreeD(int line, qMRMLLayoutManager* layoutManager, int viewId)
+{
+  qMRMLThreeDWidget* widget = layoutManager->threeDWidget(viewId);
+  vtkMRMLViewNode* node = widget ? widget->mrmlViewNode() : 0;
+  if (!widget || !node)
+    {
+    std::cerr << "Line " << line << " - Problem with qMRMLLayoutManager::threeDWidget()" << std::endl;
+    return false;
+    }
+  if (layoutManager->viewWidget(node) != widget)
+    {
+    std::cerr << "Line " << line << " - Problem with qMRMLLayoutManager::viewWidget()" << std::endl;
+    return false;
+    }
+  return true;
+}
+}
+
+//------------------------------------------------------------------------------
 int qMRMLLayoutManagerTest1(int argc, char * argv[] )
 {
   QApplication app(argc, argv);
@@ -73,6 +155,61 @@ int qMRMLLayoutManagerTest1(int argc, char * argv[] )
   viewport2->setWindowTitle("New widget");
   layoutManager->setViewport(viewport2);
   viewport2->show();
+
+
+  layoutManager->setLayout(vtkMRMLLayoutNode::SlicerLayoutConventionalView);
+  if (!testLayoutManagerViewWidgetForSlice(__LINE__, layoutManager, "Green"))
+    {
+    return EXIT_FAILURE;
+    }
+  if (!testLayoutManagerViewWidgetForSlice(__LINE__, layoutManager, "Red"))
+    {
+    return EXIT_FAILURE;
+    }
+  if (!testLayoutManagerViewWidgetForSlice(__LINE__, layoutManager, "Yellow"))
+    {
+    return EXIT_FAILURE;
+    }
+  if (!testLayoutManagerViewWidgetForThreeD(__LINE__, layoutManager, 0))
+    {
+    return EXIT_FAILURE;
+    }
+
+  layoutManager->setLayout(vtkMRMLLayoutNode::SlicerLayoutFourUpQuantitativeView);
+  if (!testLayoutManagerViewWidgetForSlice(__LINE__, layoutManager, "Green"))
+    {
+    return EXIT_FAILURE;
+    }
+  if (!testLayoutManagerViewWidgetForSlice(__LINE__, layoutManager, "Red"))
+    {
+    return EXIT_FAILURE;
+    }
+  if (!testLayoutManagerViewWidgetForSlice(__LINE__, layoutManager, "Yellow"))
+    {
+    return EXIT_FAILURE;
+    }
+  if (!testLayoutManagerViewWidgetForChart(__LINE__, layoutManager, 0))
+    {
+    return EXIT_FAILURE;
+    }
+
+  layoutManager->setLayout(vtkMRMLLayoutNode::SlicerLayoutFourUpTableView);
+  if (!testLayoutManagerViewWidgetForSlice(__LINE__, layoutManager, "Green"))
+    {
+    return EXIT_FAILURE;
+    }
+  if (!testLayoutManagerViewWidgetForSlice(__LINE__, layoutManager, "Red"))
+    {
+    return EXIT_FAILURE;
+    }
+  if (!testLayoutManagerViewWidgetForSlice(__LINE__, layoutManager, "Yellow"))
+    {
+    return EXIT_FAILURE;
+    }
+  if (!testLayoutManagerViewWidgetForTable(__LINE__, layoutManager, 0))
+    {
+    return EXIT_FAILURE;
+    }
 
   QTimer autoExit;
   if (argc < 2 || QString(argv[1]) != "-I")

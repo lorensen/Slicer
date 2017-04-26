@@ -86,7 +86,6 @@ void vtkMRMLFiducialListNode::WriteXML(ostream& of, int nIndent)
 
   // rest is saved in the storage node file, but it needs to be here as well
   // due to the way the scene snapshots are handled (storage nodes are not re-read)
-  vtkIndent indent(nIndent);
 
   of << " symbolScale=\"" << this->SymbolScale << "\"";
   of << " symbolType=\"" << this->GlyphType << "\"";
@@ -359,7 +358,7 @@ void vtkMRMLFiducialListNode::Copy(vtkMRMLNode *anode)
       {
       vtkMRMLFiducial *fid = vtkMRMLFiducial::SafeDownCast(node->FiducialList->vtkCollection::GetItemAsObject(f));
       vtkMRMLFiducial *fidThis = vtkMRMLFiducial::SafeDownCast(this->FiducialList->vtkCollection::GetItemAsObject(f));
-      unsigned long mtime = fidThis->GetMTime();
+      vtkMTimeType mtime = fidThis->GetMTime();
       fidThis->Copy(fid);
       // Copy doesn't copy the ID, so check to see if the fiducial node in the
       // list to copy has a different id
@@ -1632,48 +1631,6 @@ void vtkMRMLFiducialListNode::SetPower(double val)
 bool vtkMRMLFiducialListNode::CanApplyNonLinearTransforms()const
 {
   return true;
-}
-
-//---------------------------------------------------------------------------
-void vtkMRMLFiducialListNode::ApplyTransformMatrix(vtkMatrix4x4* transformMatrix)
-{
-  int numPoints = this->GetNumberOfFiducials();
-  double (*matrix)[4] = transformMatrix->Element;
-  float xyzIn[3];
-  float xyzOut[3];
-  float orientationIn[4], quaternionIn[4];
-  float orientationMatrix3x3[3][3];
-  vtkNew<vtkMatrix4x4> orientationMatrix;
-  vtkNew<vtkMatrix4x4> newOrientationMatrix;
-  for (int n=0; n<numPoints; n++)
-    {
-    vtkMRMLFiducial *node = this->GetNthFiducial(n);
-
-    node->GetXYZ(xyzIn);
-    xyzOut[0] = matrix[0][0]*xyzIn[0] + matrix[0][1]*xyzIn[1] + matrix[0][2]*xyzIn[2] + matrix[0][3];
-    xyzOut[1] = matrix[1][0]*xyzIn[0] + matrix[1][1]*xyzIn[1] + matrix[1][2]*xyzIn[2] + matrix[1][3];
-    xyzOut[2] = matrix[2][0]*xyzIn[0] + matrix[2][1]*xyzIn[1] + matrix[2][2]*xyzIn[2] + matrix[2][3];
-    node->SetXYZ(xyzOut);
-
-    node->GetOrientationWXYZ(orientationIn);
-    quaternionIn[0] = cos(0.5*orientationIn[0]);
-    double f = sin(0.5*orientationIn[0])/sqrt(orientationIn[1]*orientationIn[1]+orientationIn[2]*orientationIn[2]+orientationIn[3]*orientationIn[3]);
-    quaternionIn[1] = f * orientationIn[1];
-    quaternionIn[2] = f * orientationIn[2];
-    quaternionIn[3] = f * orientationIn[3];
-    vtkMath::QuaternionToMatrix3x3(quaternionIn,orientationMatrix3x3);
-    orientationMatrix->Identity();
-    for (int i=0; i<3; i++)
-      {
-      orientationMatrix->Element[i][0] = orientationMatrix3x3[i][0];
-      orientationMatrix->Element[i][1] = orientationMatrix3x3[i][1];
-      orientationMatrix->Element[i][2] = orientationMatrix3x3[i][2];
-      }
-    vtkMatrix4x4::Multiply4x4(orientationMatrix.GetPointer(), transformMatrix, newOrientationMatrix.GetPointer());
-    node->SetOrientationWXYZFromMatrix4x4(newOrientationMatrix.GetPointer());
-    }
-  this->StorableModifiedTime.Modified();
-  this->Modified();
 }
 
 //---------------------------------------------------------------------------

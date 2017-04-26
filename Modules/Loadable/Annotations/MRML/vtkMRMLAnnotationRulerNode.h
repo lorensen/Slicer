@@ -142,11 +142,6 @@ public:
   int SetRuler(vtkIdType line1Id, int sel, int vis);
 
   // Description:
-  // get/set the resolution (number of subdivisions) of the line.
-  vtkGetMacro(Resolution, int);
-  vtkSetMacro(Resolution, int);
-
-  // Description:
   // get/set the point representation colour
   double *GetPointColour();
   void SetPointColour( double initColor[3]);
@@ -161,9 +156,8 @@ public:
   double *GetDistanceAnnotationTextColour();
   void SetDistanceAnnotationTextColour(double initColor[3]);
 
- // Description:
+  // Description:
   // transform utility functions
-  virtual void ApplyTransformMatrix(vtkMatrix4x4* transformMatrix);
   virtual void ApplyTransform(vtkAbstractTransform* transform);
 
   // Description:
@@ -196,8 +190,7 @@ protected:
   void operator=(const vtkMRMLAnnotationRulerNode&);
 
   // Description:
-  // number of subdivisions on the line
-  int Resolution;
+  // The format string that defines the text showing the distance
   char* DistanceAnnotationFormat;
 
   int SetControlPoint(int id, double newControl[3]);

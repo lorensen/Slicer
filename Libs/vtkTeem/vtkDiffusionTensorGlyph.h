@@ -91,7 +91,6 @@ public:
   /// of polydata at that point
   virtual void SetMask(vtkImageData*);
 
-
   /// TO DO: make more of these
 
   ///
@@ -99,6 +98,8 @@ public:
   void ColorGlyphsByLinearMeasure();
   void ColorGlyphsBySphericalMeasure();
   void ColorGlyphsByPlanarMeasure();
+  void ColorGlyphsByParallelDiffusivity();
+  void ColorGlyphsByPerpendicularDiffusivity();
   void ColorGlyphsByMaxEigenvalue();
   void ColorGlyphsByMidEigenvalue();
   void ColorGlyphsByMinEigenvalue();
@@ -109,7 +110,6 @@ public:
   ///
   /// Output R,G,B scalars according to orientation of max eigenvalue
   void ColorGlyphsByOrientation();
-
 
   /// Description
   /// Transform output glyph locations (not orientations!)
@@ -126,7 +126,6 @@ public:
   ///
   virtual void SetVolumePositionMatrix(vtkMatrix4x4*);
   vtkGetObjectMacro(VolumePositionMatrix, vtkMatrix4x4);
-
 
   /// Description
   /// Transform output glyph orientations
@@ -150,11 +149,7 @@ public:
   /// Resolution of the output glyphs. This parameter is a integer value
   /// that sets the number of tensors (points) that are skipped before a glyph is rendered.
   /// 1 is the finest level meaning that every input point a glyph is rendered.
-#if (VTK_MAJOR_VERSION <= 5)
-  vtkSetClampMacro(Resolution,int,1,VTK_LARGE_INTEGER);
-#else
   vtkSetClampMacro(Resolution,int,1,VTK_INT_MAX);
-#endif
   vtkGetMacro(Resolution,int);
 
   ///
@@ -170,7 +165,7 @@ public:
   /// When determining the modified time of the filter,
   /// this checks the modified time of the mask input,
   /// if it exists.
-  unsigned long int GetMTime();
+  vtkMTimeType GetMTime();
 
 protected:
   vtkDiffusionTensorGlyph();

@@ -20,6 +20,12 @@
 ################################################################################
 
 #-----------------------------------------------------------------------------
+# CMake https support
+#-----------------------------------------------------------------------------
+include(SlicerCheckCMakeHTTPS)
+slicer_check_cmake_https()
+
+#-----------------------------------------------------------------------------
 # Git protocol option
 #-----------------------------------------------------------------------------
 option(${CMAKE_PROJECT_NAME}_USE_GIT_PROTOCOL "If behind a firewall turn this off to use http instead." ON)
@@ -85,9 +91,9 @@ mark_as_superbuild(
 
 set(ITK_EXTERNAL_NAME ITKv4)
 
-set(VTK_EXTERNAL_NAME VTKv${VTK_VERSION_MAJOR})
+set(VTK_EXTERNAL_NAME VTKv7)
 
-set(Slicer_DEPENDENCIES curl teem ${VTK_EXTERNAL_NAME} ${ITK_EXTERNAL_NAME} CTK LibArchive)
+set(Slicer_DEPENDENCIES curl teem ${VTK_EXTERNAL_NAME} ${ITK_EXTERNAL_NAME} CTK LibArchive RapidJSON)
 
 set(CURL_ENABLE_SSL ${Slicer_USE_PYTHONQT_WITH_OPENSSL})
 
@@ -116,13 +122,21 @@ if(Slicer_BUILD_DICOM_SUPPORT AND Slicer_USE_PYTHONQT_WITH_OPENSSL)
 endif()
 
 if(Slicer_USE_PYTHONQT AND Slicer_BUILD_EXTENSIONMANAGER_SUPPORT)
-  list(APPEND Slicer_DEPENDENCIES python-GitPython python-chardet)
+  list(APPEND Slicer_DEPENDENCIES
+    python-chardet
+    python-couchdb
+    python-GitPython
+    python-pip
+    )
   if(Slicer_USE_PYTHONQT_WITH_OPENSSL OR Slicer_USE_SYSTEM_python)
     # python-PyGithub requires SSL support in Python
     list(APPEND Slicer_DEPENDENCIES python-PyGithub)
   else()
-    message(WARNING "Python was built without SSL support; "
-                    "github integration will not be available")
+    message(STATUS "--------------------------------------------------")
+    message(STATUS "Python was built without SSL support; "
+                   "github integration will not be available. "
+                   "Set Slicer_USE_PYTHONQT_WITH_OPENSSL=ON to enable this feature.")
+    message(STATUS "--------------------------------------------------")
   endif()
 endif()
 
@@ -170,7 +184,7 @@ list(APPEND Slicer_REMOTE_DEPENDENCIES jqPlot)
 
 Slicer_Remote_Add(OpenIGTLinkIF
   GIT_REPOSITORY ${git_protocol}://github.com/openigtlink/OpenIGTLinkIF.git
-  GIT_TAG f3f0b4f3948539eb2b88221a2df149f2c7f81c76
+  GIT_TAG bfe21de98dec2942b5077b7c910a2d1cb3d12008
   OPTION_NAME Slicer_BUILD_OpenIGTLinkIF
   OPTION_DEPENDS "Slicer_BUILD_QTLOADABLEMODULES;Slicer_USE_OpenIGTLink"
   LABELS REMOTE_MODULE
@@ -182,7 +196,7 @@ mark_as_advanced(Slicer_BUILD_MULTIVOLUME_SUPPORT)
 
 Slicer_Remote_Add(MultiVolumeExplorer
   GIT_REPOSITORY ${git_protocol}://github.com/fedorov/MultiVolumeExplorer.git
-  GIT_TAG dbdab6e4ae9b54c93fb611bc6085db729b26c71c
+  GIT_TAG 7e4425257c8e8e9ad637ccca99249b1b36b12296
   OPTION_NAME Slicer_BUILD_MultiVolumeExplorer
   OPTION_DEPENDS "Slicer_BUILD_QTLOADABLEMODULES;Slicer_BUILD_MULTIVOLUME_SUPPORT;Slicer_USE_PYTHONQT"
   LABELS REMOTE_MODULE
@@ -191,7 +205,7 @@ list_conditional_append(Slicer_BUILD_MultiVolumeExplorer Slicer_REMOTE_DEPENDENC
 
 Slicer_Remote_Add(MultiVolumeImporter
   GIT_REPOSITORY ${git_protocol}://github.com/fedorov/MultiVolumeImporter.git
-  GIT_TAG 37a30b3dd2b632340b7d77fcd7af76765df959b0
+  GIT_TAG 2ebb4d2d8135d7d59314dcc6656e2c2b54266d60
   OPTION_NAME Slicer_BUILD_MultiVolumeImporter
   OPTION_DEPENDS "Slicer_BUILD_QTLOADABLEMODULES;Slicer_BUILD_MULTIVOLUME_SUPPORT;Slicer_USE_PYTHONQT"
   LABELS REMOTE_MODULE
@@ -200,7 +214,7 @@ list_conditional_append(Slicer_BUILD_MultiVolumeImporter Slicer_REMOTE_DEPENDENC
 
 Slicer_Remote_Add(SimpleFilters
   GIT_REPOSITORY ${git_protocol}://github.com/SimpleITK/SlicerSimpleFilters.git
-  GIT_TAG b27cdf629257b1919a4e7d61daba86fa137f9f4d
+  GIT_TAG 0e0648faeea0b3cbb8c27a93be0d95253ce13b98
   OPTION_NAME Slicer_BUILD_SimpleFilters
   OPTION_DEPENDS "Slicer_BUILD_QTSCRIPTEDMODULES;Slicer_USE_SimpleITK"
   LABELS REMOTE_MODULE
@@ -215,6 +229,7 @@ set(BRAINSTools_options
   BRAINSTools_CLI_INSTALL_LIBRARY_DESTINATION:PATH=${Slicer_INSTALL_CLIMODULES_LIB_DIR}
   BRAINSTools_CLI_INSTALL_ARCHIVE_DESTINATION:PATH=${Slicer_INSTALL_CLIMODULES_LIB_DIR}
   BRAINSTools_CLI_INSTALL_RUNTIME_DESTINATION:PATH=${Slicer_INSTALL_CLIMODULES_BIN_DIR}
+  BRAINSTools_DISABLE_TESTING:BOOL=ON
   USE_BRAINSFit:BOOL=ON
   USE_BRAINSROIAuto:BOOL=ON
   USE_BRAINSResample:BOOL=ON
@@ -248,7 +263,7 @@ set(BRAINSTools_options
   )
 Slicer_Remote_Add(BRAINSTools
   GIT_REPOSITORY "${git_protocol}://github.com/Slicer/BRAINSTools.git"
-  GIT_TAG "73a6e2d6c2488823ba7d312471982a1897099c98"
+  GIT_TAG "a5cfa21addf98d86da72f216d93e08913fa396d7" # master (v4.7.1) + Fix for BRAINSia/BRAINSTools#285 + fix to update DCMTK to 3.6.1_2016.10.12
   OPTION_NAME Slicer_BUILD_BRAINSTOOLS
   OPTION_DEPENDS "Slicer_BUILD_CLI_SUPPORT;Slicer_BUILD_CLI"
   LABELS REMOTE_MODULE
@@ -258,7 +273,7 @@ list_conditional_append(Slicer_BUILD_BRAINSTOOLS Slicer_REMOTE_DEPENDENCIES BRAI
 
 Slicer_Remote_Add(EMSegment
   SVN_REPOSITORY "http://svn.slicer.org/Slicer3/branches/Slicer4-EMSegment"
-  SVN_REVISION -r "17093"
+  SVN_REVISION -r "17127"
   OPTION_NAME Slicer_BUILD_EMSegment
   OPTION_DEPENDS "Slicer_BUILD_BRAINSTOOLS;Slicer_BUILD_QTLOADABLEMODULES;Slicer_USE_PYTHONQT_WITH_TCL"
   LABELS REMOTE_MODULE
@@ -267,7 +282,7 @@ list_conditional_append(Slicer_BUILD_EMSegment Slicer_REMOTE_DEPENDENCIES EMSegm
 
 Slicer_Remote_Add(OtsuThresholdImageFilter
   GIT_REPOSITORY "${git_protocol}://github.com/Slicer/Slicer-OtsuThresholdImageFilter"
-  GIT_TAG "5efe4123584016d73147e0b68a9487e64c10a074"
+  GIT_TAG "cf39e5064472af31809ec1fa2f93fb97dc9a606e"
   OPTION_NAME Slicer_BUILD_OtsuThresholdImageFilter
   OPTION_DEPENDS "Slicer_BUILD_EMSegment"
   LABELS REMOTE_MODULE
@@ -276,7 +291,7 @@ list_conditional_append(Slicer_BUILD_OtsuThresholdImageFilter Slicer_REMOTE_DEPE
 
 Slicer_Remote_Add(DataStore
   GIT_REPOSITORY "${git_protocol}://github.com/Slicer/Slicer-DataStore"
-  GIT_TAG "713f1f8c57f9c234462352702df6f889b18eace3"
+  GIT_TAG "6c3fb92da5b4a9f8c13781add66a29f9b2bf8ab0"
   OPTION_NAME Slicer_BUILD_DataStore
   LABELS REMOTE_MODULE
   )
@@ -284,7 +299,7 @@ list_conditional_append(Slicer_BUILD_DataStore Slicer_REMOTE_DEPENDENCIES DataSt
 
 Slicer_Remote_Add(CompareVolumes
   GIT_REPOSITORY "${git_protocol}://github.com/pieper/CompareVolumes"
-  GIT_TAG "61198229a065bf8437166c826baee2ddcc0d7f47"
+  GIT_TAG "6d46b39048bf556ed54ea6dcae8870c6c13f311b"
   OPTION_NAME Slicer_BUILD_CompareVolumes
   OPTION_DEPENDS "Slicer_USE_PYTHONQT"
   LABELS REMOTE_MODULE
@@ -293,7 +308,7 @@ list_conditional_append(Slicer_BUILD_CompareVolumes Slicer_REMOTE_DEPENDENCIES C
 
 Slicer_Remote_Add(LandmarkRegistration
   GIT_REPOSITORY "${git_protocol}://github.com/pieper/LandmarkRegistration"
-  GIT_TAG "fbf515ecd91b26177bad25e0336c24deec8bf69b"
+  GIT_TAG "b2ecd4b99ad16a228bcaa23dcf17fc9da27b157a"
   OPTION_NAME Slicer_BUILD_LandmarkRegistration
   OPTION_DEPENDS "Slicer_BUILD_CompareVolumes;Slicer_USE_PYTHONQT"
   LABELS REMOTE_MODULE
@@ -348,7 +363,6 @@ ExternalProject_Add(${proj}
     -DSlicer_REQUIRED_CXX_FLAGS:STRING=${Slicer_REQUIRED_CXX_FLAGS}
     -DSlicer_SUPERBUILD:BOOL=OFF
     -DSlicer_SUPERBUILD_DIR:PATH=${Slicer_BINARY_DIR}
-    -DSlicer_BUILD_WIN32_CONSOLE:BOOL=${Slicer_BUILD_WIN32_CONSOLE}
     -D${Slicer_MAIN_PROJECT}_APPLICATION_NAME:STRING=${${Slicer_MAIN_PROJECT}_APPLICATION_NAME}
     -D${Slicer_MAIN_PROJECT_APPLICATION_NAME}_VERSION_MAJOR:STRING=${${Slicer_MAIN_PROJECT_APPLICATION_NAME}_VERSION_MAJOR}
     -D${Slicer_MAIN_PROJECT_APPLICATION_NAME}_VERSION_MINOR:STRING=${${Slicer_MAIN_PROJECT_APPLICATION_NAME}_VERSION_MINOR}
@@ -357,21 +371,27 @@ ExternalProject_Add(${proj}
     -D${Slicer_MAIN_PROJECT_APPLICATION_NAME}_VERSION_RC:STRING=${${Slicer_MAIN_PROJECT_APPLICATION_NAME}_VERSION_RC}
     -DSlicer_APPLICATIONS_DIR:PATH=${Slicer_APPLICATIONS_DIR}
     -DSlicer_EXTENSION_SOURCE_DIRS:STRING=${Slicer_EXTENSION_SOURCE_DIRS}
+    -DExternalData_OBJECT_STORES:PATH=${ExternalData_OBJECT_STORES}
     ${EXTERNAL_PROJECT_OPTIONAL_ARGS}
   INSTALL_COMMAND ""
   )
 
 # This custom external project step forces the build and later
 # steps to run whenever a top level build is done...
+#
+# BUILD_ALWAYS flag is available in CMake 3.1 that allows force build
+# of external projects without this workaround. Remove this workaround
+# and use the CMake flag instead, when Slicer's required minimum CMake
+# version will be at least 3.1.
+#
+if(CMAKE_CONFIGURATION_TYPES)
+  set(BUILD_STAMP_FILE "${CMAKE_CURRENT_BINARY_DIR}/${proj}-prefix/src/${proj}-stamp/${CMAKE_CFG_INTDIR}/${proj}-build")
+else()
+  set(BUILD_STAMP_FILE "${CMAKE_CURRENT_BINARY_DIR}/${proj}-prefix/src/${proj}-stamp/${proj}-build")
+endif()
 ExternalProject_Add_Step(${proj} forcebuild
-  COMMAND ${CMAKE_COMMAND} -E remove
-    ${CMAKE_CURRENT_BINARY_DIR}/Slicer-prefix/src/Slicer-stamp/Slicer-build
+  COMMAND ${CMAKE_COMMAND} -E remove ${BUILD_STAMP_FILE}
   COMMENT "Forcing build step for '${proj}'"
   DEPENDEES build
   ALWAYS 1
   )
-
-#-----------------------------------------------------------------------------
-# Slicer extensions
-#-----------------------------------------------------------------------------
-add_subdirectory(Extensions/CMake)

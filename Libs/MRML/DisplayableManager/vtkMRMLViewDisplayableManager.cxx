@@ -67,6 +67,7 @@ public:
 
   void UpdateAxisVisibility();
   void UpdateAxisLabelVisibility();
+  void UpdateAxisLabelText();
   void SetAxisLabelColor(double newAxisLabelColor[3]);
 
   void UpdateRenderMode();
@@ -76,6 +77,7 @@ public:
   void UpdateBackgroundColor();
 
   std::vector<vtkSmartPointer<vtkFollower> > AxisLabelActors;
+  std::vector<vtkSmartPointer<vtkVectorText> > AxisLabelTexts;
   vtkSmartPointer<vtkActor>                  BoxAxisActor;
   vtkBoundingBox*                            BoxAxisBoundingBox;
   vtkMRMLViewDisplayableManager*             External;
@@ -105,11 +107,7 @@ void vtkMRMLViewDisplayableManager::vtkInternal::CreateAxis()
   // Create the default bounding box
   vtkNew<vtkOutlineSource> boxSource;
   vtkNew<vtkPolyDataMapper> boxMapper;
-#if (VTK_MAJOR_VERSION <= 5)
-  boxMapper->SetInput(boxSource->GetOutput());
-#else
   boxMapper->SetInputConnection(boxSource->GetOutputPort());
-#endif
 
   this->BoxAxisActor = vtkSmartPointer<vtkActor>::New();
   this->BoxAxisActor->SetMapper(boxMapper.GetPointer());
@@ -118,20 +116,19 @@ void vtkMRMLViewDisplayableManager::vtkInternal::CreateAxis()
   this->BoxAxisActor->SetPickable(0);
 
   this->AxisLabelActors.clear();
+  this->AxisLabelTexts.clear();
 
+  // default labels, will be overridden by view node AxisLabels
   const char* labels[6] = {"R", "A", "S", "L", "P", "I"};
 
   for(int i = 0; i < 6; ++i)
     {
     vtkNew<vtkVectorText> axisText;
     axisText->SetText(labels[i]);
+    this->AxisLabelTexts.push_back(axisText.GetPointer());
 
     vtkNew<vtkPolyDataMapper> axisMapper;
-#if (VTK_MAJOR_VERSION <= 5)
-    axisMapper->SetInput(axisText->GetOutput());
-#else
     axisMapper->SetInputConnection(axisText->GetOutputPort());
-#endif
 
     vtkNew<vtkFollower> axisActor;
     axisActor->SetMapper(axisMapper.GetPointer());
@@ -291,10 +288,8 @@ void vtkMRMLViewDisplayableManager::vtkInternal::UpdateAxis(vtkRenderer * render
     }
 
   // See if bounding box has changed. If not, no need to change the axis actors.
-  bool bBoxChanged = false;
   if (newBBox != *(this->BoxAxisBoundingBox))
     {
-    bBoxChanged = true;
     *(this->BoxAxisBoundingBox) = newBBox;
 
     double bounds[6];
@@ -304,11 +299,7 @@ void vtkMRMLViewDisplayableManager::vtkInternal::UpdateAxis(vtkRenderer * render
     boxSource->SetBounds(bounds);
 
     vtkNew<vtkPolyDataMapper> boxMapper;
-#if (VTK_MAJOR_VERSION <= 5)
-    boxMapper->SetInput(boxSource->GetOutput());
-#else
     boxMapper->SetInputConnection(boxSource->GetOutputPort());
-#endif
 
     this->BoxAxisActor->SetMapper(boxMapper.GetPointer());
     this->BoxAxisActor->SetScale(1.0, 1.0, 1.0);
@@ -365,20 +356,6 @@ void vtkMRMLViewDisplayableManager::vtkInternal::UpdateAxis(vtkRenderer * render
     actor->SetCamera(renderer->GetActiveCamera());
     actor->SetVisibility(axisLabelVisibility);
     }
-
-  // Until we come up with a solution for all use cases, the resetting
-  // of the camera is disabled
-  // See http://www.na-mic.org/Bug/view.php?id=2341
-#if 0
-  if (bBoxChanged)
-    {
-    renderer->ResetCamera();
-    renderer->GetActiveCamera()->Dolly(1.5);
-    renderer->ResetCameraClippingRange();
-    }
-#else
-  (void)bBoxChanged;
-#endif
 }
 
 //---------------------------------------------------------------------------
@@ -436,6 +413,34 @@ void vtkMRMLViewDisplayableManager::vtkInternal::UpdateAxisLabelVisibility()
       }
     }
   this->External->RequestRender();
+}
+
+//---------------------------------------------------------------------------
+void vtkMRMLViewDisplayableManager::vtkInternal::UpdateAxisLabelText()
+{
+  vtkMRMLViewNode* viewNode = this->External->GetMRMLViewNode();
+  if (!viewNode || !viewNode->GetAxisLabelsVisible())
+    {
+    return;
+    }
+
+  bool updateNeeded = false;
+  // In this displayable manager class axis labels are ordered as +X,+Y,+Z,-X,-Y-,-Z.
+  // In the view node axis labels are ordered as -X,+X,-Y,+Y,-Z,+Z.
+  // viewAxisToDmAxis converts from view to displayable manager axis order.
+  const int viewAxisToDmAxis[6]={3,0,4,1,5,2};
+  for (int labelIndexView=0; labelIndexView<6; labelIndexView++)
+    {
+    if (strcmp(this->AxisLabelTexts[viewAxisToDmAxis[labelIndexView]]->GetText(),viewNode->GetAxisLabel(labelIndexView))!=0)
+      {
+      this->AxisLabelTexts[viewAxisToDmAxis[labelIndexView]]->SetText(viewNode->GetAxisLabel(labelIndexView));
+      updateNeeded = true;
+      }
+    }
+  if (updateNeeded)
+    {
+    this->External->RequestRender();
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -613,6 +618,7 @@ void vtkMRMLViewDisplayableManager::UpdateFromViewNode()
   this->Internal->UpdateRenderMode();
   this->Internal->UpdateAxisLabelVisibility();
   this->Internal->UpdateAxisVisibility();
+  this->Internal->UpdateAxisLabelText();
   this->Internal->UpdateStereoType();
   this->Internal->UpdateBackgroundColor();
 }

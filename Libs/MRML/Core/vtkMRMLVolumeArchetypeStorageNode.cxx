@@ -55,6 +55,7 @@ vtkMRMLVolumeArchetypeStorageNode::vtkMRMLVolumeArchetypeStorageNode()
   this->CenterImage = 0;
   this->SingleFile  = 0;
   this->UseOrientationFromFile = 1;
+  this->DefaultWriteFileExtension = "nrrd";
 }
 
 //----------------------------------------------------------------------------
@@ -66,22 +67,18 @@ vtkMRMLVolumeArchetypeStorageNode::~vtkMRMLVolumeArchetypeStorageNode()
 void vtkMRMLVolumeArchetypeStorageNode::WriteXML(ostream& of, int nIndent)
 {
   Superclass::WriteXML(of, nIndent);
-  vtkIndent indent(nIndent);
   {
   std::stringstream ss;
   ss << this->CenterImage;
-  of << indent << " centerImage=\"" << ss.str() << "\"";
-  }
-  {
-  std::stringstream ss;
-  ss << this->SingleFile;
-  of << indent << " singleFile=\"" << ss.str() << "\"";
+  of << " centerImage=\"" << ss.str() << "\"";
   }
   {
   std::stringstream ss;
   ss << this->UseOrientationFromFile;
-  of << indent << " UseOrientationFromFile=\"" << ss.str() << "\"";
+  of << " UseOrientationFromFile=\"" << ss.str() << "\"";
   }
+  // SingleFile attribute is not written to file. GetNumberOfFileNames()
+  // is used to determine if reader should read from single/multiple files.
 }
 
 //----------------------------------------------------------------------------
@@ -103,12 +100,6 @@ void vtkMRMLVolumeArchetypeStorageNode::ReadXMLAttributes(const char** atts)
       ss << attValue;
       ss >> this->CenterImage;
       }
-    if (!strcmp(attName, "singleFile"))
-      {
-      std::stringstream ss;
-      ss << attValue;
-      ss >> this->SingleFile;
-      }
     if (!strcmp(attName, "UseOrientationFromFile"))
       {
       std::stringstream ss;
@@ -116,6 +107,12 @@ void vtkMRMLVolumeArchetypeStorageNode::ReadXMLAttributes(const char** atts)
       ss >> this->UseOrientationFromFile;
       }
     }
+
+  // SingleFile attribute used to be read from the scene, but often
+  // its value was inconsistent with GetNumberOfFileNames() for color volumes.
+  // We now initialize SingleFile based on GetNumberOfFileNames(), ignoring
+  // any singleFile attribute that may be found in the XML stream.
+  this->SingleFile = (this->GetNumberOfFileNames() <= 1);
 
   this->EndModify(disabledModify);
 }
@@ -349,7 +346,7 @@ int vtkMRMLVolumeArchetypeStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
     vtkDebugMacro("ReadData: right before reader update, reader num files = " << reader->GetNumberOfFileNames());
     reader->Update();
     }
-  catch (...)
+  catch (itk::ExceptionObject& e)
     {
     std::string reader0thFileName;
     if (reader->GetFileName(0) != NULL)
@@ -364,7 +361,9 @@ int vtkMRMLVolumeArchetypeStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
                   << "\tFile reader says it was able to read "
                   << reader->GetNumberOfFileNames() << " files.\n"
                   << "\tFile reader used the archetype file name of " << reader->GetArchetype()
-                  << " [" << reader0thFileName.c_str() << "]\n");
+                  << " [" << reader0thFileName.c_str() << "]\n"
+                  << "ITK exception info: error in " << e.GetLocation() << "\n"
+                  << e.GetDescription() << "\n");
     return 0;
     }
 
@@ -431,11 +430,7 @@ int vtkMRMLVolumeArchetypeStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
     }
 
   vtkNew<vtkImageChangeInformation> ici;
-#if (VTK_MAJOR_VERSION <= 5)
-  ici->SetInput(reader->GetOutput());
-#else
   ici->SetInputConnection(reader->GetOutputPort());
-#endif
   ici->SetOutputSpacing( 1, 1, 1 );
   ici->SetOutputOrigin( 0, 0, 0 );
   ici->Update();
@@ -449,6 +444,12 @@ int vtkMRMLVolumeArchetypeStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
   vtkNew<vtkImageData> iciOutputCopy;
   iciOutputCopy->ShallowCopy(ici->GetOutput());
   volNode->SetAndObserveImageData(iciOutputCopy.GetPointer());
+
+  // Log volume size to the application log. It helps to identify potential out-of-memory issues.
+  vtkInfoMacro(<<"Loaded volume from file: "<<fullName \
+    <<". Dimensions: "<<iciOutputCopy->GetDimensions()[0]<<"x"<<iciOutputCopy->GetDimensions()[1]<<"x"<<iciOutputCopy->GetDimensions()[2] \
+    <<". Number of components: "<<iciOutputCopy->GetNumberOfScalarComponents() \
+    <<". Pixel type: "<<vtkImageScalarTypeNameMacro(iciOutputCopy->GetScalarType())<<".");
 
   vtkMatrix4x4* mat = reader->GetRasToIjkMatrix();
   if ( mat == NULL )
@@ -484,14 +485,14 @@ int vtkMRMLVolumeArchetypeStorageNode::WriteDataInternal(vtkMRMLNode *refNode)
 
 
   std::string fullName = this->GetFullNameFromFileName();
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("WriteData: File name not specified");
     return 0;
     }
 
   bool moveSucceeded = true;
-  if (moveFromDir != std::string(""))
+  if (!moveFromDir.empty())
     {
     // the temp writing went okay, just move the files from there to where
     // they're supposed to go. It will fail if the temp dir is on a different
@@ -564,11 +565,7 @@ int vtkMRMLVolumeArchetypeStorageNode::WriteDataInternal(vtkMRMLNode *refNode)
     vtkNew<vtkITKImageWriter> writer;
     writer->SetFileName(fullName.c_str());
 
-#if (VTK_MAJOR_VERSION <= 5)
-    writer->SetInput( volNode->GetImageData() );
-#else
     writer->SetInputConnection( volNode->GetImageDataConnection() );
-#endif
     writer->SetUseCompression(this->GetUseCompression());
     if(this->WriteFileFormat)
       {
@@ -615,16 +612,10 @@ void vtkMRMLVolumeArchetypeStorageNode::InitializeSupportedWriteFileTypes()
 }
 
 //----------------------------------------------------------------------------
-const char* vtkMRMLVolumeArchetypeStorageNode::GetDefaultWriteFileExtension()
-{
-  return "nrrd";
-}
-
-//----------------------------------------------------------------------------
 std::string vtkMRMLVolumeArchetypeStorageNode::UpdateFileList(vtkMRMLNode *refNode, int move)
 {
   bool result = true;
-  std::string returnString = "";
+  std::string returnString;
   // test whether refNode is a valid node to hold a volume
   if (!refNode->IsA("vtkMRMLScalarVolumeNode") )
     {
@@ -632,8 +623,7 @@ std::string vtkMRMLVolumeArchetypeStorageNode::UpdateFileList(vtkMRMLNode *refNo
     return returnString;
     }
 
-  vtkMRMLVolumeNode *volNode = NULL;
-  volNode = vtkMRMLScalarVolumeNode::SafeDownCast(refNode);
+  vtkMRMLVolumeNode *volNode = vtkMRMLScalarVolumeNode::SafeDownCast(refNode);
 
   if (volNode == NULL || volNode->GetImageData() == NULL)
     {
@@ -642,7 +632,7 @@ std::string vtkMRMLVolumeArchetypeStorageNode::UpdateFileList(vtkMRMLNode *refNo
     }
 
   std::string oldName = this->GetFileName();
-  if (oldName == std::string(""))
+  if (oldName.empty())
     {
     vtkErrorMacro("UpdateFileList: File name not specified");
     return returnString;
@@ -701,11 +691,7 @@ std::string vtkMRMLVolumeArchetypeStorageNode::UpdateFileList(vtkMRMLNode *refNo
   // set up the writer and write
   vtkNew<vtkITKImageWriter> writer;
   writer->SetFileName(tempName.c_str());
-#if (VTK_MAJOR_VERSION <= 5)
-  writer->SetInput( volNode->GetImageData() );
-#else
   writer->SetInputData( volNode->GetImageData() );
-#endif
   writer->SetUseCompression(this->GetUseCompression());
   if(this->WriteFileFormat)
     {
@@ -763,7 +749,7 @@ std::string vtkMRMLVolumeArchetypeStorageNode::UpdateFileList(vtkMRMLNode *refNo
   else
     {
     if (volNode->GetScene() != NULL &&
-        strcmp(volNode->GetScene()->GetRootDirectory(), "") != 0)
+        strlen(volNode->GetScene()->GetRootDirectory()) )
       {
       // use the scene's root dir, all the files in the list will be
       // relative to it (the relative path is how you go from the root dir to

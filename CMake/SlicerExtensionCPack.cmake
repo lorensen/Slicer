@@ -158,37 +158,59 @@ if(APPLE)
     ${Slicer_EXTENSION_CPACK_BUNDLE_FIXUP}
     "${slicer_extension_cpack_bundle_fixup_directory}/SlicerExtensionCPackBundleFixup.cmake"
     @ONLY)
-  # HACK - For a given directory, "install(SCRIPT ...)" rule will be evaluated first,
-  #        let's make sure the following install rule is evaluated within its own directory.
-  #        Otherwise, the associated script will be executed before any other relevant install rules.
-  file(WRITE ${slicer_extension_cpack_bundle_fixup_directory}/CMakeLists.txt
-    "install(SCRIPT \"${slicer_extension_cpack_bundle_fixup_directory}/SlicerExtensionCPackBundleFixup.cmake\")")
-  add_subdirectory(${slicer_extension_cpack_bundle_fixup_directory} ${slicer_extension_cpack_bundle_fixup_directory}-binary)
+
+  set(msg "Checking if extension type is SuperBuild")
+  message(STATUS "${msg}")
+  if(${EXTENSION_NAME}_SUPERBUILD)
+    message(STATUS "${msg} - true")
+    set(_is_superbuild_extension 1)
+  else()
+    message(STATUS "${msg} - false")
+    set(_is_superbuild_extension 0)
+  endif()
+
+  if(NOT _is_superbuild_extension)
+
+    message(STATUS "Extension fixup mode: adding <cpack_bundle_fixup_directory>")
+    # HACK - For a given directory, "install(SCRIPT ...)" rule will be evaluated first,
+    #        let's make sure the following install rule is evaluated within its own directory.
+    #        Otherwise, the associated script will be executed before any other relevant install rules.
+    file(WRITE ${slicer_extension_cpack_bundle_fixup_directory}/CMakeLists.txt
+      "install(SCRIPT \"${slicer_extension_cpack_bundle_fixup_directory}/SlicerExtensionCPackBundleFixup.cmake\")")
+    add_subdirectory(${slicer_extension_cpack_bundle_fixup_directory} ${slicer_extension_cpack_bundle_fixup_directory}-binary)
+
+  else()
+
+    message(STATUS "Extension fixup mode: updating CPACK_INSTALL_CMAKE_PROJECTS with <cpack_bundle_fixup_directory>")
+    # Configure project and append the build directory to the
+    # list of project to install. This will ensure the fixup happen last
+    # for SuperBuild extensions.
+
+    file(WRITE ${slicer_extension_cpack_bundle_fixup_directory}/CMakeLists.txt
+    "cmake_minimum_required(VERSION 3.0)
+install(SCRIPT \"${slicer_extension_cpack_bundle_fixup_directory}/SlicerExtensionCPackBundleFixup.cmake\")")
+    set(source_dir "${slicer_extension_cpack_bundle_fixup_directory}")
+    set(build_dir "${slicer_extension_cpack_bundle_fixup_directory}-binary")
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${build_dir}
+      RESULT_VARIABLE result
+      )
+    if(NOT result EQUAL 0)
+      message(FATAL_ERROR "${EXTENSION_NAME}-Fixup: Failed to create build directory:${build_dir}")
+    endif()
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} ${source_dir}
+      WORKING_DIRECTORY ${build_dir}
+      RESULT_VARIABLE result)
+    if(NOT result EQUAL 0)
+      message(FATAL_ERROR "${EXTENSION_NAME}-Fixup: Failed to configure project [source_dir:${source_dir}, build_dir:${build_dir}")
+    endif()
+    set(CPACK_INSTALL_CMAKE_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${build_dir};${EXTENSION_NAME}-Fixup;ALL;/")
+  endif()
 endif()
 
 #-----------------------------------------------------------------------------
-# Set EXTENSION_UPLOAD_ONLY_COMMAND
-set(EXTENSION_UPLOAD_ONLY_COMMAND_ARG_LIST "${EXTENSION_COMMAND_ARG_LIST}
-set(RUN_CTEST_CONFIGURE \"FALSE\")
-set(RUN_CTEST_BUILD \"FALSE\")
-set(RUN_CTEST_TEST \"FALSE\")
-set(RUN_CTEST_PACKAGES \"FALSE\")
-set(RUN_CTEST_UPLOAD \"TRUE\")
-set(EXTENSION_ARCHITECTURE \"${EXTENSION_ARCHITECTURE}\")
-set(EXTENSION_BITNESS \"${EXTENSION_BITNESS}\")
-set(EXTENSION_OPERATING_SYSTEM \"${EXTENSION_OPERATING_SYSTEM}\")
-set(CPACK_PACKAGE_FILE_NAME \"${CPACK_PACKAGE_FILE_NAME}\")")
-
-set(script_args_file ${CMAKE_CURRENT_BINARY_DIR}/${EXTENSION_NAME}-upload-only-command-args.cmake)
-file(WRITE ${script_args_file} ${EXTENSION_UPLOAD_ONLY_COMMAND_ARG_LIST})
-
-set(CTEST_MODEL "Experimental")
-set(EXTENSION_UPLOAD_ONLY_COMMAND ${CMAKE_CTEST_COMMAND} ${EXTENSION_COMMAND_BUILD_CONF_ARG_LIST} -DCTEST_MODEL:STRING=${CTEST_MODEL} -DSCRIPT_ARGS_FILE:FILEPATH=${script_args_file} -S ${EXTENSION_SCRIPT} -V${CTEST_EXTRA_VERBOSE_ARG})
-
-add_custom_target(Experimental${target_qualifier}UploadOnly
-  COMMAND ${EXTENSION_UPLOAD_ONLY_COMMAND}
-  COMMENT "Upload extension"
-  )
+include(SlicerExtensionPackageAndUploadTarget)
 
 #-----------------------------------------------------------------------------
 include(CPack)

@@ -35,6 +35,7 @@
 
 #include "vtkSlicerVolumesModuleLogicExport.h"
 
+class vtkMRMLLabelMapVolumeNode;
 class vtkMRMLScalarVolumeNode;
 class vtkMRMLScalarVolumeDisplayNode;
 class vtkMRMLVolumeHeaderlessStorageNode;
@@ -139,46 +140,56 @@ public:
   /// Write volume's image data to a specified file
   int SaveArchetypeVolume (const char* filename, vtkMRMLVolumeNode *volumeNode);
 
-  /// Change the scalar volume into/from a labelmap.
-  /// This is the same code as in qMRMLVolumeInfoWidget.
-  void SetVolumeAsLabelMap(vtkMRMLVolumeNode *volumeNode, bool labelMap);
-
   /// Create a label map volume to match the given \a volumeNode and add it to the current scene
   /// \sa GetMRMLScene()
-  vtkMRMLScalarVolumeNode *CreateAndAddLabelVolume(vtkMRMLVolumeNode *volumeNode,
+  vtkMRMLLabelMapVolumeNode *CreateAndAddLabelVolume(vtkMRMLVolumeNode *volumeNode,
                                                    const char *name);
 
   /// Create a label map volume to match the given \a volumeNode and add it to the \a scene
-  vtkMRMLScalarVolumeNode *CreateAndAddLabelVolume(vtkMRMLScene *scene,
+  vtkMRMLLabelMapVolumeNode *CreateAndAddLabelVolume(vtkMRMLScene *scene,
                                                    vtkMRMLVolumeNode *volumeNode,
                                                    const char *name);
   /// \deprecated
   /// Create a label map volume to match the given \a volumeNode and add it to
   /// the current scene.
   /// \sa CreateAndAddLabelVolume
-  vtkMRMLScalarVolumeNode *CreateLabelVolume(vtkMRMLVolumeNode *volumeNode,
+  vtkMRMLLabelMapVolumeNode *CreateLabelVolume(vtkMRMLVolumeNode *volumeNode,
                                              const char *name);
   /// \deprecated
   /// Create a label map volume to match the given \a volumeNode and add it to the \a scene
   /// \sa CreateAndAddLabelVolume
-  vtkMRMLScalarVolumeNode *CreateLabelVolume(vtkMRMLScene *scene,
+  vtkMRMLLabelMapVolumeNode *CreateLabelVolume(vtkMRMLScene *scene,
                                              vtkMRMLVolumeNode *volumeNode,
                                              const char *name);
 
+  /// \deprecated
   /// Fill in a label map volume to match the given template volume node.
   /// \sa FillLabelVolumeFromTemplate(vtkMRMLScene*, vtkMRMLScalarVolumeNode*, vtkMRMLVolumeNode*)
   /// \sa GetMRMLScene()
-  vtkMRMLScalarVolumeNode *FillLabelVolumeFromTemplate(vtkMRMLScalarVolumeNode *labelNode,
+  vtkMRMLLabelMapVolumeNode *FillLabelVolumeFromTemplate(vtkMRMLLabelMapVolumeNode *labelNode,
                                                        vtkMRMLVolumeNode *templateNode);
 
+  /// \deprecated
   /// Fill in a label map volume to match the given template volume node, under
   /// the assumption that the given label map node is already added to the scene.
   /// A display node will be added to it if the label node doesn't already have
   /// one, and the image data associated with the label node will be allocated
   /// according to the template volumeNode.
-  vtkMRMLScalarVolumeNode *FillLabelVolumeFromTemplate(vtkMRMLScene *scene,
-                                                       vtkMRMLScalarVolumeNode *labelNode,
+  vtkMRMLLabelMapVolumeNode *FillLabelVolumeFromTemplate(vtkMRMLScene *scene,
+                                                       vtkMRMLLabelMapVolumeNode *labelNode,
                                                        vtkMRMLVolumeNode *templateNode);
+
+  /// Fill in a label map volume to match the given input volume node, under
+  /// the assumption that the given label map node is already added to the scene.
+  /// A display node will be added to it if the label node doesn't already have
+  /// one, and the image data associated with the label node will be allocated
+  /// according to the template volumeNode.
+  vtkMRMLLabelMapVolumeNode *CreateLabelVolumeFromVolume(vtkMRMLScene *scene,
+                                                       vtkMRMLLabelMapVolumeNode *labelNode,
+                                                       vtkMRMLVolumeNode *inputVolume);
+
+  /// Clear the image data of a volume node to contain all zeros
+  static void ClearVolumeImageData(vtkMRMLVolumeNode *volumeNode);
 
   /// Return a string listing any warnings about the spatial validity of
   /// the labelmap with respect to the volume.  An empty string indicates
@@ -186,7 +197,7 @@ public:
   /// region and that the second volume input is a label map.
   /// \sa CompareVolumeGeometry
   std::string CheckForLabelVolumeValidity(vtkMRMLScalarVolumeNode *volumeNode,
-                                          vtkMRMLScalarVolumeNode *labelNode);
+                                          vtkMRMLLabelMapVolumeNode *labelNode);
 
   /// Generate a string listing any warnings about the spatial validity of
   /// the second volume with respect to the first volume.  An empty string
@@ -203,7 +214,8 @@ public:
                                     vtkMRMLScalarVolumeNode *volumeNode2);
 
 
-  /// Create a deep copy of a \a volumeNode and add it to the current scene
+  /// Create a deep copy of a \a volumeNode and add it to the current scene.
+  /// If cloneImageData is false then the volume node is created without image data.
   /// \sa GetMRMLScene()
   vtkMRMLScalarVolumeNode *CloneVolume(vtkMRMLVolumeNode *volumeNode, const char *name);
 
@@ -214,9 +226,18 @@ public:
                                                               const char *name);
 
   /// Create a deep copy of a \a volumeNode and add it to the \a scene
+  /// Only works for vtkMRMLScalarVolumeNode.
+  /// The method is kept as is for background compatibility only, internally it calls CloneVolumeGeneric.
+  /// \sa CloneVolumeGeneric
   static vtkMRMLScalarVolumeNode *CloneVolume(vtkMRMLScene *scene,
                                               vtkMRMLVolumeNode *volumeNode,
-                                              const char *name);
+                                              const char *name,
+                                              bool cloneImageData=true);
+  /// Create a deep copy of a \a volumeNode and add it to the \a scene
+  static vtkMRMLVolumeNode *CloneVolumeGeneric(vtkMRMLScene *scene,
+    vtkMRMLVolumeNode *volumeNode,
+    const char *name,
+    bool cloneImageData = true);
 
   /// Computes matrix we need to register
   /// V1Node to V2Node given the "register.dat" matrix from tkregister2 (FreeSurfer)
@@ -269,7 +290,8 @@ protected:
 
   void InitializeStorageNode(vtkMRMLStorageNode * storageNode,
                              const char * filename,
-                             vtkStringArray *fileList);
+                             vtkStringArray *fileList,
+                             vtkMRMLScene * mrmlScene = NULL);
 
   void SetAndObserveColorToDisplayNode(vtkMRMLDisplayNode* displayNode,
                                        int labelmap, const char* filename);
@@ -283,7 +305,9 @@ protected:
       const char* filename, const char* volname, int loadingOptions,
       vtkStringArray *fileList);
 
+protected:
   vtkSmartPointer<vtkMRMLVolumeNode> ActiveVolumeNode;
+
   vtkSmartPointer<vtkMRMLColorLogic> ColorLogic;
 
   NodeSetFactoryRegistry VolumeRegistry;
@@ -291,6 +315,7 @@ protected:
   /// Allowable difference in comparing volume geometry double values.
   /// Defaults to 1 to the power of 10 to the minus 6
   double CompareVolumeGeometryEpsilon;
+
   /// Error print out precision, paried with CompareVolumeGeometryEpsilon.
   /// defaults to 6
   int CompareVolumeGeometryPrecision;

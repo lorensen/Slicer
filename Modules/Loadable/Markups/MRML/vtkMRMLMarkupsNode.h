@@ -126,8 +126,11 @@ public:
   /// Invoke events when markups change, passing the markup index if applicable.
   /// Invoke the lock modified event when a markup's lock status is changed.
   /// Invoke the label format modified event when markup label format changes.
+  /// Invoke the point start interaction event when starting interacting with a point.
   /// Invoke the point modified event when a markup's location changes.
   /// Invoke the point end interaction event when an interaction process finishes.
+  /// Invoke the point clicked event when user clicked a markup
+  /// (pressed and released the moues button without moving the mouse cursor).
   /// Invoke the NthMarkupModifiedEvent event when a markup's non location value.
   /// Invoke the markup added event when adding a new markup to a markups node.
   /// Invoke the markup removed event when removing one or all markups from a node
@@ -137,7 +140,9 @@ public:
     LockModifiedEvent = 19000,
     LabelFormatModifiedEvent,
     PointModifiedEvent,
+    PointStartInteractionEvent,
     PointEndInteractionEvent,
+    PointClickedEvent,
     NthMarkupModifiedEvent,
     MarkupAddedEvent,
     MarkupRemovedEvent,
@@ -175,21 +180,17 @@ public:
   /// Add a markup to the end of the list. Return index
   /// of new markup, -1 on failure.
   int AddMarkup(Markup markup);
-  /// Create a new markup with n points, init points to (0,0,0). Return index
-  /// of new markup, -1 on failure.
-#if (VTK_MAJOR_VERSION >= 6)
-  int AddMarkupWithNPoints(int n, std::string label = std::string());
-#else
-  int AddMarkupWithNPoints(int n);
-  int AddMarkupWithNPoints(int n, std::string label);
-#endif
-  /// Create a new markup and add a point to it, returning the markup index
-#if (VTK_MAJOR_VERSION >= 6)
+  /// Create a new markup with n points.
+  /// If point is specified then all markup positions will be initialized to that position,
+  /// otherwise markup positions are initialized to (0,0,0).
+  /// Return index of new markup, -1 on failure.
+  int AddMarkupWithNPoints(int n, std::string label = std::string(), vtkVector3d* point = NULL);
+  /// Create a new markup with one point.
+  /// Return index of new markup, -1 on failure.
   int AddPointToNewMarkup(vtkVector3d point, std::string label = std::string());
-#else
-  int AddPointToNewMarkup(vtkVector3d point);
-  int AddPointToNewMarkup(vtkVector3d point, std::string label);
-#endif
+  /// Create a new markup with one point, defined in the world coordinate system.
+  /// Return index of new markup, -1 on failure.
+  int AddPointWorldToNewMarkup(vtkVector3d point, std::string label = std::string());
   /// Add a point to the nth markup, returning the point index
   int AddPointToNthMarkup(vtkVector3d point, int n);
 
@@ -297,29 +298,13 @@ public:
   /// Set the Description on the nth markup
   void SetNthMarkupDescription(int n, std::string description);
 
-  /// Get the label on the nth markup, converting between
-  /// user input and storage node file safe strings
-  std::string GetNthMarkupLabelForStorage(int n = 0);
-  /// Set the label on the nth markup, converting between
-  /// user input and storage node file safe strings
-  void SetNthMarkupLabelFromStorage(int n, std::string label);
-  /// Get the description on the nth markup, converting between
-  /// user input and storage node file safe strings
-  std::string GetNthMarkupDescriptionForStorage(int n = 0);
-  /// Set the description on the nth markup, converting between
-  /// user input and storage node file safe strings
-  void SetNthMarkupDescriptionFromStorage(int n, std::string description);
-
   // Transform utility functions
 
   /// Returns true since can apply non linear transforms
-  /// \sa ApplyTransformMatrix, ApplyTransform
+  /// \sa ApplyTransform
   virtual bool CanApplyNonLinearTransforms()const;
-  /// Apply the passed transformation matrix to all of the markup points
-  /// \sa CanApplyNonLinearTransforms, ApplyTransform
-  virtual void ApplyTransformMatrix(vtkMatrix4x4* transformMatrix);
   /// Apply the passed transformation to all of the markup points
-  /// \sa CanApplyNonLinearTransforms, ApplyTransformMatrix
+  /// \sa CanApplyNonLinearTransforms
   virtual void ApplyTransform(vtkAbstractTransform* transform);
 
   /// Get the markup label format string that defines the markup names.

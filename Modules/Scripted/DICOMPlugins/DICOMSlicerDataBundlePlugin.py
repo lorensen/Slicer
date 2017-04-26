@@ -1,5 +1,5 @@
 import os, zipfile, tempfile
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 from DICOMLib import DICOMPlugin
 from DICOMLib import DICOMLoadable
 
@@ -56,9 +56,10 @@ class DICOMSlicerDataBundlePluginClass(DICOMPlugin):
       if name == "":
         name = "Unknown"
       candygramValue = slicer.dicomDatabase.fileValue(f, self.tags['candygram'])
+
       if candygramValue:
         # default loadable includes all files for series
-        loadable = DICOMLib.DICOMLoadable()
+        loadable = DICOMLoadable()
         loadable.files = [f]
         loadable.name = name + ' - as Slicer Scene'
         loadable.selected = True
@@ -72,8 +73,14 @@ class DICOMSlicerDataBundlePluginClass(DICOMPlugin):
     """
 
     f = loadable.files[0]
+
     try:
-      zipSize = int(slicer.dicomDatabase.fileValue(f, self.tags['zipSize']))
+      # TODO: this method should work, but not correcly encoded in real tag
+      zipSizeString = slicer.dicomDatabase.fileValue(f, self.tags['zipSize'])
+      zipSize = int(zipSizeString)
+      # instead use this hack where the number is in the creator string
+      candygramValue = slicer.dicomDatabase.fileValue(f, self.tags['candygram'])
+      zipSize = int(candygramValue.split(' ')[2])
     except ValueError:
       print("Could not get zipSize for %s" % f)
       return False
@@ -85,7 +92,12 @@ class DICOMSlicerDataBundlePluginClass(DICOMPlugin):
     # so we can seek from the end by the size of the zip data
     sceneDir = tempfile.mkdtemp('', 'sceneImport', slicer.app.temporaryPath)
     fp = open(f, 'rb')
-    fp.seek(-1 * (1+zipSize), os.SEEK_END)
+
+    #The previous code only works for files with odd number of bits.
+    if zipSize % 2 == 0:
+      fp.seek(-1 * (zipSize), os.SEEK_END)
+    else:
+      fp.seek(-1 * (1+zipSize), os.SEEK_END)
     zipData = fp.read(zipSize)
     fp.close()
 
@@ -157,5 +169,3 @@ class DICOMSlicerDataBundleWidget:
 
   def exit(self):
     pass
-
-

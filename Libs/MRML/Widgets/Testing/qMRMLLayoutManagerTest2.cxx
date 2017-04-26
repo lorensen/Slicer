@@ -28,32 +28,16 @@
 
 // MRML includes
 #include <vtkMRMLApplicationLogic.h>
-#include <vtkMRMLScene.h>
+#include <vtkMRMLLayoutLogic.h>
 #include <vtkMRMLLayoutNode.h>
+#include <vtkMRMLScene.h>
 
 // VTK includes
 #include <vtkNew.h>
 
-namespace
-{
-
-// --------------------------------------------------------------------------
-bool checkViewArrangement(int line, qMRMLLayoutManager* layoutManager,
-                          vtkMRMLLayoutNode * layoutNode, int expectedViewArrangement)
-{
-  if (layoutManager->layout() != expectedViewArrangement ||
-      layoutNode->GetViewArrangement() != expectedViewArrangement)
-    {
-    std::cerr << "Line " << line << " - Add scene failed:\n"
-              << " expected ViewArrangement: " << expectedViewArrangement << "\n"
-              << " current ViewArrangement: " << layoutNode->GetViewArrangement() << "\n"
-              << " current layout: " << layoutManager->layout() << std::endl;
-    return false;
-    }
-  return true;
-}
-
-} // end of anonymous namespace
+// Common test driver includes
+#include "qMRMLWidgetCxxTests.h"
+#include "qMRMLLayoutManagerTestHelper.cxx"
 
 // --------------------------------------------------------------------------
 int qMRMLLayoutManagerTest2(int argc, char * argv[] )
@@ -75,6 +59,53 @@ int qMRMLLayoutManagerTest2(int argc, char * argv[] )
       return EXIT_FAILURE;
       }
 
+    vtkMRMLLayoutNode* layoutNode = layoutManager->layoutLogic()->GetLayoutNode();
+
+    if (!checkViewArrangement(__LINE__, layoutManager, layoutNode, vtkMRMLLayoutNode::SlicerLayoutInitialView))
+      {
+      return EXIT_FAILURE;
+      }
+
+    int expectedThreeDViewCout = 1;
+    int currentThreeDViewCount = layoutManager->threeDViewCount();
+    if (expectedThreeDViewCout != currentThreeDViewCount)
+      {
+      std::cerr << "Line " << __LINE__ << " - Problem with qMRMLLayoutManager\n"
+                << "  expectedThreeDViewCout:" << expectedThreeDViewCout << "\n"
+                << "  currentThreeDViewCount:" << currentThreeDViewCount << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    int expectedSliceViewCout = 3;
+    int currentSliceViewCount = layoutManager->sliceViewNames().count();
+    if (expectedSliceViewCout != currentSliceViewCount)
+      {
+      std::cerr << "Line " << __LINE__ << " - Problem with qMRMLLayoutManager\n"
+                << "  expectedSliceViewCout:" << expectedSliceViewCout << "\n"
+                << "  currentSliceViewCount:" << currentSliceViewCount << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    int expectedChartViewCout = 0;
+    int currentChartViewCount = layoutManager->chartViewCount();
+    if (expectedChartViewCout != currentChartViewCount)
+      {
+      std::cerr << "Line " << __LINE__ << " - Problem with qMRMLLayoutManager\n"
+                << "  expectedChartViewCout:" << expectedChartViewCout << "\n"
+                << "  currentChartViewCount:" << currentChartViewCount << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    int expectedTableViewCout = 0;
+    int currentTableViewCount = layoutManager->tableViewCount();
+    if (expectedTableViewCout != currentTableViewCount)
+      {
+      std::cerr << "Line " << __LINE__ << " - Problem with qMRMLLayoutManager\n"
+                << "  expectedTableViewCout:" << expectedTableViewCout << "\n"
+                << "  currentTableViewCount:" << currentTableViewCount << std::endl;
+      return EXIT_FAILURE;
+      }
+
     layoutManager->setMRMLScene(0);
     applicationLogic->SetMRMLScene(0);
 
@@ -89,12 +120,69 @@ int qMRMLLayoutManagerTest2(int argc, char * argv[] )
       }
   }
 
+  {
+    // Setting a new scene is expected to reset the factories
+    vtkNew<vtkMRMLScene> scene;
+    applicationLogic->SetMRMLScene(scene.GetPointer());
+    layoutManager->setMRMLScene(scene.GetPointer());
+    vtkMRMLLayoutNode* layoutNode = layoutManager->layoutLogic()->GetLayoutNode();
+
+    if (!checkViewArrangement(__LINE__, layoutManager, layoutNode, vtkMRMLLayoutNode::SlicerLayoutInitialView))
+      {
+      return EXIT_FAILURE;
+      }
+
+    int expectedThreeDViewCout = 1;
+    int currentThreeDViewCount = layoutManager->threeDViewCount();
+    if (expectedThreeDViewCout != currentThreeDViewCount)
+      {
+      std::cerr << "Line " << __LINE__ << " - Problem with qMRMLLayoutManager\n"
+                << "  expectedThreeDViewCout:" << expectedThreeDViewCout << "\n"
+                << "  currentThreeDViewCount:" << currentThreeDViewCount << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    int expectedSliceViewCout = 3;
+    int currentSliceViewCount = layoutManager->sliceViewNames().count();
+    if (expectedSliceViewCout != currentSliceViewCount)
+      {
+      std::cerr << "Line " << __LINE__ << " - Problem with qMRMLLayoutManager\n"
+                << "  expectedSliceViewCout:" << expectedSliceViewCout << "\n"
+                << "  currentSliceViewCount:" << currentSliceViewCount << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    int expectedChartViewCout = 0;
+    int currentChartViewCount = layoutManager->chartViewCount();
+    if (expectedChartViewCout != currentChartViewCount)
+      {
+      std::cerr << "Line " << __LINE__ << " - Problem with qMRMLLayoutManager\n"
+                << "  expectedChartViewCout:" << expectedChartViewCout << "\n"
+                << "  currentChartViewCount:" << currentChartViewCount << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    int expectedTableViewCout = 0;
+    int currentTableViewCount = layoutManager->tableViewCount();
+    if (expectedTableViewCout != currentTableViewCount)
+      {
+      std::cerr << "Line " << __LINE__ << " - Problem with qMRMLLayoutManager\n"
+                << "  expectedTableViewCout:" << expectedTableViewCout << "\n"
+                << "  currentTableViewCount:" << currentTableViewCount << std::endl;
+      return EXIT_FAILURE;
+      }
+
+  }
   vtkMRMLLayoutNode* layoutNode = 0;
   {
     vtkNew<vtkMRMLScene> scene;
-
     vtkNew<vtkMRMLLayoutNode> newLayoutNode;
+
+    // The view arrangement can be set before the view descriptions are registered, but it will log warning
+    TESTING_OUTPUT_ASSERT_WARNINGS_BEGIN();
     newLayoutNode->SetViewArrangement(vtkMRMLLayoutNode::SlicerLayoutOneUpRedSliceView);
+    TESTING_OUTPUT_ASSERT_WARNINGS_END();
+    
     layoutNode = vtkMRMLLayoutNode::SafeDownCast(scene->AddNode(newLayoutNode.GetPointer()));
     applicationLogic->SetMRMLScene(scene.GetPointer());
     layoutManager->setMRMLScene(scene.GetPointer());

@@ -31,14 +31,9 @@ class QToolButton;
 #include <qSlicerIO.h>
 #include "ui_qSlicerAppMainWindow.h"
 
-class qSlicerAbstractCoreModule;
-class qSlicerModulePanel;
 class qSlicerModuleSelectorToolBar;
-class qSlicerAppMainWindowCore;
 class qSlicerAppMainWindowPrivate;
 class qSlicerLayoutManager;
-
-// CTK includes
 
 //-----------------------------------------------------------------------------
 class Q_SLICER_APP_EXPORT qSlicerAppMainWindowPrivate
@@ -72,7 +67,8 @@ public:
   void setErrorLogIconHighlighted(bool);
 
 #ifdef Slicer_USE_PYTHONQT
-  ctkPythonConsole*               PythonConsole;
+  QDockWidget*                    PythonConsoleDockWidget;
+  QAction*                        PythonConsoleToggleViewAction;
 #endif
   ctkErrorLogWidget*              ErrorLogWidget;
   QToolButton*                    ErrorLogToolButton;

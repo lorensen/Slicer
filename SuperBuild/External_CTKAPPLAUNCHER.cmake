@@ -28,11 +28,11 @@ if(Slicer_USE_CTKAPPLAUNCHER)
     # On windows, use i386 launcher unconditionally
     if("${CTKAPPLAUNCHER_OS}" STREQUAL "win")
       set(CTKAPPLAUNCHER_ARCHITECTURE "i386")
-      set(md5 "e185716a7ee9b674aa213f58dd122c61")
-      set(item_id "6113")
+      set(md5 "5511af8ea134e9d516070d85bdb890f3")
+      set(item_id "7565")
     elseif("${CTKAPPLAUNCHER_OS}" STREQUAL "linux")
-      set(md5 "276751c42ee52741afddd5b555f7e600")
-      set(item_id "6111")
+      set(md5 "2bdd93a8b41f245902a38429e6b20ea4")
+      set(item_id "9838")
     elseif("${CTKAPPLAUNCHER_OS}" STREQUAL "macosx")
       set(md5 "06bff63508db30244467de64afae000b")
       set(item_id "6112")
@@ -49,12 +49,21 @@ if(Slicer_USE_CTKAPPLAUNCHER)
       DEPENDS
         ${${proj}_DEPENDENCIES}
       )
+
+    ExternalProject_GenerateProjectDescription_Step(${proj}
+      VERSION ${launcher_version}
+      )
+
     set(CTKAPPLAUNCHER_DIR ${CMAKE_BINARY_DIR}/${proj})
 
   else()
     ExternalProject_Add_Empty(${proj} DEPENDS ${${proj}_DEPENDENCIES})
   endif()
 
-  mark_as_superbuild(CTKAPPLAUNCHER_DIR:PATH)
+  mark_as_superbuild(
+    VARS
+      CTKAPPLAUNCHER_DIR:PATH
+    LABELS "FIND_PACKAGE"
+    )
 
 endif()

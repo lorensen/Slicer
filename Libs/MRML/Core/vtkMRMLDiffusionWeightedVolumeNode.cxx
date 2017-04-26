@@ -16,12 +16,14 @@ Version:   $Revision: 1.14 $
 #include "vtkMRMLDiffusionWeightedVolumeNode.h"
 #include "vtkMRMLDiffusionWeightedVolumeDisplayNode.h"
 #include "vtkMRMLNRRDStorageNode.h"
+#include "vtkMRMLScene.h"
 
-#include "vtkDoubleArray.h"
+#include <vtkDoubleArray.h>
 #include <vtkImageData.h>
 #include <vtkImageExtractComponents.h>
 #include <vtkMatrix4x4.h>
-#include "vtkObjectFactory.h"
+#include <vtkNew.h>
+#include <vtkObjectFactory.h>
 
 //------------------------------------------------------------------------------
 vtkMRMLNodeNewMacro(vtkMRMLDiffusionWeightedVolumeNode);
@@ -64,7 +66,6 @@ void vtkMRMLDiffusionWeightedVolumeNode::WriteXML(ostream& of, int nIndent)
 {
   Superclass::WriteXML(of, nIndent);
 
-  vtkIndent indent(nIndent);
   std::stringstream ss;
   for(int i=0; i<3; i++)
     {
@@ -77,7 +78,7 @@ void vtkMRMLDiffusionWeightedVolumeNode::WriteXML(ostream& of, int nIndent)
         }
       }
     }
-    of << indent << " measurementFrameMatrix=\"" << ss.str() << "\"";
+    of << " measurementFrameMatrix=\"" << ss.str() << "\"";
 
   ss.clear();
 
@@ -89,7 +90,7 @@ void vtkMRMLDiffusionWeightedVolumeNode::WriteXML(ostream& of, int nIndent)
       }
     }
 
-  of << indent << " gradients=\"" << ss.str() << "\"";
+  of << " gradients=\"" << ss.str() << "\"";
 
   ss.clear();
 
@@ -97,8 +98,7 @@ void vtkMRMLDiffusionWeightedVolumeNode::WriteXML(ostream& of, int nIndent)
     {
     ss << this->BValues->GetValue(g) << " ";
     }
-  of << indent << " bValues=\"" << ss.str() << "\"";
-
+  of << " bValues=\"" << ss.str() << "\"";
 }
 
 //----------------------------------------------------------------------------
@@ -427,4 +427,23 @@ vtkMRMLDiffusionWeightedVolumeDisplayNode* vtkMRMLDiffusionWeightedVolumeNode::G
 vtkMRMLStorageNode* vtkMRMLDiffusionWeightedVolumeNode::CreateDefaultStorageNode()
 {
   return vtkMRMLNRRDStorageNode::New();
+}
+
+//----------------------------------------------------------------------------
+void vtkMRMLDiffusionWeightedVolumeNode::CreateDefaultDisplayNodes()
+{
+  if (vtkMRMLDiffusionWeightedVolumeDisplayNode::SafeDownCast(this->GetDisplayNode())!=NULL)
+    {
+    // display node already exists
+    return;
+    }
+  if (this->GetScene()==NULL)
+    {
+    vtkErrorMacro("vtkMRMLDiffusionWeightedVolumeNode::CreateDefaultDisplayNodes failed: scene is invalid");
+    return;
+    }
+  vtkNew<vtkMRMLDiffusionWeightedVolumeDisplayNode> dispNode;
+  this->GetScene()->AddNode(dispNode.GetPointer());
+  dispNode->SetDefaultColorMap();
+  this->SetAndObserveDisplayNodeID(dispNode->GetID());
 }

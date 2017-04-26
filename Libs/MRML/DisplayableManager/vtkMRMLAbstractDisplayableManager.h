@@ -85,6 +85,11 @@ public:
   /// Convenient method to get the current SelectionNode
   vtkMRMLSelectionNode* GetSelectionNode();
 
+  /// Assemble and return info string to display in Data probe for a given viewer XYZ position.
+  /// \return Invalid string by default, meaning no information to display.
+  virtual std::string GetDataProbeInfoStringForPosition(
+      double vtkNotUsed(xyz)[3]) { return ""; }
+
 protected:
 
   vtkMRMLAbstractDisplayableManager();
@@ -153,7 +158,7 @@ protected:
   /// Could be overloaded in DisplayableManager subclass.
   virtual void OnMRMLDisplayableNodeModifiedEvent(vtkObject* caller);
 
-  /// \brief Allow to specify additonal events that the DisplayableNode will observe
+  /// \brief Allow to specify additional events that the DisplayableNode will observe
   /// \warning Should be called within AdditionalInitializeStep() method
   /// \sa AdditionalInitializeStep()
   void AddMRMLDisplayableManagerEvent(int eventId);

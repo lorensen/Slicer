@@ -130,8 +130,8 @@ void ITKWriteVTKImage(vtkITKImageWriter *self, vtkImageData *inputImage, char *f
   typename ImageImportType::Pointer itkImporter = ImageImportType::New();
 
   // vtk export for  vtk image
-  vtkImageExport* vtkExporter = vtkImageExport::New();
-  vtkImageFlip* vtkFlip = vtkImageFlip::New();
+  vtkNew<vtkImageExport> vtkExporter;
+  vtkNew<vtkImageFlip> vtkFlip;
 
   // writer
   typedef typename itk::ImageFileWriter<ImageType> ImageWriterType;
@@ -148,17 +148,12 @@ void ITKWriteVTKImage(vtkITKImageWriter *self, vtkImageData *inputImage, char *f
 
 
   // set pipeline for the image
-#if (VTK_MAJOR_VERSION <= 5)
-  vtkFlip->SetInput( inputImage );
-  vtkExporter->SetInput ( inputImage );
-#else
   vtkFlip->SetInputData( inputImage );
   vtkExporter->SetInputData ( inputImage );
-#endif
   vtkFlip->SetFilteredAxis(1);
   vtkFlip->FlipAboutOriginOn();
 
-  ConnectPipelines(vtkExporter, itkImporter);
+  ConnectPipelines(vtkExporter.GetPointer(), itkImporter);
 
   // write image
   if(self->GetImageIOClassName())
@@ -224,9 +219,6 @@ void ITKWriteVTKImage(vtkITKImageWriter *self, vtkImageData *inputImage, char *f
     exception.Print(std::cerr);
     throw exception;
     }
-  // clean up
-  vtkExporter->Delete();
-  vtkFlip->Delete();
 }
 
 //----------------------------------------------------------------------------
@@ -328,14 +320,14 @@ void vtkITKImageWriter::Write()
     return;
     }
 
-#if (VTK_MAJOR_VERSION <= 5)
-  inputImage->UpdateInformation();
-  inputImage->SetUpdateExtent(inputImage->GetWholeExtent());
-#else
   this->UpdateInformation();
-  this->SetUpdateExtent(this->GetOutputInformation(0)->Get(
-                        vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT()));
-#endif
+  if (this->GetOutputInformation(0))
+    {
+    this->GetOutputInformation(0)->Set(
+      vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(),
+      this->GetOutputInformation(0)->Get(
+        vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT()), 6);
+    }
   int inputDataType =
     pointData->GetScalars() ? pointData->GetScalars()->GetDataType() :
     pointData->GetTensors() ? pointData->GetTensors()->GetDataType() :
@@ -489,21 +481,14 @@ void vtkITKImageWriter::Write()
         outImage->SetDimensions(inputImage->GetDimensions());
         outImage->SetOrigin(0, 0, 0);
         outImage->SetSpacing(1, 1, 1);
-#if (VTK_MAJOR_VERSION <= 5)
-        outImage->SetWholeExtent(inputImage->GetWholeExtent());
-        outImage->SetNumberOfScalarComponents(6);
-        outImage->SetScalarTypeToFloat();
-        outImage->AllocateScalars();
-#else
         outImage->AllocateScalars(VTK_FLOAT, 6);
-#endif
         vtkFloatArray* out = vtkFloatArray::SafeDownCast(outImage->GetPointData()->GetScalars());
         vtkFloatArray* in = vtkFloatArray::SafeDownCast(inputImage->GetPointData()->GetTensors());
         float inValue[9];
         float outValue[6];
         for(int i=0; i<out->GetNumberOfTuples(); i++)
           {
-          in->GetTupleValue(i, inValue);
+          in->GetTypedTuple(i, inValue);
           //ITK expect tensors saved in upper-triangular format
           outValue[0] = inValue[0];
           outValue[1] = inValue[1];

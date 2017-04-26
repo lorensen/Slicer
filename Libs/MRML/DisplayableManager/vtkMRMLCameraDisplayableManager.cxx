@@ -150,7 +150,10 @@ void vtkMRMLCameraDisplayableManager::OnMRMLSceneEndRestore()
     {
     camera_node = vtkMRMLCameraNode::SafeDownCast(
         this->GetMRMLScene()->GetNthNodeByClass(0, "vtkMRMLCameraNode"));
-    camera_node->SetActiveTag(this->GetMRMLViewNode()->GetID());
+    if (camera_node)
+      {
+      camera_node->SetActiveTag(this->GetMRMLViewNode()->GetID());
+      }
     // if the internal one needs updating
     if (!nodeInScene)
       {
@@ -276,6 +279,11 @@ void vtkMRMLCameraDisplayableManager::SetAndObserveCameraNode(vtkMRMLCameraNode 
   this->SetCameraToRenderer();
   this->SetCameraToInteractor();
   this->InvokeEvent(vtkMRMLCameraDisplayableManager::ActiveCameraChangedEvent, newCameraNode);
+  vtkMRMLViewNode *viewNode = this->GetMRMLViewNode();
+  if (viewNode)
+    {
+    viewNode->Modified(); // update vtkCamera from view node (perspective/parallel, etc)
+    }
 };
 
 //---------------------------------------------------------------------------

@@ -16,7 +16,7 @@
 #define __vtkMRMLStorableNode_h
 
 // MRML includes
-#include "vtkMRMLTransformableNode.h"
+#include "vtkMRMLNode.h"
 class vtkMRMLStorageNode;
 
 // VTK includes
@@ -30,10 +30,10 @@ class vtkTagTable;
 /// Model nodes describe polygonal data.  Models
 /// are assumed to have been constructed with the orientation and voxel
 /// dimensions of the original segmented volume.
-class VTK_MRML_EXPORT vtkMRMLStorableNode : public vtkMRMLTransformableNode
+class VTK_MRML_EXPORT vtkMRMLStorableNode : public vtkMRMLNode
 {
 public:
-  vtkTypeMacro(vtkMRMLStorableNode,vtkMRMLTransformableNode);
+  vtkTypeMacro(vtkMRMLStorableNode,vtkMRMLNode);
   void PrintSelf(ostream& os, vtkIndent indent);
 
   //--------------------------------------------------------------------------
@@ -97,10 +97,22 @@ public:
   vtkMRMLStorageNode* GetNthStorageNode(int n);
   vtkMRMLStorageNode* GetStorageNode();
 
-  /// Create a storage node for this node type or NULL if it doesn't have one.
+  /// Create a storage node for this node type.
+  /// If it returns NULL then it means the node can be stored
+  /// in the scene (in XML), without using a storage node.
   /// Null by default.
   /// This must be overwritten by subclasses that use storage nodes.
   virtual vtkMRMLStorageNode* CreateDefaultStorageNode();
+
+  /// Determines the most appropriate storage node class for the
+  /// provided file name and node content.
+  /// If the method is not overwritten by subclass then it uses
+  /// CreateDefaultStorageNode to determine storage node class name.
+  virtual std::string GetDefaultStorageNodeClassName(const char* filename = NULL);
+
+  /// Returns true on success. If storage node is not needed then
+  /// storage node is not created and the method returns with true.
+  virtual bool AddDefaultStorageNode(const char* filename = NULL);
 
   /// Returns true if the node is more recent than the file on disk.
   /// This information can be used by the application to know which node

@@ -46,7 +46,7 @@ void qSlicerSceneViewsModule::setup()
     qSlicerApplication::application()->coreIOManager();
   ioManager->registerIO(new qSlicerNodeWriter(
     "SceneViews", QString("SceneViewFile"),
-    QStringList() << "vtkMRMLSceneViewNode", this));
+    QStringList() << "vtkMRMLSceneViewNode", true, this));
 
   // Register Subject Hierarchy core plugins
   qSlicerSubjectHierarchyPluginHandler::instance()->registerPlugin(
@@ -117,4 +117,10 @@ void qSlicerSceneViewsModule::showSceneViewDialog()
   Q_ASSERT(this->widgetRepresentation());
   dynamic_cast<qSlicerSceneViewsModuleWidget*>(this->widgetRepresentation())
     ->showSceneViewDialog();
+}
+
+//-----------------------------------------------------------------------------
+QStringList qSlicerSceneViewsModule::associatedNodeTypes() const
+{
+  return QStringList() << "vtkMRMLSceneViewNode";
 }

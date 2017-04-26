@@ -20,9 +20,12 @@
 
 // Qt includes
 #include <QDebug>
+#include <QDesktopServices>
+#include <QFileInfo>
 #include <QMainWindow>
 #include <QMessageBox>
 #include <QSettings>
+#include <QUrl>
 
 // CTK includes
 #include <ctkBooleanMapper.h>
@@ -32,7 +35,11 @@
 #include "qSlicerSettingsGeneralPanel.h"
 #include "ui_qSlicerSettingsGeneralPanel.h"
 
-#include "vtkSlicerConfigure.h" // For Slicer_QM_OUTPUT_DIRS, Slicer_BUILD_I18N_SUPPORT
+#include "vtkSlicerConfigure.h" // For Slicer_QM_OUTPUT_DIRS, Slicer_BUILD_I18N_SUPPORT, Slicer_USE_PYTHONQT
+
+#ifdef Slicer_USE_PYTHONQT
+#include "PythonQt.h"
+#endif
 
 // --------------------------------------------------------------------------
 // qSlicerSettingsGeneralPanelPrivate
@@ -86,7 +93,31 @@ void qSlicerSettingsGeneralPanelPrivate::init()
   this->LanguageComboBox->setVisible(false);
 #endif
 
+#ifdef Slicer_USE_PYTHONQT
+#include "PythonQt.h"
+  PythonQt::init();
+  PythonQtObjectPtr context = PythonQt::self()->getMainModule();
+  context.evalScript(QString("slicerrcfilename = getSlicerRCFileName()\n"));
+  QVariant slicerrcFileNameVar = context.getVariable("slicerrcfilename");
+  this->SlicerRCFileValueLabel->setText(slicerrcFileNameVar.toString());
+  QIcon openFileIcon = QApplication::style()->standardIcon(QStyle::SP_DialogOpenButton);
+  this->SlicerRCFileOpenButton->setIcon(openFileIcon);
+  QObject::connect(this->SlicerRCFileOpenButton, SIGNAL(clicked()), q, SLOT(openSlicerRCFile()));
+#else
+  this->SlicerRCFileLabel->setVisible(false);
+  this->SlicerRCFileValueLabel->setVisible(false);
+#endif
+
   // Default values
+
+  this->DefaultScenePathButton->setDirectory(qSlicerCoreApplication::application()->defaultScenePath());
+  q->registerProperty("DefaultScenePath", this->DefaultScenePathButton,"directory",
+                      SIGNAL(directoryChanged(QString)),
+                      "Default scene path",
+                     ctkSettingsPanel::OptionRequireRestart);
+  QObject::connect(this->DefaultScenePathButton, SIGNAL(directoryChanged(QString)),
+                   q, SLOT(setDefaultScenePath(QString)));
+
   this->SlicerWikiURLLineEdit->setText("http://www.slicer.org/slicerWiki/index.php");
 
   q->registerProperty("no-splash", this->ShowSplashScreenCheckBox, "checked",
@@ -128,4 +159,40 @@ qSlicerSettingsGeneralPanel::qSlicerSettingsGeneralPanel(QWidget* _parent)
 // --------------------------------------------------------------------------
 qSlicerSettingsGeneralPanel::~qSlicerSettingsGeneralPanel()
 {
+}
+
+// --------------------------------------------------------------------------
+void qSlicerSettingsGeneralPanel::setDefaultScenePath(const QString& path)
+{
+  qSlicerCoreApplication::application()->setDefaultScenePath(path);
+}
+
+// --------------------------------------------------------------------------
+void qSlicerSettingsGeneralPanel::openSlicerRCFile()
+{
+  Q_D(qSlicerSettingsGeneralPanel);
+  QString slicerRcFileName = d->SlicerRCFileValueLabel->text();
+  QFileInfo fileInfo(slicerRcFileName);
+  if (!fileInfo.exists())
+    {
+    QFile outputFile(slicerRcFileName);
+    if (outputFile.open(QFile::WriteOnly | QFile::Truncate))
+      {
+      // slicerrc file does not exist, create one with some default content
+      QTextStream outputStream(&outputFile);
+      outputStream <<
+        "# Python commands in this file are executed on Slicer startup\n"
+        "\n"
+        "# Examples:\n"
+        "#\n"
+        "# Load a scene file\n"
+        "# slicer.util.loadScene('c:/Users/SomeUser/Documents/SlicerScenes/SomeScene.mrb')\n"
+        "#\n"
+        "# Open a module (overrides default startup module in application settings / modules)\n"
+        "# slicer.util.mainWindow().moduleSelector().selectModule('SegmentEditor')\n"
+        "#\n";
+      outputFile.close();
+      }
+    }
+  QDesktopServices::openUrl(QUrl("file:///" + slicerRcFileName, QUrl::TolerantMode));
 }

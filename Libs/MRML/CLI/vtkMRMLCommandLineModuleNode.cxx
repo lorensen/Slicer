@@ -62,6 +62,11 @@ public:
 
   /// Flag to trigger or not the StatusModifiedEvent
   mutable bool InvokeStatusModifiedEvent;
+
+  /// Output messages of last execution (printed to stdout)
+  std::string OutputText;
+  /// Error messages of last execution (printed to stderr)
+  std::string ErrorText;
 };
 
 ModuleDescriptionMap vtkMRMLCommandLineModuleNode::vtkInternal::RegisteredModules;
@@ -269,13 +274,30 @@ void vtkMRMLCommandLineModuleNode::Copy(vtkMRMLNode *anode)
 void vtkMRMLCommandLineModuleNode::PrintSelf(ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os,indent);
-
-  os << indent << "Module description:   "
-     << "\n"
-     << "   " << this->GetModuleDescription();
   os << indent << "Status: " << this->GetStatusString() << "\n";
   os << indent << "AutoRun:" << this->GetAutoRun() << "\n";
   os << indent << "AutoRunMode:" << this->GetAutoRunMode() << "\n";
+
+  os << indent << "Parameter values:\n";
+  std::vector<ModuleParameterGroup>::const_iterator pgbeginit = this->GetModuleDescription().GetParameterGroups().begin();
+  std::vector<ModuleParameterGroup>::const_iterator pgendit = this->GetModuleDescription().GetParameterGroups().end();
+  for (std::vector<ModuleParameterGroup>::const_iterator pgit = pgbeginit; pgit != pgendit; ++pgit)
+    {
+    std::vector<ModuleParameter>::const_iterator pbeginit = (*pgit).GetParameters().begin();
+    std::vector<ModuleParameter>::const_iterator pendit = (*pgit).GetParameters().end();
+    for (std::vector<ModuleParameter>::const_iterator pit = pbeginit; pit != pendit; ++pit)
+      {
+      os << indent << " " << (*pit).GetName() << " = " << (*pit).GetDefault() << "\n";
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+std::string vtkMRMLCommandLineModuleNode::GetModuleDescriptionAsString() const
+{
+  std::ostringstream s;
+  s << this->GetModuleDescription();
+  return s.str();
 }
 
 //----------------------------------------------------------------------------
@@ -593,19 +615,19 @@ unsigned int vtkMRMLCommandLineModuleNode::GetAutoRunDelay() const
 }
 
 //----------------------------------------------------------------------------
-unsigned long vtkMRMLCommandLineModuleNode::GetLastRunTime() const
+vtkMTimeType vtkMRMLCommandLineModuleNode::GetLastRunTime() const
 {
   return this->Internal->LastRunTime.GetMTime();
 }
 
 //----------------------------------------------------------------------------
-unsigned long vtkMRMLCommandLineModuleNode::GetParameterMTime() const
+vtkMTimeType vtkMRMLCommandLineModuleNode::GetParameterMTime() const
 {
   return this->Internal->ParameterMTime.GetMTime();
 }
 
 //----------------------------------------------------------------------------
-unsigned long vtkMRMLCommandLineModuleNode::GetInputMTime() const
+vtkMTimeType vtkMRMLCommandLineModuleNode::GetInputMTime() const
 {
   return this->Internal->InputMTime.GetMTime();
 }
@@ -1001,5 +1023,45 @@ void vtkMRMLCommandLineModuleNode::Modified()
   if (invokeStatusModifiedEvent)
     {
     this->InvokeEvent(vtkMRMLCommandLineModuleNode::StatusModifiedEvent);
+    }
+}
+
+//----------------------------------------------------------------------------
+const std::string vtkMRMLCommandLineModuleNode::GetErrorText() const
+{
+  return this->Internal->ErrorText;
+}
+
+//----------------------------------------------------------------------------
+const std::string vtkMRMLCommandLineModuleNode::GetOutputText() const
+{
+  return this->Internal->OutputText;
+}
+
+//----------------------------------------------------------------------------
+void vtkMRMLCommandLineModuleNode::SetErrorText(const std::string& text, bool modify)
+{
+  if (this->Internal->ErrorText == text)
+    {
+    return;
+    }
+  this->Internal->ErrorText = text;
+  if (modify)
+    {
+    this->Modified();
+    }
+}
+
+//----------------------------------------------------------------------------
+void vtkMRMLCommandLineModuleNode::SetOutputText(const std::string& text, bool modify)
+{
+  if (this->Internal->OutputText == text)
+    {
+    return;
+    }
+  this->Internal->OutputText = text;
+  if (modify)
+    {
+    this->Modified();
     }
 }

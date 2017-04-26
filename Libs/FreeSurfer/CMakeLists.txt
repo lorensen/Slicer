@@ -4,13 +4,6 @@ project(FreeSurfer)
 cmake_minimum_required(VERSION 2.8.4)
 #-----------------------------------------------------------------------------
 
-#-----------------------------------------------------------------------------
-# See http://cmake.org/cmake/help/cmake-2-8-docs.html#section_Policies for details
-#-----------------------------------------------------------------------------
-if(POLICY CMP0017)
-  cmake_policy(SET CMP0017 OLD)
-endif()
-
 # --------------------------------------------------------------------------
 # Options
 # --------------------------------------------------------------------------
@@ -91,16 +84,6 @@ set(lib_name ${PROJECT_NAME})
 set(srcs ${FreeSurfer_SRCS})
 
 add_library(${lib_name} ${srcs})
-
-if(${VTK_VERSION_MAJOR} GREATER 5)
-  # Minimum set of libraries already specified using components
-else()
-  set(VTK_LIBRARIES
-    vtkCommon
-    vtkFiltering
-    vtkIO
-    )
-endif()
 
 set(libs
   ${VTK_LIBRARIES}

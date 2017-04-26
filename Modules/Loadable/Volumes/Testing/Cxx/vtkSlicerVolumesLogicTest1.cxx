@@ -20,10 +20,15 @@
 
 // Volumes logic
 #include "vtkSlicerVolumesLogic.h"
+#include "vtkMRMLCoreTestingMacros.h"
 
 // MRML includes
+#include <vtkMRMLLabelMapVolumeNode.h>
 #include <vtkMRMLScalarVolumeNode.h>
 #include <vtkMRMLScene.h>
+#include <vtkMRMLScalarVolumeDisplayNode.h>
+#include <vtkMRMLLabelMapVolumeDisplayNode.h>
+#include <vtkMRMLVolumeArchetypeStorageNode.h>
 
 // VTK includes
 #include <vtkAlgorithm.h>
@@ -40,43 +45,17 @@
 #include <itkFactoryRegistration.h>
 
 //-----------------------------------------------------------------------------
-#if VTK_MAJOR_VERSION <= 5
-bool isImageDataValid(vtkImageData* imageData)
-{
-  if (!imageData)
-    {
-    return false;
-    }
-  imageData->GetProducerPort();
-  vtkInformation* info = imageData->GetPipelineInformation();
-  info = imageData->GetPipelineInformation();
-#else
-bool isImageDataValid(vtkAlgorithmOutput* imageDataConnection)
-{
-  if (!imageDataConnection ||
-      !imageDataConnection->GetProducer())
-    {
-    std::cout << "No image data port" << std::endl;
-    return false;
-    }
-  imageDataConnection->GetProducer()->Update();
-  vtkInformation* info =
-    imageDataConnection->GetProducer()->GetOutputInformation(0);
-#endif
-  if (!info)
-    {
-    std::cout << "No output information" << std::endl;
-    return false;
-    }
-  vtkInformation *scalarInfo = vtkDataObject::GetActiveFieldInformation(info,
-    vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
-  if (!scalarInfo)
-    {
-    std::cout << "No scalar information" << std::endl;
-    return false;
-    }
-  return true;
-}
+bool isImageDataValid(int line, vtkAlgorithmOutput* imageDataConnection);
+vtkMRMLScalarVolumeNode * TestScalarVolumeLoading( const char* volumeName,
+                                                   vtkSlicerVolumesLogic* logic );
+vtkMRMLLabelMapVolumeNode * TestLabelMapVolumeLoading( const char* volumeName,
+                                                       vtkSlicerVolumesLogic* logic );
+int TestCheckForLabelVolumeValidity( vtkMRMLScalarVolumeNode* scalarVolume,
+                                     vtkMRMLLabelMapVolumeNode* labelMapVolume,
+                                     vtkSlicerVolumesLogic* logic );
+int TestCloneVolume( vtkMRMLScalarVolumeNode* scalarVolume,
+                     vtkMRMLScene* scene,
+                     vtkSlicerVolumesLogic *logic);
 
 //-----------------------------------------------------------------------------
 int vtkSlicerVolumesLogicTest1( int argc, char * argv[] )
@@ -88,68 +67,213 @@ int vtkSlicerVolumesLogicTest1( int argc, char * argv[] )
 
   if (argc < 2)
     {
-    std::cerr << "Usage: vtkSlicerVolumesLogicTest1 volumeName [-I]" << std::endl;
+    std::cerr << "Line " << __LINE__
+              << " - Missing parameters !\n"
+              << "Usage: vtkSlicerVolumesLogicTest1 volumeName [-I]"
+              << std::endl;
     return EXIT_FAILURE;
     }
 
   logic->SetMRMLScene(scene.GetPointer());
+  const char* volumeName = argv[1];
 
-  vtkMRMLVolumeNode* volume =
-    logic->AddArchetypeVolume(argv[1], "volume", 0);
+  vtkMRMLScalarVolumeNode * scalarVolume = TestScalarVolumeLoading(volumeName, logic.GetPointer());
+  CHECK_NOT_NULL(scalarVolume);
 
-  if (!volume ||
-#if VTK_MAJOR_VERSION <=5
-      !isImageDataValid(volume->GetImageData()))
-#else
-      !isImageDataValid(volume->GetImageDataConnection()))
-#endif
+  vtkMRMLLabelMapVolumeNode * labelMapVolume = TestLabelMapVolumeLoading(volumeName, logic.GetPointer());
+  CHECK_NOT_NULL(labelMapVolume);
+
+  CHECK_EXIT_SUCCESS(TestCheckForLabelVolumeValidity(scalarVolume, labelMapVolume, logic.GetPointer()));
+
+  CHECK_EXIT_SUCCESS(TestCloneVolume(scalarVolume, scene.GetPointer(), logic.GetPointer()));
+
+  return EXIT_SUCCESS;
+}
+
+//-----------------------------------------------------------------------------
+bool isImageDataValid(int line, vtkAlgorithmOutput* imageDataConnection)
+{
+  if (!imageDataConnection ||
+      !imageDataConnection->GetProducer())
     {
-    std::cerr << "Failed to load scalar image." << std::endl;
+    std::cerr << "Line " << line
+              << " - No image data port !" << std::endl;
+    return false;
+    }
+
+  imageDataConnection->GetProducer()->Update();
+  vtkInformation* info =
+    imageDataConnection->GetProducer()->GetOutputInformation(0);
+  if (!info)
+    {
+    std::cerr << "Line " << line
+              << " - No output information !" << std::endl;
+    return false;
+    }
+
+  vtkInformation *scalarInfo = vtkDataObject::GetActiveFieldInformation(info,
+    vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
+  if (!scalarInfo)
+    {
+    std::cerr << "Line " << line
+              << " - No scalar information !" << std::endl;
+    return false;
+    }
+
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+vtkMRMLScalarVolumeNode * TestScalarVolumeLoading( const char* volumeName,
+                                                   vtkSlicerVolumesLogic* logic )
+{
+  vtkMRMLVolumeNode* volume =
+    logic->AddArchetypeVolume(volumeName, "volume", 0);
+  if(!volume)
+    {
+    std::cerr << "Line " << __LINE__
+              << " - Failed to load as scalar volume !" << std::endl;
+    return NULL;
+    }
+
+  if(!isImageDataValid(__LINE__, volume->GetImageDataConnection()))
+    {
+    return NULL;
+    }
+
+  vtkMRMLScalarVolumeNode *scalarVolume =
+    vtkMRMLScalarVolumeNode::SafeDownCast(volume);
+  if(!scalarVolume)
+    {
+    std::cerr << "Line " << __LINE__
+              << " - Failed to read as scalar volume !" << std::endl;
+    return NULL;
+    }
+
+  return scalarVolume;
+}
+
+//-----------------------------------------------------------------------------
+vtkMRMLLabelMapVolumeNode * TestLabelMapVolumeLoading( const char* volumeName,
+                                                       vtkSlicerVolumesLogic* logic )
+{
+  vtkMRMLVolumeNode* volume =
+    logic->AddArchetypeVolume(volumeName, "volume", 1 /* bit 0: label map */);
+  if(!volume)
+    {
+    std::cerr << "Line " << __LINE__
+              << " - Failed to load as scalar volume !" << std::endl;
+    return NULL;
+    }
+
+  if(!isImageDataValid(__LINE__, volume->GetImageDataConnection()))
+    {
+    return NULL;
+    }
+
+  vtkMRMLLabelMapVolumeNode *labelMapVolume =
+    vtkMRMLLabelMapVolumeNode::SafeDownCast(volume);
+  if(!labelMapVolume)
+    {
+    std::cerr << "Line " << __LINE__
+              << " - Failed to read as label map volume !" << std::endl;
+    return NULL;
+    }
+
+  return labelMapVolume;
+}
+
+//-----------------------------------------------------------------------------
+int TestCheckForLabelVolumeValidity( vtkMRMLScalarVolumeNode* scalarVolume,
+                                     vtkMRMLLabelMapVolumeNode* labelMapVolume,
+                                     vtkSlicerVolumesLogic* logic )
+{
+  std::string warnings;
+
+  warnings = logic->CheckForLabelVolumeValidity(NULL, NULL);
+  if (warnings.empty())
+    {
+    std::cerr << "Line " << __LINE__
+              << " - did not detect two null volumes in CheckForLabelVolumeValidity" << std::endl;
     return EXIT_FAILURE;
     }
 
-  if (volume && volume->GetImageData())
+  warnings = logic->CheckForLabelVolumeValidity(scalarVolume, NULL);
+  if (warnings.empty())
     {
-    volume->GetImageData()->Print(std::cerr);
+    std::cerr << "Line " << __LINE__
+              << " - did not detect null label volume in CheckForLabelVolumeValidity" << std::endl;
+    return EXIT_FAILURE;
     }
 
-  // basic checks on volume geometry
-  vtkMRMLScalarVolumeNode *scalarVolume =
-    vtkMRMLScalarVolumeNode::SafeDownCast(volume);
-  if (scalarVolume != NULL)
+  warnings = logic->CheckForLabelVolumeValidity(NULL, labelMapVolume);
+  if (warnings.empty())
     {
-    std::cout << "Testing volume geometry" << std::endl;
-    std::string warnings;
-    warnings = logic->CheckForLabelVolumeValidity(NULL, NULL);
-    if (warnings.empty())
+    std::cerr << "Line " << __LINE__
+              << " - did not detect null scalar volume map in CheckForLabelVolumeValidity" << std::endl;
+    return EXIT_FAILURE;
+    }
+
+  warnings = logic->CheckForLabelVolumeValidity(scalarVolume, labelMapVolume);
+  if (!warnings.empty())
+    {
+    std::cerr << "Line " << __LINE__
+              << " - got a warning when comparing identical volumes in CheckForLabelVolumeValidity: " << warnings.c_str() << std::endl;
+    return EXIT_FAILURE;
+    }
+
+  return EXIT_SUCCESS;
+}
+
+//-----------------------------------------------------------------------------
+int TestCloneVolume( vtkMRMLScalarVolumeNode* scalarVolume,
+                     vtkMRMLScene* scene,
+                     vtkSlicerVolumesLogic* logic )
+{
+  vtkNew<vtkMRMLVolumeArchetypeStorageNode> volumeStorageNode;
+  scene->AddNode(volumeStorageNode.GetPointer());
+  vtkNew<vtkMRMLScalarVolumeDisplayNode> scalarVolumeDisplayNode;
+  scene->AddNode(scalarVolumeDisplayNode.GetPointer());
+  vtkNew<vtkMRMLLabelMapVolumeDisplayNode> labelMapVolumeDisplayNode;
+  scene->AddNode(labelMapVolumeDisplayNode.GetPointer());
+
+  scalarVolume->SetAndObserveStorageNodeID(volumeStorageNode->GetID());
+  scalarVolume->SetAndObserveNthDisplayNodeID(0,scalarVolumeDisplayNode->GetID());
+  scalarVolume->SetAndObserveNthDisplayNodeID(1,labelMapVolumeDisplayNode->GetID());
+
+  vtkMRMLScalarVolumeNode* clonedVolume = logic->CloneVolume(scene, scalarVolume, "clonedVolume");
+
+  if (!clonedVolume)
+    {
+    std::cerr << "Line " << __LINE__
+              << " - CloneVolume failed" << std::endl;
+    return EXIT_FAILURE;
+    }
+
+  if (clonedVolume->GetNumberOfStorageNodes())
+    {
+    std::cerr << "Line " << __LINE__
+              << " - a cloned volume should not have any storage nodes" << std::endl;
+    return EXIT_FAILURE;
+    }
+
+  for (int i = 0; i < clonedVolume->GetNumberOfDisplayNodes(); ++i)
+    {
+    if ((std::string)clonedVolume->GetNthDisplayNodeID(i) == (std::string)scalarVolume->GetNthDisplayNodeID(i))
       {
-      std::cerr << "ERROR: did not detect two null volumes in check for label volume validity" << std::endl;
+      std::cerr << "Line " << __LINE__
+                << " - the display node #" <<i<< " is already referenced to the original volume" << std::endl;
       return EXIT_FAILURE;
       }
-    warnings = logic->CompareVolumeGeometry(NULL, NULL);
-    if (warnings.empty())
-      {
-      std::cerr << "ERROR: did not detect two null volumes in Compare Volume Geometry" << std::endl;
-      return EXIT_FAILURE;
-      }
-    warnings = logic->CheckForLabelVolumeValidity(scalarVolume, NULL);
-    if (warnings.empty())
-      {
-      std::cerr << "ERROR: did not detect null labe volumes in CheckForLabelVolumeValidity" << std::endl;
-      return EXIT_FAILURE;
-      }
-    warnings = logic->CheckForLabelVolumeValidity(NULL, scalarVolume);
-    if (warnings.empty())
-      {
-      std::cerr << "ERROR: did not detect null volumes and incorrect label map in CheckForLabelVolumeValidity" << std::endl;
-      return EXIT_FAILURE;
-      }
-    warnings = logic->CompareVolumeGeometry(scalarVolume, scalarVolume);
-    if (!warnings.empty())
-      {
-      std::cerr << "ERROR: got a warning when comparing identical volumes in CompareVolumeGeometry: " << warnings.c_str() << std::endl;
-      return EXIT_FAILURE;
-      }
+    }
+
+  std::string warnings = logic->CompareVolumeGeometry(scalarVolume, clonedVolume);
+  if (!warnings.empty())
+    {
+    std::cerr << "Line " << __LINE__
+              << " - CompareVolumeGeometry returned a warning when comparing the original and the cloned volumes: "
+              << warnings.c_str() << std::endl;
+    return EXIT_FAILURE;
     }
 
   return EXIT_SUCCESS;

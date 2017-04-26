@@ -30,6 +30,9 @@
 // SlicerQt includes
 #include <qSlicerUtils.h>
 
+// Slicer includes
+#include "vtkSlicerConfigure.h"
+
 // STD includes
 #include <cstdlib>
 #include <iostream>
@@ -70,6 +73,19 @@ bool isPluginInstalledTest(int line, bool expectedResult,
 //              << "\tpath: " << qPrintable(path) << "\n"
 //              << "\tapplicationHomeDir: " << qPrintable(applicationHomeDir) << std::endl;
     QString msg("Line %1 - Problem with isPluginInstalled()\n\tpath: %2\n\tapplicationHomeDir: %3");
+    throw std::runtime_error(qPrintable(msg.arg(line).arg(path).arg(applicationHomeDir)));
+    }
+  return res;
+}
+
+//-----------------------------------------------------------------------------
+bool isPluginBuiltInTest(int line, bool expectedResult,
+                           const QString& path, const QString& applicationHomeDir)
+{
+  bool res = qSlicerUtils::isPluginBuiltIn(path, applicationHomeDir);
+  if (res != expectedResult)
+    {
+    QString msg("Line %1 - Problem with isPluginBuiltIn()\n\tpath: %2\n\tapplicationHomeDir: %3");
     throw std::runtime_error(qPrintable(msg.arg(line).arg(path).arg(applicationHomeDir)));
     }
   return res;
@@ -269,7 +285,7 @@ int qSlicerUtilsTest1(int, char * [] )
     }
 
   //-----------------------------------------------------------------------------
-  // Test isPluginInstalled()
+  // Test isPluginInstalled() and isPluginBuiltIn()
   //-----------------------------------------------------------------------------
 
   QStringList directoriesToRemove;
@@ -318,6 +334,17 @@ int qSlicerUtilsTest1(int, char * [] )
   isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooBarDebug + "/plugin.txt", tmp1.path());
   isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooBarRelease + "/plugin.txt", tmp1.path());
 
+  isPluginBuiltInTest(__LINE__, true, tmp1.path() + "/" + debug + "/plugin.txt", tmp1.path());
+  isPluginBuiltInTest(__LINE__, true, tmp1.path() + "/" + release + "/plugin.txt", tmp1.path());
+  isPluginBuiltInTest(__LINE__, true, tmp1.path() + "/" + relWithDebInfo + "/plugin.txt", tmp1.path());
+  isPluginBuiltInTest(__LINE__, true, tmp1.path() + "/" + minSizeRel + "/plugin.txt", tmp1.path());
+  isPluginBuiltInTest(__LINE__, true, tmp1.path() + "/" + foo + "/plugin.txt", tmp1.path());
+  isPluginBuiltInTest(__LINE__, true, tmp1.path() + "/" + fooDebug + "/plugin.txt", tmp1.path());
+  isPluginBuiltInTest(__LINE__, true, tmp1.path() + "/" + fooRelease + "/plugin.txt", tmp1.path());
+  isPluginBuiltInTest(__LINE__, true, tmp1.path() + "/" + fooBar + "/plugin.txt", tmp1.path());
+  isPluginBuiltInTest(__LINE__, true, tmp1.path() + "/" + fooBarDebug + "/plugin.txt", tmp1.path());
+  isPluginBuiltInTest(__LINE__, true, tmp1.path() + "/" + fooBarRelease + "/plugin.txt", tmp1.path());
+
   directoriesToRemove << tmp1.path();
 
   //
@@ -347,6 +374,17 @@ int qSlicerUtilsTest1(int, char * [] )
   isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooBarDebug + "/plugin.txt", tmp2.path());
   isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooBarRelease + "/plugin.txt", tmp2.path());
 
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + debug + "/plugin.txt", tmp2.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + release + "/plugin.txt", tmp2.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + relWithDebInfo + "/plugin.txt", tmp2.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + minSizeRel + "/plugin.txt", tmp2.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + foo + "/plugin.txt", tmp2.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + fooDebug + "/plugin.txt", tmp2.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + fooRelease + "/plugin.txt", tmp2.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + fooBar + "/plugin.txt", tmp2.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + fooBarDebug + "/plugin.txt", tmp2.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + fooBarRelease + "/plugin.txt", tmp2.path());
+
   directoriesToRemove << tmp2.path();
 
   //
@@ -370,6 +408,9 @@ int qSlicerUtilsTest1(int, char * [] )
   isPluginInstalledTest(__LINE__, true, tmp3.path() + "/" + foo + "/plugin.txt", tmp2.path());
   isPluginInstalledTest(__LINE__, true, tmp3.path() + "/" + fooBar + "/plugin.txt", tmp2.path());
 
+  isPluginBuiltInTest(__LINE__, false, tmp3.path() + "/" + foo + "/plugin.txt", tmp2.path());
+  isPluginBuiltInTest(__LINE__, false, tmp3.path() + "/" + fooBar + "/plugin.txt", tmp2.path());
+
   directoriesToRemove << tmp3.path();
 
   //
@@ -385,16 +426,27 @@ int qSlicerUtilsTest1(int, char * [] )
   tmp4.mkdir(temporaryDirName);
   tmp4.cd(temporaryDirName);
 
-  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + debug + "/plugin.txt", tmp1.path());
-  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + release + "/plugin.txt", tmp1.path());
-  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + relWithDebInfo + "/plugin.txt", tmp1.path());
-  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + minSizeRel + "/plugin.txt", tmp1.path());
-  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + foo + "/plugin.txt", tmp1.path());
-  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooDebug + "/plugin.txt", tmp1.path());
-  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooRelease + "/plugin.txt", tmp1.path());
-  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooBar + "/plugin.txt", tmp1.path());
-  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooBarDebug + "/plugin.txt", tmp1.path());
-  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooBarRelease + "/plugin.txt", tmp1.path());
+  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + debug + "/plugin.txt", tmp4.path());
+  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + release + "/plugin.txt", tmp4.path());
+  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + relWithDebInfo + "/plugin.txt", tmp4.path());
+  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + minSizeRel + "/plugin.txt", tmp4.path());
+  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + foo + "/plugin.txt", tmp4.path());
+  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooDebug + "/plugin.txt", tmp4.path());
+  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooRelease + "/plugin.txt", tmp4.path());
+  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooBar + "/plugin.txt", tmp4.path());
+  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooBarDebug + "/plugin.txt", tmp4.path());
+  isPluginInstalledTest(__LINE__, false, tmp1.path() + "/" + fooBarRelease + "/plugin.txt", tmp4.path());
+
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + debug + "/plugin.txt", tmp4.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + release + "/plugin.txt", tmp4.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + relWithDebInfo + "/plugin.txt", tmp4.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + minSizeRel + "/plugin.txt", tmp4.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + foo + "/plugin.txt", tmp4.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + fooDebug + "/plugin.txt", tmp4.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + fooRelease + "/plugin.txt", tmp4.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + fooBar + "/plugin.txt", tmp4.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + fooBarDebug + "/plugin.txt", tmp4.path());
+  isPluginBuiltInTest(__LINE__, false, tmp1.path() + "/" + fooBarRelease + "/plugin.txt", tmp4.path());
 
   directoriesToRemove << tmp4.path();
 
@@ -403,6 +455,24 @@ int qSlicerUtilsTest1(int, char * [] )
     {
     ctk::removeDirRecursively(dir);
     }
+
+  //
+  // Case 5: Platform is MacOS, application is installed
+  //
+
+#ifdef Slicer_BUILD_EXTENSIONMANAGER_SUPPORT
+  QString macSlicerAppDir("/Applications/Slicer.app");
+  QString macSlicerExtensionsPostfix("/Contents/" + QString(Slicer_EXTENSIONS_DIRNAME) + "/plugin.txt");
+  QString macSlicerAppExtensionsDir(macSlicerAppDir + macSlicerExtensionsPostfix);
+  QString macRenamedSlicerAppDir("/Applications/Something.app");
+  QString macRenamedSlicerAppExtensionsDir(macRenamedSlicerAppDir + macSlicerExtensionsPostfix);
+
+  isPluginInstalledTest(__LINE__, true, macSlicerAppExtensionsDir, macSlicerAppDir);
+  isPluginInstalledTest(__LINE__, true, macRenamedSlicerAppExtensionsDir, macRenamedSlicerAppDir);
+
+  isPluginBuiltInTest(__LINE__, false, macSlicerAppExtensionsDir, macSlicerAppDir);
+  isPluginBuiltInTest(__LINE__, false, macRenamedSlicerAppExtensionsDir, macRenamedSlicerAppDir);
+#endif
 
   //-----------------------------------------------------------------------------
   // 'tmp' directory is common to 'pathWithoutIntDir' and 'pathEndsWith' tests
@@ -802,6 +872,158 @@ int qSlicerUtilsTest1(int, char * [] )
       std::cerr << __LINE__ << " - Problem with setPermissionsRecursively() - "
                 << "Should be possible to recursively delete "
                 << qPrintable(tmp.path()) << std::endl;
+      return EXIT_FAILURE;
+      }
+  }
+
+  //-----------------------------------------------------------------------------
+  // Test isRelease()
+  //-----------------------------------------------------------------------------
+  {
+
+    // <MAJOR_VERSION>.<MINOR_VERSION>.<PATCH_VERSION>
+    bool expected = true;
+    bool current = qSlicerUtils::isRelease("1.22.333");
+    if (current != expected)
+      {
+      std::cerr << __LINE__ << " - Error in  isRelease()" << std::endl
+                            << "current = " << current << std::endl
+                            << "expected = " << expected << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    // <MAJOR_VERSION>.<MINOR_VERSION>.<PATCH_VERSION>-rc{1|2|3...}
+    expected = true;
+    current = qSlicerUtils::isRelease("1.22.3001-rc12");
+    if (current != expected)
+      {
+      std::cerr << __LINE__ << " - Error in  isRelease()" << std::endl
+                            << "current = " << current << std::endl
+                            << "expected = " << expected << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    // <MAJOR_VERSION>.<MINOR_VERSION>.<PATCH_VERSION>-<TWEAK_VERSION>
+    expected = true;
+    current = qSlicerUtils::isRelease("1.22.3001-1");
+    if (current != expected)
+      {
+      std::cerr << __LINE__ << " - Error in  isRelease()" << std::endl
+                            << "current = " << current << std::endl
+                            << "expected = " << expected << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    // <MAJOR_VERSION>.<MINOR_VERSION>.<PATCH_VERSION>-YYYY-MM-DD
+    expected = false;
+    current = qSlicerUtils::isRelease("1.2.3-2013-01-11");
+    if (current != expected)
+      {
+      std::cerr << __LINE__ << " - Error in  isRelease()" << std::endl
+                            << "current = " << current << std::endl
+                            << "expected = " << expected << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    // <MAJOR_VERSION>.<MINOR_VERSION>.<PATCH_VERSION>-YYYY-MM-DD
+    expected = false;
+    current = qSlicerUtils::isRelease("1.2.3-2013-01-11");
+    if (current != expected)
+      {
+      std::cerr << __LINE__ << " - Error in  isRelease()" << std::endl
+                            << "current = " << current << std::endl
+                            << "expected = " << expected << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    // <MAJOR_VERSION>.<MINOR_VERSION>.<PATCH_VERSION>-rc{1|2|3...}-YYYY-MM-DD
+    expected = false;
+    current = qSlicerUtils::isRelease("1.2.3-rc26-2013-01-11");
+    if (current != expected)
+      {
+      std::cerr << __LINE__ << " - Error in  isRelease()" << std::endl
+                            << "current = " << current << std::endl
+                            << "expected = " << expected << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    // <MAJOR_VERSION>.<MINOR_VERSION>.<PATCH_VERSION>-<TWEAK_VERSION>-YYYY-MM-DD
+    expected = false;
+    current = qSlicerUtils::isRelease("1.2.3-231-2013-01-11");
+    if (current != expected)
+      {
+      std::cerr << __LINE__ << " - Error in  isRelease()" << std::endl
+                            << "current = " << current << std::endl
+                            << "expected = " << expected << std::endl;
+      return EXIT_FAILURE;
+      }
+  }
+
+  //-----------------------------------------------------------------------------
+  // Test replaceWikiUrlVersion()
+  //-----------------------------------------------------------------------------
+  {
+    //! [replaceWikiUrlVersion example1]
+    QString input =
+        "http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/SlicerToKiwiExporter";
+    QString output = qSlicerUtils::replaceWikiUrlVersion(input, "4.4");
+    QString expectedOutput =
+        "http://wiki.slicer.org/slicerWiki/index.php/Documentation/4.4/Extensions/SlicerToKiwiExporter";
+    //! [replaceWikiUrlVersion example1]
+    if (output != expectedOutput)
+      {
+      std::cerr << __LINE__ << " - Error in  updateWikiUrlVersion()" << std::endl
+                            << "current = " << qPrintable(output) << std::endl
+                            << "expected = " << qPrintable(expectedOutput) << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    //! [replaceWikiUrlVersion example2]
+    input =
+        "http://wiki.slicer.org/slicerWiki/index.php/Documentation/Foo/Extensions/SlicerToKiwiExporter";
+    output = qSlicerUtils::replaceWikiUrlVersion(input, "Bar");
+    expectedOutput =
+        "http://wiki.slicer.org/slicerWiki/index.php/Documentation/Bar/Extensions/SlicerToKiwiExporter";
+    //! [replaceWikiUrlVersion example2]
+    if (output != expectedOutput)
+      {
+      std::cerr << __LINE__ << " - Error in  updateWikiUrlVersion()" << std::endl
+                            << "current = " << qPrintable(output) << std::endl
+                            << "expected = " << qPrintable(expectedOutput) << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    //! [replaceWikiUrlVersion example3]
+    input =
+        "http://wiki.slicer.org/slicerWiki/index.php/Documentation/Foo/Extensions/SlicerToKiwiExporter/Foo";
+    output = qSlicerUtils::replaceWikiUrlVersion(input, "Bar");
+    expectedOutput =
+        "http://wiki.slicer.org/slicerWiki/index.php/Documentation/Bar/Extensions/SlicerToKiwiExporter/Foo";
+    //! [replaceWikiUrlVersion example3]
+    if (output != expectedOutput)
+      {
+      std::cerr << __LINE__ << " - Error in  updateWikiUrlVersion()" << std::endl
+                            << "current = " << qPrintable(output) << std::endl
+                            << "expected = " << qPrintable(expectedOutput) << std::endl;
+      return EXIT_FAILURE;
+      }
+
+    //! [replaceWikiUrlVersion example4]
+    input =
+        "Read documentation at "
+        "http://wiki.slicer.org/slicerWiki/index.php/Documentation/4.4/Extensions/SlicerToKiwiExporter."
+        "You will learn how to ...";
+    output = qSlicerUtils::replaceWikiUrlVersion(input, "Nightly");
+    expectedOutput =
+        "Read documentation at "
+        "http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/SlicerToKiwiExporter."
+        "You will learn how to ...";
+    //! [replaceWikiUrlVersion example4]
+    if (output != expectedOutput)
+      {
+      std::cerr << __LINE__ << " - Error in  updateWikiUrlVersion()" << std::endl
+                            << "current = " << qPrintable(output) << std::endl
+                            << "expected = " << qPrintable(expectedOutput) << std::endl;
       return EXIT_FAILURE;
       }
   }

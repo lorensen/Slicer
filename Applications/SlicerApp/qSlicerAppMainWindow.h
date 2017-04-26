@@ -35,10 +35,7 @@ class ctkPythonConsole;
 #include "qSlicerIO.h"
 #include "vtkSlicerConfigure.h" // For Slicer_BUILD_DICOM_SUPPORT, Slicer_USE_PYTHONQT, Slicer_USE_QtTesting
 
-class qSlicerAbstractCoreModule;
-class qSlicerModulePanel;
 class qSlicerModuleSelectorToolBar;
-class qSlicerAppMainWindowCore;
 class qSlicerAppMainWindowPrivate;
 
 // VTK includes
@@ -100,8 +97,9 @@ public slots:
   virtual void setLayoutNumberOfCompareViewRows(int);
   virtual void setLayoutNumberOfCompareViewColumns(int);
 
+  virtual void onPythonConsoleToggled(bool);
+
   virtual void on_WindowErrorLogAction_triggered();
-  virtual void on_WindowPythonInteractorAction_triggered();
   virtual void on_WindowToolbarsResetToDefaultAction_triggered();
 
   virtual void on_HelpKeyboardShortcutsAction_triggered();
@@ -128,9 +126,16 @@ protected slots:
   virtual void onLayoutChanged(int);
   virtual void onWarningsOrErrorsOccurred(ctkErrorLogLevel::LogLevel logLevel);
 
+#ifdef Slicer_USE_PYTHONQT
+  virtual void onPythonConsoleUserInput(const QString&);
+#endif
+
 protected:
   /// Connect MainWindow action with slots defined in MainWindowCore
   virtual void setupMenuActions();
+
+  /// Open Python interactor if it was requested
+  virtual void pythonConsoleInitialDisplay();
 
   /// Open a popup to warn the user Slicer is not for clinical use.
   virtual void disclaimer();

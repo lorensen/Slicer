@@ -24,12 +24,9 @@ set(CTKAPPLAUNCHER_DIR "@CTKAPPLAUNCHER_DIR@")
 set(python_DIR "@python_DIR@")
 set(Slicer_BIN_DIR "@Slicer_BIN_DIR@")
 set(Slicer_LIB_DIR "@Slicer_LIB_DIR@")
-
-set(python_version_dot "2.7")
-set(pythonpath_subdir lib/python${python_version_dot})
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-  set(pythonpath_subdir Lib)
-endif()
+set(Slicer_SHARE_DIR "@Slicer_SHARE_DIR@")
+set(Slicer_SOURCE_DIR "@Slicer_SOURCE_DIR@")
+set(Slicer_BINARY_DIR "@Slicer_BINARY_DIR@")
 
 #-----------------------------------------------------------------------------
 # Copy and rename launcher
@@ -80,13 +77,26 @@ endif()
 _listToQtSettingsArray("${_library_paths_build}" "path" SETTINGS_PYTHONLAUNCHER_LIBRARY_PATHS)
 
 set(_pythonpath_paths_build
-  "${PYTHONHOME}/${pythonpath_subdir}"
-  "${PYTHONHOME}/${pythonpath_subdir}/lib-dynload"
-  "${PYTHONHOME}/${pythonpath_subdir}/site-packages"
+  "${PYTHONHOME}/${PYTHON_STDLIB_SUBDIR}"
+  "${PYTHONHOME}/${PYTHON_STDLIB_SUBDIR}/lib-dynload"
+  "${PYTHONHOME}/${PYTHON_SITE_PACKAGES_SUBDIR}"
   )
 _listToQtSettingsArray("${_pythonpath_paths_build}" "path" SETTINGS_PYTHONLAUNCHER_PYTHONPATH_PATHS)
 
 set(PYTHON_EXE_SUFFIX_CONFIG "")
+
+if(PYTHON_ENABLE_SSL)
+  set(_src ${Slicer_SOURCE_DIR}/Base/QTCore/Resources/Certs/Slicer.crt)
+  set(_dest ${Slicer_BINARY_DIR}/Slicer-build/${Slicer_SHARE_DIR}/Slicer.crt)
+  configure_file(${_src} ${_dest} COPYONLY)
+  message(STATUS "Copying '${_src}' to '${_dest}'")
+endif()
+
+set(SSL_CERT_FILE_CONFIG "")
+if(PYTHON_ENABLE_SSL)
+  set(SSL_CERT_FILE_CONFIG
+    "SSL_CERT_FILE=<APPLAUNCHER_DIR>/../../Slicer-build/${Slicer_SHARE_DIR}/Slicer.crt")
+endif()
 
 # Configure SlicerPython launcher settings.
 get_filename_component(python_bin_dir "${slicer_PYTHON_REAL_EXECUTABLE}" PATH)
@@ -117,14 +127,20 @@ set(_library_paths_installed
 _listToQtSettingsArray("${_library_paths_installed}" "path" SETTINGS_PYTHONLAUNCHER_LIBRARY_PATHS)
 
 set(_pythonpath_paths_installed
-  "${PYTHONHOME}/lib/Python/${pythonpath_subdir}"
-  "${PYTHONHOME}/lib/Python/${pythonpath_subdir}/lib-dynload"
-  "${PYTHONHOME}/lib/Python/${pythonpath_subdir}/site-packages"
+  "${PYTHONHOME}/lib/Python/${PYTHON_STDLIB_SUBDIR}"
+  "${PYTHONHOME}/lib/Python/${PYTHON_STDLIB_SUBDIR}/lib-dynload"
+  "${PYTHONHOME}/lib/Python/${PYTHON_SITE_PACKAGES_SUBDIR}"
   "<APPLAUNCHER_DIR>/../${Slicer_BIN_DIR}/Python"
   )
 _listToQtSettingsArray("${_pythonpath_paths_installed}" "path" SETTINGS_PYTHONLAUNCHER_PYTHONPATH_PATHS)
 
 set(PYTHON_EXE_SUFFIX_CONFIG "-real")
+
+set(SSL_CERT_FILE_CONFIG "")
+if(PYTHON_ENABLE_SSL)
+  set(SSL_CERT_FILE_CONFIG
+    "SSL_CERT_FILE=<APPLAUNCHER_DIR>/../${Slicer_SHARE_DIR}/Slicer.crt")
+endif()
 
 # Configure SlicerPython launcher settings.
 get_filename_component(python_bin_dir "${slicer_PYTHON_REAL_EXECUTABLE}" PATH)

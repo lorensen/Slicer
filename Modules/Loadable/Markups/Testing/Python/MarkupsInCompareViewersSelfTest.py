@@ -1,7 +1,7 @@
 import os
 import time
 import unittest
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 
 #
 # MarkupsInCompareViewersSelfTest
@@ -124,8 +124,8 @@ class MarkupsInCompareViewersSelfTestWidget:
     except Exception, e:
       import traceback
       traceback.print_exc()
-      qt.QMessageBox.warning(slicer.util.mainWindow(),
-          "Reload and Test", 'Exception!\n\n' + str(e) + "\n\nSee Python Console for Stack Trace")
+      slicer.util.warningDisplay('Exception!\n\n' + str(e) + "\n\nSee Python Console for Stack Trace",
+                                 windowTitle="Reload and Test")
 
 
 #
@@ -192,7 +192,7 @@ class MarkupsInCompareViewersSelfTestLogic:
 
     # make it active
     selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
-    if (selectionNode != None):
+    if (selectionNode is not None):
       selectionNode.SetReferenceActivePlaceNodeID(fidNode.GetID())
 
     # add some known points to it

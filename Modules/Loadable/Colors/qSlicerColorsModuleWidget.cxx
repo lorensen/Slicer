@@ -32,6 +32,7 @@
 #include "ui_qSlicerColorsModuleWidget.h"
 
 // qMRMLWidget includes
+#include "qMRMLColorModel.h"
 #include "qMRMLThreeDView.h"
 #include "qMRMLThreeDWidget.h"
 
@@ -156,7 +157,6 @@ void qSlicerColorsModuleWidget::setup()
   connect(d->CopyColorNodeButton, SIGNAL(clicked()),
           this, SLOT(copyCurrentColorNode()));
 
-#if (VTK_MAJOR_VERSION > 5)
   if (d->UseColorNameAsLabelCheckBox->isChecked())
     {
     // string format
@@ -169,9 +169,6 @@ void qSlicerColorsModuleWidget::setup()
     }
   connect(d->UseColorNameAsLabelCheckBox, SIGNAL(toggled(bool)),
           this, SLOT(setUseColorNameAsLabel(bool)));
-#else
-  d->UseColorNameAsLabelCheckBox->setEnabled(0);
-#endif
   qSlicerApplication * app = qSlicerApplication::application();
   if (app && app->layoutManager())
     {
@@ -198,6 +195,13 @@ void qSlicerColorsModuleWidget::setMRMLScene(vtkMRMLScene *scene)
   Q_D(qSlicerColorsModuleWidget);
   this->qSlicerAbstractModuleWidget::setMRMLScene(scene);
   d->setDefaultColorNode();
+
+  // make sure the table view has the logic set so that it can access terminologies
+  if (d->ColorView &&
+      d->ColorView->colorModel())
+    {
+    d->ColorView->colorModel()->setMRMLColorLogic(d->colorLogic());
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -211,9 +215,6 @@ void qSlicerColorsModuleWidget::setCurrentColorNode(vtkMRMLNode* colorNode)
 void qSlicerColorsModuleWidget::setUseColorNameAsLabel(bool useColorName)
 {
   Q_D(qSlicerColorsModuleWidget);
-#if (VTK_MAJOR_VERSION <= 5)
-  d->ScalarBarActor->SetUseColorNameAsLabel(useColorName);
-#else
   if (useColorName)
     {
     // text string format
@@ -225,7 +226,6 @@ void qSlicerColorsModuleWidget::setUseColorNameAsLabel(bool useColorName)
     d->ScalarBarActor->SetLabelFormat(" %#8.3f");
     }
   d->ScalarBarActor->SetUseAnnotationAsLabel(useColorName);
-#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -294,7 +294,6 @@ void qSlicerColorsModuleWidget::onMRMLColorNodeChanged(vtkMRMLNode* newColorNode
       d->LUTRangeWidget->setEnabled(false);
       d->LUTRangeWidget->setValues(0.,0.);
       }
-#if (VTK_MAJOR_VERSION > 5)
     // update the annotations from the superclass color node since this is a
     // color table or freesurfer color node
     int numberOfColors = colorNode->GetNumberOfColors();
@@ -310,7 +309,6 @@ void qSlicerColorsModuleWidget::onMRMLColorNodeChanged(vtkMRMLNode* newColorNode
     d->ScalarBarActor->GetLookupTable()->SetAnnotations(indexArray, stringArray);
     indexArray->Delete();
     stringArray->Delete();
-#endif
     }
   else if (procColorNode != NULL)
     {
@@ -432,4 +430,21 @@ void qSlicerColorsModuleWidget::copyCurrentColorNode()
     {
     d->ColorTableComboBox->setCurrentNode(colorNode);
     }
+}
+
+//-----------------------------------------------------------
+bool qSlicerColorsModuleWidget::setEditedNode(vtkMRMLNode* node,
+                                              QString role /* = QString()*/,
+                                              QString context /* = QString()*/)
+{
+  Q_D(qSlicerColorsModuleWidget);
+  Q_UNUSED(role);
+  Q_UNUSED(context);
+  if (vtkMRMLColorNode::SafeDownCast(node))
+    {
+    d->ColorTableComboBox->setCurrentNode(node);
+    return true;
+    }
+
+  return false;
 }

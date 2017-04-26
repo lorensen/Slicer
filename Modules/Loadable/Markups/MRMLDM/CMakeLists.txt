@@ -20,7 +20,6 @@ set(displayable_manager_SRCS
   vtkMRML${MODULE_NAME}FiducialDisplayableManager2D.cxx
   )
 
-set(VTK_USE_INSTANTIATOR_NEW 1)
 VTK_MAKE_INSTANTIATOR3("${MODULE_NAME}Instantiator"
   displayable_manager_instantiator_SRCS
   "${displayable_manager_SRCS}"
@@ -36,22 +35,12 @@ set(${KIT}_SRCS
   vtkMRML${MODULE_NAME}ClickCounter.cxx
 )
 
-if(${VTK_VERSION_MAJOR} GREATER 5)
-  set(${KIT}_TARGET_LIBRARIES
-    ${MRML_LIBRARIES}
-    vtkSlicer${MODULE_NAME}ModuleLogic
-    vtkSlicer${MODULE_NAME}ModuleMRML
-    vtkSlicer${MODULE_NAME}ModuleVTKWidgets
-  )
-else()
-  set(${KIT}_TARGET_LIBRARIES
-    ${MRML_LIBRARIES}
-    vtkRendering
-    vtkSlicer${MODULE_NAME}ModuleLogic
-    vtkSlicer${MODULE_NAME}ModuleMRML
-    vtkSlicer${MODULE_NAME}ModuleVTKWidgets
-  )
-endif()
+set(${KIT}_TARGET_LIBRARIES
+  ${MRML_LIBRARIES}
+  vtkSlicer${MODULE_NAME}ModuleLogic
+  vtkSlicer${MODULE_NAME}ModuleMRML
+  vtkSlicer${MODULE_NAME}ModuleVTKWidgets
+)
 
 #-----------------------------------------------------------------------------
 SlicerMacroBuildModuleLogic(

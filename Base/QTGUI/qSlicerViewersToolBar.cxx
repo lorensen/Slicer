@@ -43,7 +43,7 @@ qSlicerViewersToolBarPrivate::qSlicerViewersToolBarPrivate(qSlicerViewersToolBar
 {
   this->CrosshairToolButton = 0;
   this->CrosshairMenu = 0;
-  this->CrosshairNavigationAction = 0;
+  this->CrosshairJumpSlicesAction = 0;
 
   this->CrosshairMapper = 0;
   this->CrosshairNoAction = 0;
@@ -72,13 +72,13 @@ void qSlicerViewersToolBarPrivate::init()
   /// Crosshair
   ///
 
-  // Navigation/Cross-referencing
-  this->CrosshairNavigationAction = new QAction(q);
-  this->CrosshairNavigationAction->setText(tr("Navigation"));
-  this->CrosshairNavigationAction->setToolTip(tr("Toggle between crosshair navigation and cross-referencing"));
-  this->CrosshairNavigationAction->setCheckable(true);
-  QObject::connect(this->CrosshairNavigationAction, SIGNAL(triggered(bool)),
-                   this, SLOT(setNavigation(bool)));
+  // Jump to slices
+  this->CrosshairJumpSlicesAction = new QAction(q);
+  this->CrosshairJumpSlicesAction->setText(tr("Jump slices"));
+  this->CrosshairJumpSlicesAction->setToolTip(tr("Slice views follow crosshair (even if crosshair is not displayed)"));
+  this->CrosshairJumpSlicesAction->setCheckable(true);
+  QObject::connect(this->CrosshairJumpSlicesAction, SIGNAL(triggered(bool)),
+                   this, SLOT(setCrosshairJumpSlices(bool)));
 
   // Style
   QActionGroup* crosshairActions = new QActionGroup(q);
@@ -174,7 +174,7 @@ void qSlicerViewersToolBarPrivate::init()
 
   // Menu
   this->CrosshairMenu = new QMenu(QObject::tr("Crosshair"), q);
-  this->CrosshairMenu->addAction(this->CrosshairNavigationAction);
+  this->CrosshairMenu->addAction(this->CrosshairJumpSlicesAction);
   this->CrosshairMenu->addSeparator();
   this->CrosshairMenu->addActions(crosshairActions->actions());
   this->CrosshairMenu->addSeparator();
@@ -195,11 +195,12 @@ void qSlicerViewersToolBarPrivate::init()
   this->CrosshairToggleAction = new QAction(q);
   this->CrosshairToggleAction->setIcon(QIcon(":/Icons/SlicesCrosshair.png"));
   this->CrosshairToggleAction->setCheckable(true);
-  this->CrosshairToggleAction->setToolTip(QObject::tr("Toggle crosshair or set crosshair properties."));
+  this->CrosshairToggleAction->setToolTip(QObject::tr(
+    "Toggle crosshair visibility. Hold Shift key and move mouse in a view to set crosshair position."));
   this->CrosshairToggleAction->setText(QObject::tr("Crosshair"));
   this->CrosshairToolButton->setDefaultAction(this->CrosshairToggleAction);
   QObject::connect(this->CrosshairToggleAction, SIGNAL(toggled(bool)),
-                   this, SLOT(setCrosshairMode(bool)));
+                   this, SLOT(setCrosshairEnabled(bool)));
 
   q->addWidget(this->CrosshairToolButton);
   QObject::connect(q, SIGNAL(toolButtonStyleChanged(Qt::ToolButtonStyle)),
@@ -210,7 +211,7 @@ void qSlicerViewersToolBarPrivate::init()
 }
 
 //---------------------------------------------------------------------------
-void qSlicerViewersToolBarPrivate::setNavigation(bool mode)
+void qSlicerViewersToolBarPrivate::setCrosshairJumpSlices(bool enabled)
 {
 //  Q_Q(qSlicerViewersToolBar);
 
@@ -220,17 +221,18 @@ void qSlicerViewersToolBarPrivate::setNavigation(bool mode)
     {
     return;
     }
+  int behavior = enabled ? vtkMRMLCrosshairNode::JumpSlice : vtkMRMLCrosshairNode::NoAction;
   vtkMRMLCrosshairNode* node = 0;
   vtkCollectionSimpleIterator it;
   for (nodes->InitTraversal(it);(node = static_cast<vtkMRMLCrosshairNode*>(
                                    nodes->GetNextItemAsObject(it)));)
     {
-    node->SetNavigation(mode);
+    node->SetCrosshairBehavior(behavior);
     }
 }
 
 //---------------------------------------------------------------------------
-void qSlicerViewersToolBarPrivate::setCrosshairMode(bool mode)
+void qSlicerViewersToolBarPrivate::setCrosshairEnabled(bool enabled)
 {
 //  Q_Q(qSlicerViewersToolBar);
 
@@ -245,7 +247,7 @@ void qSlicerViewersToolBarPrivate::setCrosshairMode(bool mode)
   for (nodes->InitTraversal(it);(node = static_cast<vtkMRMLCrosshairNode*>(
                                    nodes->GetNextItemAsObject(it)));)
     {
-    if (mode)
+    if (enabled)
       {
       node->SetCrosshairMode(this->CrosshairLastMode);
       }
@@ -414,14 +416,8 @@ void qSlicerViewersToolBarPrivate::updateWidgetFromMRML()
     }
   if (crosshairNode)
     {
-    // toggle on/off, navigation/cross-reference, style of crosshair
+    // toggle on/off, jump slices, style of crosshair
     //
-
-    // on/off
-    if (this->CrosshairToolButton)
-      {
-      this->CrosshairToggleAction->setChecked( crosshairNode->GetCrosshairMode() != vtkMRMLCrosshairNode::NoCrosshair );
-      }
 
     // style of crosshair
     if (this->CrosshairMapper->mapping(crosshairNode->GetCrosshairMode()) != NULL)
@@ -443,13 +439,21 @@ void qSlicerViewersToolBarPrivate::updateWidgetFromMRML()
         }
       }
 
-    // navigation/cross-reference
-    this->CrosshairNavigationAction->setChecked(crosshairNode->GetNavigation());
+    // jump slices
+    this->CrosshairJumpSlicesAction->setChecked(crosshairNode->GetCrosshairBehavior() == vtkMRMLCrosshairNode::JumpSlice);
 
     // cache the mode
     if (crosshairNode->GetCrosshairMode() != vtkMRMLCrosshairNode::NoCrosshair)
       {
       this->CrosshairLastMode = crosshairNode->GetCrosshairMode();
+      }
+
+    // on/off
+    // Checking the crosshair button may trigger a crosshair enable/disable action
+    // therefore this toggle action should be the last.
+    if (this->CrosshairToolButton)
+      {
+      this->CrosshairToggleAction->setChecked( crosshairNode->GetCrosshairMode() != vtkMRMLCrosshairNode::NoCrosshair );
       }
 
     }

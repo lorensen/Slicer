@@ -1,5 +1,5 @@
 import os
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 import EditorLib
 from EditorLib.EditOptions import HelpButton
 from EditorLib.EditOptions import EditOptions
@@ -9,7 +9,7 @@ from EditorLib import LabelEffect
 #
 # The Editor Extension itself.
 #
-# This needs to define the hooks to be come an editor effect.
+# This needs to define the hooks to become an editor effect.
 #
 
 #

@@ -15,8 +15,8 @@
 
 =========================================================================*/
 
-#ifndef __ImageToImageRegistrationMethod_h
-#define __ImageToImageRegistrationMethod_h
+#ifndef itkImageToImageRegistrationMethod_h
+#define itkImageToImageRegistrationMethod_h
 
 #include "itkSpatialObject.h"
 #include "itkImageRegistrationMethod.h"
@@ -132,9 +132,9 @@ protected:
   /** Method that actually computes the registration. This method is intended
    * to be overloaded by derived classes. Those overload, however, must
    * invoke this method in the base class. */
-  void GenerateData( void );
+  void GenerateData( void ) ITK_OVERRIDE;
 
-  void PrintSelf( std::ostream & os, Indent indent ) const;
+  void PrintSelf( std::ostream & os, Indent indent ) const ITK_OVERRIDE;
 
   /** Provide derived classes with access to the Transform member variable. */
   itkSetObjectMacro( Transform, TransformType );
@@ -142,9 +142,9 @@ protected:
   itkGetConstObjectMacro( Transform, TransformType );
 
   using Superclass::MakeOutput;
-  virtual DataObjectPointer   MakeOutput( DataObjectPointerArraySizeType idx );
+  virtual DataObjectPointer   MakeOutput( DataObjectPointerArraySizeType idx ) ITK_OVERRIDE;
 
-  unsigned long               GetMTime( void ) const;
+  unsigned long               GetMTime( void ) const ITK_OVERRIDE;
 
 protected:
 
@@ -165,10 +165,10 @@ private:
   PointType m_RegionOfInterestPoint1;
   PointType m_RegionOfInterestPoint2;
 
-  bool m_UseFixedImageMaskObject;
+  bool                                   m_UseFixedImageMaskObject;
   typename MaskObjectType::ConstPointer  m_FixedImageMaskObject;
 
-  bool m_UseMovingImageMaskObject;
+  bool                                   m_UseMovingImageMaskObject;
   typename MaskObjectType::ConstPointer  m_MovingImageMaskObject;
 
   bool m_ReportProgress;

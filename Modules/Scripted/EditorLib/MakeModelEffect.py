@@ -1,13 +1,18 @@
 import os
-from __main__ import vtk
-from __main__ import qt
-from __main__ import ctk
-from __main__ import slicer
-from EditOptions import EditOptions
-import EditUtil
-import EditorLib
+import vtk
+import qt
+import ctk
+import slicer
+from EditOptions import HelpButton
+from EditUtil import EditUtil
 import Effect
 
+__all__ = [
+  'MakeModelEffectOptions',
+  'MakeModelEffectTool',
+  'MakeModelEffectLogic',
+  'MakeModelEffect'
+  ]
 
 #########################################################
 #
@@ -68,7 +73,7 @@ class MakeModelEffectOptions(Effect.EffectOptions):
     self.widgets.append(self.modelNameLabel)
 
     self.modelName = qt.QLineEdit(self.nameFrame)
-    self.modelName.setText( self.getUniqueModelName( self.editUtil.getLabelName() ) )
+    self.modelName.setText( self.getUniqueModelName( EditUtil.getLabelName() ) )
     self.nameFrame.layout().addWidget(self.modelName)
     self.widgets.append(self.modelName)
 
@@ -78,7 +83,7 @@ class MakeModelEffectOptions(Effect.EffectOptions):
     self.frame.layout().addWidget(self.apply)
     self.widgets.append(self.apply)
 
-    EditorLib.HelpButton(self.frame, "Use this tool build a model.  A subset of model building options is provided here.  Go to the Model Maker module to expose a range of parameters.  Use Merge and Build button in the Advanced... tab to quickly make a model of all defined structures in the merge label map.")
+    HelpButton(self.frame, "Use this tool build a model.  A subset of model building options is provided here.  Go to the Model Maker module to expose a range of parameters.  Use Merge and Build button in the Advanced... tab to quickly make a model of all defined structures in the merge label map.")
 
     # Add vertical spacer
     self.frame.layout().addStretch(1)
@@ -95,7 +100,7 @@ class MakeModelEffectOptions(Effect.EffectOptions):
     defined in the leaf classes in EditOptions.py
     in each leaf subclass so that "self" in the observer
     is of the correct type """
-    node = self.editUtil.getParameterNode()
+    node = EditUtil.getParameterNode()
     if node != self.parameterNode:
       if self.parameterNode:
         node.RemoveObserver(self.parameterNodeTag)
@@ -107,7 +112,8 @@ class MakeModelEffectOptions(Effect.EffectOptions):
       modelMaker = slicer.modules.modelmaker
       return True
     except AttributeError:
-      qt.QMessageBox.critical(slicer.util.mainWindow(), 'Editor', 'The ModelMaker module is not available<p>Perhaps it was disabled in the application settings or did not load correctly.')
+      slicer.util.errorDisplay('The ModelMaker module is not available<p>Perhaps it was disabled in the application '
+                               'settings or did not load correctly.', windowTitle='Editor')
       return False
 
   def onGoToModelMaker(self):
@@ -193,7 +199,7 @@ class MakeModelEffectLogic(Effect.EffectLogic):
     # based on the current editor parameters
     #
 
-    volumeNode = self.editUtil.getLabelVolume()
+    volumeNode = EditUtil.getLabelVolume()
     if not volumeNode:
       return
 
@@ -207,7 +213,7 @@ class MakeModelEffectLogic(Effect.EffectLogic):
     parameters['FilterType'] = "Sinc"
 
     # build only the currently selected model.
-    parameters['Labels'] = self.editUtil.getLabel()
+    parameters['Labels'] = EditUtil.getLabel()
     parameters["StartLabel"] = -1
     parameters["EndLabel"] = -1
 

@@ -41,10 +41,11 @@ class qMRMLTransformSlidersPrivate: public Ui_qMRMLTransformSliders
 public:
   qMRMLTransformSlidersPrivate()
     {
+    this->TypeOfTransform = -1;
     this->MRMLTransformNode = 0;
     }
 
-  qMRMLTransformSliders::TransformType   TypeOfTransform;
+  int                                    TypeOfTransform;
   vtkMRMLTransformNode*                  MRMLTransformNode;
   QStack<qMRMLLinearTransformSlider*>    ActiveSliders;
 };
@@ -102,14 +103,38 @@ void qMRMLTransformSliders::setCoordinateReference(CoordinateReferenceType _coor
 {
   Q_D(qMRMLTransformSliders);
 
-  qMRMLLinearTransformSlider::CoordinateReferenceType ref = qMRMLLinearTransformSlider::GLOBAL;
-  if (_coordinateReference == LOCAL)
+  qMRMLLinearTransformSlider::CoordinateReferenceType ref =
+      static_cast<qMRMLLinearTransformSlider::CoordinateReferenceType>(
+        _coordinateReference);
+
+  if (this->coordinateReference() != _coordinateReference)
     {
-    ref = qMRMLLinearTransformSlider::LOCAL;
+    // reference changed
+    if (this->typeOfTransform() == qMRMLTransformSliders::ROTATION
+      || (this->typeOfTransform() == qMRMLTransformSliders::TRANSLATION
+          && ref == qMRMLLinearTransformSlider::LOCAL) )
+      {
+      // No one-to-one correspondence between slider and transform matrix values
+      bool blocked = false;
+      blocked = d->LRSlider->blockSignals(true);
+      d->LRSlider->reset();
+      d->LRSlider->blockSignals(blocked);
+      blocked = d->PASlider->blockSignals(true);
+      d->PASlider->reset();
+      d->PASlider->blockSignals(blocked);
+      blocked = d->ISSlider->blockSignals(true);
+      d->ISSlider->reset();
+      d->ISSlider->blockSignals(blocked);
+      }
+    else
+      {
+      // make sure the current translation values can be set on the slider
+      updateRangeFromTransform(d->MRMLTransformNode);
+      }
+    d->LRSlider->setCoordinateReference(ref);
+    d->PASlider->setCoordinateReference(ref);
+    d->ISSlider->setCoordinateReference(ref);
     }
-  d->LRSlider->setCoordinateReference(ref);
-  d->PASlider->setCoordinateReference(ref);
-  d->ISSlider->setCoordinateReference(ref);
 }
 
 // --------------------------------------------------------------------------
@@ -151,7 +176,7 @@ void qMRMLTransformSliders::setTypeOfTransform(TransformType _typeOfTransform)
 qMRMLTransformSliders::TransformType qMRMLTransformSliders::typeOfTransform() const
 {
   Q_D(const qMRMLTransformSliders);
-  return d->TypeOfTransform;
+  return static_cast<qMRMLTransformSliders::TransformType>(d->TypeOfTransform);
 }
 
 // --------------------------------------------------------------------------
@@ -197,12 +222,22 @@ void qMRMLTransformSliders::onMRMLTransformNodeModified(vtkObject* caller)
     return;
     }
 
-  // If the type of transform is ROTATION, do not modify
-  if(this->typeOfTransform() == qMRMLTransformSliders::ROTATION)
+  // There is no one-to-one correspondence between matrix values and slider position if transform type is rotation;
+  // or transform type is translation and coordinate reference is global. In these cases the slider range must not be updated:
+  // it is not necessary (as the slider will be reset to 0 anyway when another slider is moved) and changing the slider range
+  // can even cause instability (transform value increasing continuously) when the user drags the slider using the mouse.
+  if (this->typeOfTransform() == qMRMLTransformSliders::ROTATION
+    || (this->typeOfTransform() == qMRMLTransformSliders::TRANSLATION && coordinateReference() == LOCAL) )
     {
     return;
     }
 
+  this->updateRangeFromTransform(transformNode);
+}
+
+// --------------------------------------------------------------------------
+void qMRMLTransformSliders::updateRangeFromTransform(vtkMRMLTransformNode* transformNode)
+{
   vtkNew<vtkTransform> transform;
   qMRMLUtils::getTransformInCoordinateSystem(transformNode,
       this->coordinateReference() == qMRMLTransformSliders::GLOBAL, transform.GetPointer());
@@ -211,8 +246,6 @@ void qMRMLTransformSliders::onMRMLTransformNodeModified(vtkObject* caller)
   Q_ASSERT(matrix);
   if (!matrix) { return; }
 
-  //Extract the min/max values from the matrix
-  //Change them if the matrix changed externally(python, cli, etc.)
   QPair<double, double> minmax = this->extractMinMaxTranslationValue(matrix, 0.0);
   if(minmax.first < this->minimum())
     {

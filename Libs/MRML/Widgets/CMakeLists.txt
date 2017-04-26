@@ -5,13 +5,6 @@ project(qMRMLWidgets)
 cmake_minimum_required(VERSION 2.8.4)
 #-----------------------------------------------------------------------------
 
-#-----------------------------------------------------------------------------
-# See http://cmake.org/cmake/help/cmake-2-8-docs.html#section_Policies for details
-#-----------------------------------------------------------------------------
-if(POLICY CMP0017)
-  cmake_policy(SET CMP0017 OLD)
-endif()
-
 # --------------------------------------------------------------------------
 # Options
 # --------------------------------------------------------------------------
@@ -106,6 +99,8 @@ set(MRMLWidgets_SRCS
   qMRMLLayoutManager.cxx
   qMRMLLayoutManager.h
   qMRMLLayoutManager_p.h
+  qMRMLLayoutViewFactory.cxx
+  qMRMLLayoutViewFactory.h
   qMRMLLayoutWidget.cxx
   qMRMLLayoutWidget.h
   qMRMLLinearTransformSlider.cxx
@@ -158,6 +153,8 @@ set(MRMLWidgets_SRCS
   qMRMLSceneDisplayableModel.h
   qMRMLScreenShotDialog.cxx
   qMRMLScreenShotDialog.h
+  qMRMLSegmentSelectorWidget.cxx
+  qMRMLSegmentSelectorWidget.h
   qMRMLSliceControllerWidget.cxx
   qMRMLSliceControllerWidget.h
   qMRMLSliceControllerWidget_p.h
@@ -178,12 +175,25 @@ set(MRMLWidgets_SRCS
   qMRMLSortFilterProxyModel.h
   qMRMLSpinBox.cxx
   qMRMLSpinBox.h
+  qMRMLTableModel.cxx
+  qMRMLTableModel.h
+  qMRMLTableView.cxx
+  qMRMLTableView.h
+  qMRMLTableView_p.h
+  qMRMLTableViewControllerWidget.cxx
+  qMRMLTableViewControllerWidget.h
+  qMRMLTableViewControllerWidget_p.h
+  qMRMLTableWidget.cxx
+  qMRMLTableWidget.h
   qMRMLThreeDView.cxx
   qMRMLThreeDView.h
   qMRMLThreeDView_p.h
   qMRMLThreeDViewControllerWidget.cxx
   qMRMLThreeDViewControllerWidget.h
   qMRMLThreeDViewControllerWidget_p.h
+  qMRMLThreeDViewInformationWidget.cxx
+  qMRMLThreeDViewInformationWidget.h
+  qMRMLThreeDViewInformationWidget_p.h
   qMRMLThreeDWidget.cxx
   qMRMLThreeDWidget.h
   qMRMLTransformSliders.cxx
@@ -238,6 +248,7 @@ set(MRMLWidgets_MOC_SRCS
   qMRMLLabelComboBox.h
   qMRMLLayoutManager.h
   qMRMLLayoutManager_p.h
+  qMRMLLayoutViewFactory.h
   qMRMLLayoutWidget.h
   qMRMLLinearTransformSlider.h
   qMRMLListWidget.h
@@ -264,6 +275,7 @@ set(MRMLWidgets_MOC_SRCS
   qMRMLSceneHierarchyModel.h
   qMRMLSceneDisplayableModel.h
   qMRMLScreenShotDialog.h
+  qMRMLSegmentSelectorWidget.h
   qMRMLSliceControllerWidget.h
   qMRMLSliceControllerWidget_p.h
   qMRMLSliceInformationWidget.h
@@ -276,9 +288,17 @@ set(MRMLWidgets_MOC_SRCS
   qMRMLSortFilterHierarchyProxyModel.h
   qMRMLSortFilterProxyModel.h
   qMRMLSpinBox.h
+  qMRMLTableModel.h
+  qMRMLTableView.h
+  qMRMLTableView_p.h
+  qMRMLTableViewControllerWidget.h
+  qMRMLTableViewControllerWidget_p.h
+  qMRMLTableWidget.h
   qMRMLThreeDView.h
   qMRMLThreeDView_p.h
   qMRMLThreeDViewControllerWidget.h
+  qMRMLThreeDViewInformationWidget.h
+  qMRMLThreeDViewInformationWidget_p.h
   qMRMLThreeDWidget.h
   qMRMLTransformSliders.h
   qMRMLTreeView.h
@@ -308,17 +328,20 @@ set(MRMLWidgets_UI_SRCS
   Resources/UI/qMRMLROIWidget.ui
   Resources/UI/qMRMLSceneFactoryWidget.ui
   Resources/UI/qMRMLScreenShotDialog.ui
+  Resources/UI/qMRMLSegmentSelectorWidget.ui
   Resources/UI/qMRMLSliceControllerWidget.ui
   Resources/UI/qMRMLSliceInformationWidget.ui
   Resources/UI/qMRMLSliceWidget.ui
+  Resources/UI/qMRMLTableViewControllerWidget.ui
   Resources/UI/qMRMLThreeDViewControllerWidget.ui
+  Resources/UI/qMRMLThreeDViewInformationWidget.ui
   Resources/UI/qMRMLTransformSliders.ui
   Resources/UI/qMRMLVolumeInfoWidget.ui
   Resources/UI/qMRMLVolumeThresholdWidget.ui
   Resources/UI/qMRMLWindowLevelWidget.ui
   )
 
-configure_file(Resources/jqPlot.qrc.in ${qMRMLWidgets_BINARY_DIR}/Resources/jqPlot.qrc) 
+configure_file(Resources/jqPlot.qrc.in ${qMRMLWidgets_BINARY_DIR}/Resources/jqPlot.qrc)
 set(MRMLWidgets_QRC_SRCS
   Resources/qMRMLWidgets.qrc
   ${qMRMLWidgets_BINARY_DIR}/Resources/jqPlot.qrc
@@ -406,11 +429,10 @@ set(MRMLWidgets_LIBRARIES
   MRMLLogic
   MRMLDisplayableManager
   )
-if(${VTK_VERSION_MAJOR} GREATER 5)
-  list(APPEND MRMLWidgets_LIBRARIES
-    vtkRenderingQt
-    )
-endif()
+list(APPEND MRMLWidgets_LIBRARIES
+  vtkRenderingQt
+  )
+
 
 target_link_libraries(${lib_name} ${MRMLWidgets_LIBRARIES})
 

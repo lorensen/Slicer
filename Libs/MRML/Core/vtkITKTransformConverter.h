@@ -47,25 +47,12 @@ static const unsigned int VTKDimension = 3;
 
 static const int BSPLINE_TRANSFORM_ORDER = 3;
 
-typedef itk::TransformFileReader TransformReaderType;
-typedef TransformReaderType::TransformListType TransformListType;
-typedef TransformReaderType::TransformType TransformType;
-
 typedef itk::TransformFileWriter TransformWriterType;
 
-typedef itk::DisplacementFieldTransform< double, 3 > DisplacementFieldTransformType;
-typedef DisplacementFieldTransformType::DisplacementFieldType GridImageType;
+typedef itk::DisplacementFieldTransform< double, 3 > DisplacementFieldTransformDoubleType;
+typedef DisplacementFieldTransformDoubleType::DisplacementFieldType GridImageDoubleType;
 
-typedef itk::BSplineDeformableTransform< float, VTKDimension, VTKDimension > BSplineTransformFloatITKv3Type;
-typedef itk::BSplineDeformableTransform< double, VTKDimension, VTKDimension > BSplineTransformDoubleITKv3Type;
-typedef itk::BSplineTransform< float, VTKDimension, VTKDimension > BSplineTransformFloatITKv4Type;
-typedef itk::BSplineTransform< double, VTKDimension, VTKDimension > BSplineTransformDoubleITKv4Type;
-
-typedef itk::ThinPlateSplineKernelTransform<double,3> ThinPlateSplineTransformType;
-
-typedef itk::CompositeTransform< double > CompositeTransformType;
-
-typedef itk::AffineTransform<double, VTKDimension> AffineTransformType;
+typedef itk::ThinPlateSplineKernelTransform<double,3> ThinPlateSplineTransformDoubleType;
 
 #include "vtkITKTransformInverse.h"
 
@@ -75,7 +62,8 @@ public:
 
   static void RegisterInverseTransformTypes();
 
-  static vtkAbstractTransform* CreateVTKTransformFromITK(vtkObject* loggerObject, TransformType::Pointer transformItk);
+  template<typename T>
+  static vtkAbstractTransform* CreateVTKTransformFromITK(vtkObject* loggerObject, typename itk::TransformBaseTemplate<T>::Pointer transformItk);
 
   ///
   /// Create an ITK transform from a VTK transform.
@@ -83,33 +71,40 @@ public:
   ///   in the secondary transform.
   /// preferITKv3CompatibleTransforms: If true then BSpline transform will created as BSplineDeformableTransform and additive bulk transform component is always written
   ///   in the secondary transform. If false then BSpline transform will be written as BSplineTransform (multiplicative bulk component is saved in a composite transform).
-  static itk::Object::Pointer CreateITKTransformFromVTK(vtkObject* loggerObject, vtkAbstractTransform* transformVtk, itk::Object::Pointer& secondaryTransformItk, int preferITKv3CompatibleTransforms);
+  /// If initialize is set to true then the transform is initialized to be readily usable.
+  /// Initialization takes a long time for kernel transforms with many points,
+  /// If a transform is created only to write it to file, initialization can be turned off to improve performance.
+  static itk::Object::Pointer CreateITKTransformFromVTK(vtkObject* loggerObject, vtkAbstractTransform* transformVtk,
+    itk::Object::Pointer& secondaryTransformItk, int preferITKv3CompatibleTransforms, bool initialize = true);
 
-  static bool SetVTKBSplineFromITKv3(vtkObject* loggerObject, vtkOrientedBSplineTransform* bsplineVtk, TransformType::Pointer warpTransformItk, TransformType::Pointer bulkTransformItk);
+  template <typename T> static bool SetVTKBSplineFromITKv3Generic(vtkObject* loggerObject, vtkOrientedBSplineTransform* bsplineVtk, typename itk::TransformBaseTemplate<T>::Pointer warpTransformItk, typename itk::TransformBaseTemplate<T>::Pointer bulkTransformItk);
 
-  static bool SetVTKOrientedGridTransformFromITKImage(vtkObject* loggerObject, vtkOrientedGridTransform* grid_Ras, GridImageType::Pointer gridImage_Lps);
-  static bool SetITKImageFromVTKOrientedGridTransform(vtkObject* loggerObject, GridImageType::Pointer &gridImage_Lps, vtkOrientedGridTransform* grid_Ras);
+  template<typename T>
+  static bool SetVTKOrientedGridTransformFromITKImage(vtkObject* loggerObject, vtkOrientedGridTransform* grid_Ras, typename itk::DisplacementFieldTransform< T, 3 >::DisplacementFieldType::Pointer gridImage_Lps);
+  static bool SetITKImageFromVTKOrientedGridTransform(vtkObject* loggerObject, GridImageDoubleType::Pointer &gridImage_Lps, vtkOrientedGridTransform* grid_Ras);
 
 protected:
 
-  static bool SetVTKLinearTransformFromITK(vtkObject* loggerObject, vtkMatrix4x4* transformVtk_RAS, TransformType::Pointer transformItk_LPS);
+  template<typename T>
+  static bool SetVTKLinearTransformFromITK(vtkObject* loggerObject, vtkMatrix4x4* transformVtk_RAS, typename itk::TransformBaseTemplate<T>::Pointer transformItk_LPS);
   static bool SetITKLinearTransformFromVTK(vtkObject* loggerObject, itk::Object::Pointer& transformItk_LPS, vtkMatrix4x4* transformVtk_RAS);
 
-  static bool SetVTKOrientedGridTransformFromITK(vtkObject* loggerObject, vtkOrientedGridTransform* transformVtk_RAS, TransformType::Pointer transformItk_LPS);
+  template<typename T>
+  static bool SetVTKOrientedGridTransformFromITK(vtkObject* loggerObject, vtkOrientedGridTransform* transformVtk_RAS, typename itk::TransformBaseTemplate<T>::Pointer transformItk_LPS);
   static bool SetITKOrientedGridTransformFromVTK(vtkObject* loggerObject, itk::Object::Pointer& transformItk_LPS, vtkOrientedGridTransform* transformVtk_RAS);
 
-  static bool SetVTKBSplineFromITKv4(vtkObject* loggerObject, vtkOrientedBSplineTransform* bsplineVtk, TransformType::Pointer warpTransformItk);
   static bool SetITKv3BSplineFromVTK(vtkObject* loggerObject, itk::Object::Pointer& warpTransformItk, itk::Object::Pointer& bulkTransformItk, vtkOrientedBSplineTransform* bsplineVtk, bool alwaysAddBulkTransform);
   static bool SetITKv4BSplineFromVTK(vtkObject* loggerObject, itk::Object::Pointer& warpTransformItk, vtkOrientedBSplineTransform* bsplineVtk);
 
-  static bool SetVTKThinPlateSplineTransformFromITK(vtkObject* loggerObject, vtkThinPlateSplineTransform* transformVtk_RAS, TransformType::Pointer transformItk_LPS);
-  static bool SetITKThinPlateSplineTransformFromVTK(vtkObject* loggerObject, itk::Object::Pointer& transformItk_LPS, vtkThinPlateSplineTransform* transformVtk_RAS);
+  template<typename T>
+  static bool SetVTKThinPlateSplineTransformFromITK(vtkObject* loggerObject, vtkThinPlateSplineTransform* transformVtk_RAS, typename itk::TransformBaseTemplate<T>::Pointer transformItk_LPS);
+  static bool SetITKThinPlateSplineTransformFromVTK(vtkObject* loggerObject, itk::Object::Pointer& transformItk_LPS,
+    vtkThinPlateSplineTransform* transformVtk_RAS, bool initialize = true);
 
   static bool IsIdentityMatrix(vtkMatrix4x4 *matrix);
 
-  template <typename BSplineTransformType> static bool SetVTKBSplineParametersFromITKGeneric(vtkObject* loggerObject, vtkOrientedBSplineTransform* bsplineVtk, TransformType::Pointer warpTransformItk);
-  template <typename T> static bool SetVTKBSplineFromITKv3Generic(vtkObject* loggerObject, vtkOrientedBSplineTransform* bsplineVtk, TransformType::Pointer warpTransformItk, TransformType::Pointer bulkTransformItk);
-  template <typename T> static bool SetVTKBSplineFromITKv4Generic(vtkObject* loggerObject, vtkOrientedBSplineTransform* bsplineVtk, TransformType::Pointer warpTransformItk);
+  template <typename BSplineTransformType> static bool SetVTKBSplineParametersFromITKGeneric(vtkObject* loggerObject, vtkOrientedBSplineTransform* bsplineVtk, typename itk::TransformBaseTemplate<typename BSplineTransformType::ScalarType>::Pointer warpTransformItk);
+  template <typename T> static bool SetVTKBSplineFromITKv4Generic(vtkObject* loggerObject, vtkOrientedBSplineTransform* bsplineVtk, typename itk::TransformBaseTemplate<T>::Pointer warpTransformItk);
 
   template <typename BSplineTransformType> static bool SetITKBSplineParametersFromVTKGeneric(vtkObject* loggerObject, typename itk::Transform< typename BSplineTransformType::ScalarType,VTKDimension,VTKDimension>::Pointer& warpTransformItk, vtkOrientedBSplineTransform* bsplineVtk);
   template <typename T> static bool SetITKv3BSplineFromVTKGeneric(vtkObject* loggerObject, typename itk::Transform<T,VTKDimension,VTKDimension>::Pointer& warpTransformItk, typename itk::Transform<T,VTKDimension,VTKDimension>::Pointer& bulkTransformItk, vtkOrientedBSplineTransform* bsplineVtk, bool alwaysAddBulkTransform);
@@ -120,127 +115,115 @@ protected:
 //----------------------------------------------------------------------------
 void vtkITKTransformConverter::RegisterInverseTransformTypes()
 {
-  itk::TransformFactory<InverseDisplacementFieldTransformType>::RegisterTransform();
+  itk::TransformFactory<InverseDisplacementFieldTransformFloatType>::RegisterTransform();
+  itk::TransformFactory<InverseDisplacementFieldTransformDoubleType>::RegisterTransform();
+
   itk::TransformFactory<InverseBSplineTransformFloatITKv3Type>::RegisterTransform();
   itk::TransformFactory<InverseBSplineTransformFloatITKv4Type>::RegisterTransform();
   itk::TransformFactory<InverseBSplineTransformDoubleITKv3Type>::RegisterTransform();
   itk::TransformFactory<InverseBSplineTransformDoubleITKv4Type>::RegisterTransform();
-  itk::TransformFactory<InverseThinPlateSplineTransformType>::RegisterTransform();
-  itk::TransformFactory<ThinPlateSplineTransformType>::RegisterTransform(); // by default it is not registered
+
+  itk::TransformFactory<InverseThinPlateSplineTransformFloatType>::RegisterTransform();
+  itk::TransformFactory<InverseThinPlateSplineTransformDoubleType>::RegisterTransform();
+
+  typedef itk::ThinPlateSplineKernelTransform<float,3> ThinPlateSplineTransformFloatType;
+  typedef itk::ThinPlateSplineKernelTransform<double,3> ThinPlateSplineTransformDoubleType;
+
+  // by default they are not registered
+  itk::TransformFactory<ThinPlateSplineTransformFloatType>::RegisterTransform();
+  itk::TransformFactory<ThinPlateSplineTransformDoubleType>::RegisterTransform();
 }
 
 //----------------------------------------------------------------------------
-bool vtkITKTransformConverter::SetVTKLinearTransformFromITK(vtkObject* /*loggerObject*/, vtkMatrix4x4* transformVtk_RAS, TransformType::Pointer transformItk_LPS)
+template<typename T>
+bool vtkITKTransformConverter::SetVTKLinearTransformFromITK(
+    vtkObject* /*loggerObject*/,
+    vtkMatrix4x4* transformVtk_RAS,
+    typename itk::TransformBaseTemplate<T>::Pointer transformItk_LPS)
 {
   static const unsigned int D = VTKDimension;
-  typedef itk::MatrixOffsetTransformBase<double,D,D> DoubleLinearTransformType;
-  typedef itk::MatrixOffsetTransformBase<float,D,D> FloatLinearTransformType;
-  typedef itk::IdentityTransform<double, D> DoubleIdentityTransformType;
-  typedef itk::IdentityTransform<float, D> FloatIdentityTransformType;
-  typedef itk::ScaleTransform<double, D> DoubleScaleTransformType;
-  typedef itk::ScaleTransform<float, D> FloatScaleTransformType;
-  typedef itk::TranslationTransform<double, D> DoubleTranslateTransformType;
-  typedef itk::TranslationTransform<float, D> FloatTranslateTransformType;
+  typedef itk::MatrixOffsetTransformBase<T,D,D> LinearTransformType;
+  typedef itk::ScaleTransform<T, D> ScaleTransformType;
+  typedef itk::TranslationTransform<T, D> TranslateTransformType;
 
   vtkSmartPointer<vtkMatrix4x4> transformVtk_LPS = vtkSmartPointer<vtkMatrix4x4>::New();
 
   bool convertedToVtkMatrix=false;
 
-  // Linear transform of doubles, dimension 3
-  DoubleLinearTransformType::Pointer dlt
-    = dynamic_cast<DoubleLinearTransformType*>( transformItk_LPS.GetPointer() );
-  if (dlt)
+  std::string itkTransformClassName = transformItk_LPS->GetNameOfClass();
+
+  // Linear transform of doubles or floats, dimension 3
+
+  // ITKIO transform libraries are build as shared and dynamic_cast
+  // can NOT be used with templated classes that are
+  // instantiated in a translation unit different than the one where they are
+  // defined. It will work only if the classes are explicitly instantiated
+  // and exported.
+  // To workaround the issue, instead of using dynamic_cast:
+  // (1) to ensure the objects are of the right type string comparison is done
+  // (2) static_cast is used instead of dynamic_cast.
+  // See InsightSoftwareConsortium/ITK@d1e9fe2
+  // and see http://stackoverflow.com/questions/8024010/why-do-template-class-functions-have-to-be-declared-in-the-same-translation-unit
+  //
+  // The disadvantage of this approach is that each supported class name has to be explicitly listed here and if the class hierarchy changes in ITK
+  // then the static cast may produce invalid results. Also, even if the transform class name is matching,
+  // we may cast the transform to a wrong type due to mismatch in dimensions (not 3) or data type (not double or float).
+
+  if (itkTransformClassName.find( "AffineTransform" ) != std::string::npos ||
+      itkTransformClassName == "MatrixOffsetTransformBase" ||
+      itkTransformClassName == "Rigid3DTransform" ||
+      itkTransformClassName == "Euler3DTransform" ||
+      itkTransformClassName == "CenteredEuler3DTransform" ||
+      itkTransformClassName == "QuaternionRigidTransform" ||
+      itkTransformClassName == "VersorTransform" ||
+      itkTransformClassName == "VersorRigid3DTransform" ||
+      itkTransformClassName == "ScaleSkewVersor3DTransform" ||
+      itkTransformClassName == "ScaleVersor3DTransform" ||
+      itkTransformClassName == "Similarity3DTransform" ||
+      itkTransformClassName == "ScaleTransform" ||
+      itkTransformClassName == "ScaleLogarithmicTransform")
     {
+    typename LinearTransformType::Pointer dlt
+      = static_cast<LinearTransformType*>( transformItk_LPS.GetPointer() );
     convertedToVtkMatrix=true;
     for (unsigned int i=0; i < D; i++)
       {
       for (unsigned int j=0; j < D; j++)
         {
-        (*transformVtk_LPS)[i][j] = dlt->GetMatrix()[i][j];
+        transformVtk_LPS->SetElement(i, j, dlt->GetMatrix()[i][j]);
         }
-      (*transformVtk_LPS)[i][D] = dlt->GetOffset()[i];
+      transformVtk_LPS->SetElement(i, D, dlt->GetOffset()[i]);
       }
     }
 
-  // Linear transform of floats, dimension 3
-  FloatLinearTransformType::Pointer flt
-    = dynamic_cast<FloatLinearTransformType*>( transformItk_LPS.GetPointer() );
-  if (flt)
-    {
-    convertedToVtkMatrix=true;
-    for (unsigned int i=0; i < D; i++)
-      {
-      for (unsigned int j=0; j < D; j++)
-        {
-        (*transformVtk_LPS)[i][j] = flt->GetMatrix()[i][j];
-        }
-      (*transformVtk_LPS)[i][D] = flt->GetOffset()[i];
-      }
-    }
-
-  // Identity transform of doubles, dimension 3
-  DoubleIdentityTransformType::Pointer dit
-    = dynamic_cast<DoubleIdentityTransformType*>( transformItk_LPS.GetPointer() );
-  if (dit)
+  // Identity transform of doubles or floats, dimension 3
+  if (itkTransformClassName == "IdentityTransform")
     {
     // nothing to do, matrix is already the identity
     convertedToVtkMatrix=true;
     }
 
-  // Identity transform of floats, dimension 3
-  FloatIdentityTransformType::Pointer fit
-    = dynamic_cast<FloatIdentityTransformType*>( transformItk_LPS.GetPointer() );
-  if (fit)
+  // Scale transform of doubles or floats, dimension 3
+  if (itkTransformClassName == "ScaleTransform")
     {
-    // nothing to do, matrix is already the identity
-    convertedToVtkMatrix=true;
-    }
-
-  // Scale transform of doubles, dimension 3
-  DoubleScaleTransformType::Pointer dst
-    = dynamic_cast<DoubleScaleTransformType*>( transformItk_LPS.GetPointer() );
-  if (dst)
-    {
+    typename ScaleTransformType::Pointer dst
+      = static_cast<ScaleTransformType*>( transformItk_LPS.GetPointer() );
     convertedToVtkMatrix=true;
     for (unsigned int i=0; i < D; i++)
       {
-      (*transformVtk_LPS)[i][i] = dst->GetScale()[i];
+      transformVtk_LPS->SetElement(i, i, dst->GetScale()[i]);
       }
     }
 
-  // Scale transform of floats, dimension 3
-  FloatScaleTransformType::Pointer fst
-    = dynamic_cast<FloatScaleTransformType*>( transformItk_LPS.GetPointer() );
-  if (fst)
+  // Translate transform of doubles or floats, dimension 3
+  if (itkTransformClassName == "TranslationTransform")
     {
+    typename TranslateTransformType::Pointer dtt
+      = static_cast<TranslateTransformType*>( transformItk_LPS.GetPointer());
     convertedToVtkMatrix=true;
     for (unsigned int i=0; i < D; i++)
       {
-      (*transformVtk_LPS)[i][i] = fst->GetScale()[i];
-      }
-    }
-
-  // Translate transform of doubles, dimension 3
-  DoubleTranslateTransformType::Pointer dtt
-    = dynamic_cast<DoubleTranslateTransformType*>( transformItk_LPS.GetPointer());
-  if (dtt)
-    {
-    convertedToVtkMatrix=true;
-    for (unsigned int i=0; i < D; i++)
-      {
-      (*transformVtk_LPS)[i][D] = dtt->GetOffset()[i];
-      }
-    }
-
-  // Translate transform of floats, dimension 3
-  FloatTranslateTransformType::Pointer ftt
-    = dynamic_cast<FloatTranslateTransformType*>( transformItk_LPS.GetPointer() );
-  if (ftt)
-    {
-    convertedToVtkMatrix=true;
-    for (unsigned int i=0; i < D; i++)
-      {
-      (*transformVtk_LPS)[i][i] = ftt->GetOffset()[i];
+      transformVtk_LPS->SetElement(i, D, dtt->GetOffset()[i]);
       }
     }
 
@@ -263,6 +246,8 @@ bool vtkITKTransformConverter::SetVTKLinearTransformFromITK(vtkObject* /*loggerO
 //----------------------------------------------------------------------------
 bool vtkITKTransformConverter::SetITKLinearTransformFromVTK(vtkObject* loggerObject, itk::Object::Pointer& transformItk_LPS, vtkMatrix4x4* transformVtk_RAS)
 {
+  typedef itk::AffineTransform<double, VTKDimension> AffineTransformType;
+
   if (transformVtk_RAS==NULL)
     {
     vtkErrorWithObjectMacro(loggerObject,"vtkITKTransformConverter::SetITKLinearTransformFromVTK failed: invalid input transform");
@@ -293,9 +278,9 @@ bool vtkITKTransformConverter::SetITKLinearTransformFromVTK(vtkObject* loggerObj
     {
     for (unsigned int j=0; j < VTKDimension; j++)
       {
-      itkmat[i][j] = (*vtkmat)[i][j];
+      itkmat[i][j] = vtkmat->GetElement(i, j);
       }
-    itkoffset[i] = (*vtkmat)[i][VTKDimension];
+    itkoffset[i] = vtkmat->GetElement(i, VTKDimension);
     }
 
   AffineTransformType::Pointer affine = AffineTransformType::New();
@@ -326,8 +311,11 @@ bool vtkITKTransformConverter::IsIdentityMatrix(vtkMatrix4x4 *matrix)
 }
 
 //----------------------------------------------------------------------------
-template <typename BSplineTransformType> bool vtkITKTransformConverter::SetVTKBSplineParametersFromITKGeneric(vtkObject* loggerObject,
-  vtkOrientedBSplineTransform* bsplineVtk, TransformType::Pointer warpTransformItk)
+template <typename BSplineTransformType>
+bool vtkITKTransformConverter::SetVTKBSplineParametersFromITKGeneric(
+    vtkObject* loggerObject,
+    vtkOrientedBSplineTransform* bsplineVtk,
+    typename itk::TransformBaseTemplate<typename BSplineTransformType::ScalarType>::Pointer warpTransformItk)
 {
   //
   // this version uses the itk::BSplineTransform not the itk::BSplineDeformableTransform
@@ -353,11 +341,20 @@ template <typename BSplineTransformType> bool vtkITKTransformConverter::SetVTKBS
     return false;
     }
 
-  typename BSplineTransformType::Pointer bsplineItk = dynamic_cast< BSplineTransformType* >( warpTransformItk.GetPointer() );
-  if (!bsplineItk.GetPointer())
+  typename BSplineTransformType::Pointer bsplineItk = BSplineTransformType::New();
+  std::string warpTransformItkName = warpTransformItk->GetNameOfClass();
+  std::string requestedWarpTransformItkName = bsplineItk->GetNameOfClass();
+  if (warpTransformItkName != requestedWarpTransformItkName)
     {
     return false;
     }
+  if (warpTransformItk->GetOutputSpaceDimension() != VTKDimension)
+    {
+    vtkErrorWithObjectMacro(loggerObject, "Unsupported number of dimensions in BSpline transform file (expected = "
+      << VTKDimension << ", actual = " << warpTransformItk->GetOutputSpaceDimension() << ")");
+    return false;
+    }
+  bsplineItk = static_cast< BSplineTransformType* >( warpTransformItk.GetPointer() );
 
   // now get the fixed parameters and map them to the vtk analogs
 
@@ -428,13 +425,7 @@ template <typename BSplineTransformType> bool vtkITKTransformConverter::SetVTKBS
     bsplineCoefficientsScalarType=VTK_DOUBLE;
     }
 
-#if (VTK_MAJOR_VERSION <= 5)
-  bsplineCoefficients->SetScalarType(bsplineCoefficientsScalarType);
-  bsplineCoefficients->SetNumberOfScalarComponents(3);
-  bsplineCoefficients->AllocateScalars();
-#else
   bsplineCoefficients->AllocateScalars(bsplineCoefficientsScalarType, 3);
-#endif
 
   const unsigned int expectedNumberOfVectors = meshSize[0]*meshSize[1]*meshSize[2];
   const unsigned int expectedNumberOfParameters = expectedNumberOfVectors*VTKDimension;
@@ -454,11 +445,7 @@ template <typename BSplineTransformType> bool vtkITKTransformConverter::SetVTKBS
     *(vtkBSplineParams_RAS++) =    (*(itkBSplineParams_LPS+expectedNumberOfVectors*2));
     itkBSplineParams_LPS++;
     }
-#if (VTK_MAJOR_VERSION <= 5)
-  bsplineVtk->SetCoefficients(bsplineCoefficients.GetPointer());
-#else
   bsplineVtk->SetCoefficientData(bsplineCoefficients.GetPointer());
-#endif
 
   // Success
   return true;
@@ -467,7 +454,7 @@ template <typename BSplineTransformType> bool vtkITKTransformConverter::SetVTKBS
 //----------------------------------------------------------------------------
 template <typename T> bool vtkITKTransformConverter::SetVTKBSplineFromITKv3Generic(vtkObject* loggerObject,
   vtkOrientedBSplineTransform* bsplineVtk,
-  TransformType::Pointer warpTransformItk, TransformType::Pointer bulkTransformItk)
+  typename itk::TransformBaseTemplate<T>::Pointer warpTransformItk, typename itk::TransformBaseTemplate<T>::Pointer bulkTransformItk)
 {
   if (bsplineVtk==NULL)
     {
@@ -494,12 +481,13 @@ template <typename T> bool vtkITKTransformConverter::SetVTKBSplineFromITKv3Gener
   // Set the bulk transform
   if( bulkTransformItk )
     {
+    std::string bulkTransformItkTransformName = bulkTransformItk->GetNameOfClass();
+
     typedef itk::AffineTransform<T,3> BulkTransformType;
-    typedef itk::IdentityTransform<T,3> IdentityBulkTransformType;
-    BulkTransformType* bulkItkAffine = dynamic_cast<BulkTransformType*> (bulkTransformItk.GetPointer());
-    IdentityBulkTransformType* bulkItkIdentity = dynamic_cast<IdentityBulkTransformType*> (bulkTransformItk.GetPointer());
-    if (bulkItkAffine)
+
+    if (bulkTransformItkTransformName == "AffineTransform")
       {
+      BulkTransformType* bulkItkAffine = static_cast<BulkTransformType*> (bulkTransformItk.GetPointer());
       vtkNew<vtkMatrix4x4> bulkMatrix_LPS;
       for (unsigned int i=0; i < VTKDimension; i++)
         {
@@ -520,7 +508,7 @@ template <typename T> bool vtkITKTransformConverter::SetVTKBSplineFromITKv3Gener
       vtkMatrix4x4::Multiply4x4(bulkMatrix_RAS.GetPointer(), rasToLps.GetPointer(), bulkMatrix_RAS.GetPointer());
       bsplineVtk->SetBulkTransformMatrix(bulkMatrix_RAS.GetPointer());
       }
-    else if (bulkItkIdentity)
+    else if (bulkTransformItkTransformName == "IdentityTransform")
       {
       // bulk transform is identity, which is equivalent to no bulk transform
       }
@@ -542,7 +530,7 @@ template <typename T> bool vtkITKTransformConverter::SetVTKBSplineFromITKv3Gener
 
 //----------------------------------------------------------------------------
 template <typename T> bool vtkITKTransformConverter::SetVTKBSplineFromITKv4Generic(vtkObject* loggerObject,
-  vtkOrientedBSplineTransform* bsplineVtk, TransformType::Pointer warpTransformItk)
+  vtkOrientedBSplineTransform* bsplineVtk, typename itk::TransformBaseTemplate<T>::Pointer warpTransformItk)
 {
   bool inverse = false;
   // inverse class is derived from forward class, so it has to be checked first
@@ -565,33 +553,6 @@ template <typename T> bool vtkITKTransformConverter::SetVTKBSplineFromITKv4Gener
     }
   return true;
 }
-//----------------------------------------------------------------------------
-bool vtkITKTransformConverter::SetVTKBSplineFromITKv4(vtkObject* loggerObject, vtkOrientedBSplineTransform* bsplineVtk, TransformType::Pointer warpTransformItk)
-{
-  if (SetVTKBSplineFromITKv4Generic<double>(loggerObject, bsplineVtk, warpTransformItk))
-  {
-    return true;
-  }
-  if (SetVTKBSplineFromITKv4Generic<float>(loggerObject, bsplineVtk, warpTransformItk))
-  {
-    return true;
-  }
-  return false;
-}
-
-//----------------------------------------------------------------------------
-bool vtkITKTransformConverter::SetVTKBSplineFromITKv3(vtkObject* loggerObject, vtkOrientedBSplineTransform* bsplineVtk, TransformType::Pointer warpTransformItk, TransformType::Pointer bulkTransformItk)
-{
-  if (SetVTKBSplineFromITKv3Generic<double>(loggerObject, bsplineVtk, warpTransformItk, bulkTransformItk))
-  {
-    return true;
-  }
-  if (SetVTKBSplineFromITKv3Generic<float>(loggerObject, bsplineVtk, warpTransformItk, bulkTransformItk))
-  {
-    return true;
-  }
-  return false;
-}
 
 //----------------------------------------------------------------------------
 template <typename BSplineTransformType> bool vtkITKTransformConverter::SetITKBSplineParametersFromVTKGeneric(vtkObject* loggerObject,
@@ -603,11 +564,7 @@ template <typename BSplineTransformType> bool vtkITKTransformConverter::SetITKBS
     vtkErrorWithObjectMacro(loggerObject, "vtkMRMLTransformStorageNode::SetITKBSplineFromVTK failed: bsplineVtk is invalid");
     return false;
     }
-#if (VTK_MAJOR_VERSION <= 5)
-  vtkImageData* bsplineCoefficients_RAS=bsplineVtk->GetCoefficients();
-#else
   vtkImageData* bsplineCoefficients_RAS=bsplineVtk->GetCoefficientData();
-#endif
   if (bsplineCoefficients_RAS==NULL)
     {
     vtkErrorWithObjectMacro(loggerObject, "Cannot write BSpline transform to file: coefficients are not specified");
@@ -622,7 +579,11 @@ template <typename BSplineTransformType> bool vtkITKTransformConverter::SetITKBS
   // * mesh origin X, Y, Z (position of the boundary node before the grid)
   // * mesh spacing X, Y, Z
   // * mesh direction 3x3 matrix (first row, second row, third row)
+#if defined(ITK_FIXED_PARAMETERS_ARE_DOUBLE) // After 4.8.1
+  typename BSplineTransformType::FixedParametersType transformFixedParamsItk;
+#else                                         //Pre 4.8.1
   typename BSplineTransformType::ParametersType transformFixedParamsItk;
+#endif
   const unsigned int numberOfFixedParameters=VTKDimension*(VTKDimension+3);
   transformFixedParamsItk.SetSize(numberOfFixedParameters);
 
@@ -798,11 +759,7 @@ bool vtkITKTransformConverter::SetITKv3BSplineFromVTK(vtkObject* loggerObject, i
     return false;
     }
 
-#if (VTK_MAJOR_VERSION <= 5)
-  vtkImageData* bsplineCoefficients=bsplineVtk->GetCoefficients();
-#else
   vtkImageData* bsplineCoefficients=bsplineVtk->GetCoefficientData();
-#endif
 
   if (bsplineCoefficients==NULL)
     {
@@ -854,11 +811,7 @@ bool vtkITKTransformConverter::SetITKv4BSplineFromVTK(vtkObject* loggerObject, i
     return false;
     }
 
-#if (VTK_MAJOR_VERSION <= 5)
-  vtkImageData* bsplineCoefficients=bsplineVtk->GetCoefficients();
-#else
   vtkImageData* bsplineCoefficients=bsplineVtk->GetCoefficientData();
-#endif
 
   if (bsplineCoefficients==NULL)
     {
@@ -898,19 +851,37 @@ bool vtkITKTransformConverter::SetITKv4BSplineFromVTK(vtkObject* loggerObject, i
 }
 
 //----------------------------------------------------------------------------
-bool vtkITKTransformConverter::SetVTKOrientedGridTransformFromITK(vtkObject* loggerObject, vtkOrientedGridTransform* transformVtk_RAS, TransformType::Pointer transformItk_LPS)
+template<typename T>
+bool vtkITKTransformConverter::SetVTKOrientedGridTransformFromITK(vtkObject* loggerObject, vtkOrientedGridTransform* transformVtk_RAS, typename itk::TransformBaseTemplate<T>::Pointer transformItk_LPS)
 {
-  DisplacementFieldTransformType* displacementFieldTransform = dynamic_cast<DisplacementFieldTransformType*>( transformItk_LPS.GetPointer() );
-  DisplacementFieldTransformType* inverseDisplacementFieldTransform = dynamic_cast<InverseDisplacementFieldTransformType*>( transformItk_LPS.GetPointer() );
-  bool inverse = false;
-  DisplacementFieldTransformType::DisplacementFieldType* gridImageItk_Lps = NULL;
-  if (inverseDisplacementFieldTransform!=NULL) // inverse class is derived from forward class, so it has to be checked first
+  typedef itk::DisplacementFieldTransform< T, 3 > DisplacementFieldTransformType;
+  typedef itk::InverseDisplacementFieldTransform< T, 3 > InverseDisplacementFieldTransformType;
+
+  if (!transformItk_LPS)
     {
+    vtkErrorWithObjectMacro(loggerObject, "Cannot set VTK oriented grid transform from ITK: the input transform is NULL");
+    return false;
+    }
+  if (transformItk_LPS->GetOutputSpaceDimension() != VTKDimension)
+    {
+    vtkErrorWithObjectMacro(loggerObject, "Unsupported number of dimensions in oriented grid transform file (expected = "
+      << VTKDimension << ", actual = " << transformItk_LPS->GetOutputSpaceDimension() << ")");
+    return false;
+    }
+
+  std::string transformItkClassName = transformItk_LPS->GetNameOfClass();
+
+  bool inverse = false;
+  typename DisplacementFieldTransformType::DisplacementFieldType* gridImageItk_Lps = NULL;
+  if (transformItkClassName == "InverseDisplacementFieldTransform") // inverse class is derived from forward class, so it has to be checked first
+    {
+    DisplacementFieldTransformType* inverseDisplacementFieldTransform = static_cast<InverseDisplacementFieldTransformType*>( transformItk_LPS.GetPointer() );
     inverse = true;
     gridImageItk_Lps = inverseDisplacementFieldTransform->GetDisplacementField();
     }
-  else if (displacementFieldTransform!=NULL)
+  else if (transformItkClassName == "DisplacementFieldTransform")
     {
+    DisplacementFieldTransformType* displacementFieldTransform = static_cast<DisplacementFieldTransformType*>( transformItk_LPS.GetPointer() );
     inverse = false;
     gridImageItk_Lps = displacementFieldTransform->GetDisplacementField();
     }
@@ -919,7 +890,7 @@ bool vtkITKTransformConverter::SetVTKOrientedGridTransformFromITK(vtkObject* log
     vtkDebugWithObjectMacro(loggerObject, "Not a grid transform");
     return false;
     }
-  if (!SetVTKOrientedGridTransformFromITKImage(loggerObject, transformVtk_RAS, gridImageItk_Lps))
+  if (!SetVTKOrientedGridTransformFromITKImage<T>(loggerObject, transformVtk_RAS, gridImageItk_Lps))
     {
     return false;
     }
@@ -933,7 +904,7 @@ bool vtkITKTransformConverter::SetVTKOrientedGridTransformFromITK(vtkObject* log
 //----------------------------------------------------------------------------
 bool vtkITKTransformConverter::SetITKOrientedGridTransformFromVTK(vtkObject* loggerObject, itk::Object::Pointer& transformItk_LPS, vtkOrientedGridTransform* transformVtk_RAS)
 {
-  GridImageType::Pointer gridImageItk_Lps;
+  GridImageDoubleType::Pointer gridImageItk_Lps;
   if (!SetITKImageFromVTKOrientedGridTransform(loggerObject, gridImageItk_Lps, transformVtk_RAS))
     {
     vtkErrorWithObjectMacro(loggerObject, "vtkITKTransformConverter::SetITKOrientedGridTransformFromVTK failed: input transform is invalid");
@@ -943,13 +914,13 @@ bool vtkITKTransformConverter::SetITKOrientedGridTransformFromVTK(vtkObject* log
   transformVtk_RAS->Update();
   if (transformVtk_RAS->GetInverseFlag())
     {
-    InverseDisplacementFieldTransformType::Pointer gridTransformItk = InverseDisplacementFieldTransformType::New();
+    InverseDisplacementFieldTransformDoubleType::Pointer gridTransformItk = InverseDisplacementFieldTransformDoubleType::New();
     gridTransformItk->SetDisplacementField(gridImageItk_Lps);
     transformItk_LPS = gridTransformItk;
     }
   else
     {
-    DisplacementFieldTransformType::Pointer gridTransformItk = DisplacementFieldTransformType::New();
+    DisplacementFieldTransformDoubleType::Pointer gridTransformItk = DisplacementFieldTransformDoubleType::New();
     gridTransformItk->SetDisplacementField(gridImageItk_Lps);
     transformItk_LPS = gridTransformItk;
     }
@@ -957,8 +928,12 @@ bool vtkITKTransformConverter::SetITKOrientedGridTransformFromVTK(vtkObject* log
 }
 
 //----------------------------------------------------------------------------
-bool vtkITKTransformConverter::SetVTKOrientedGridTransformFromITKImage(vtkObject* loggerObject, vtkOrientedGridTransform* grid_Ras, GridImageType::Pointer gridImage_Lps)
+template<typename T>
+bool vtkITKTransformConverter::SetVTKOrientedGridTransformFromITKImage(vtkObject* loggerObject, vtkOrientedGridTransform* grid_Ras, typename itk::DisplacementFieldTransform< T, 3 >::DisplacementFieldType::Pointer gridImage_Lps)
 {
+  typedef itk::DisplacementFieldTransform< T, 3 > DisplacementFieldTransformType;
+  typedef typename DisplacementFieldTransformType::DisplacementFieldType GridImageType;
+
   vtkNew<vtkImageData> gridImage_Ras;
 
   // Origin
@@ -984,7 +959,7 @@ bool vtkITKTransformConverter::SetVTKOrientedGridTransformFromITKImage(vtkObject
   grid_Ras->SetGridDirectionMatrix(gridDirectionMatrix_RAS.GetPointer());
 
   // Vectors
-  GridImageType::SizeType size = gridImage_Lps->GetBufferedRegion().GetSize();
+  typename GridImageType::SizeType size = gridImage_Lps->GetBufferedRegion().GetSize();
   gridImage_Ras->SetDimensions( size[0], size[1], size[2] );
   unsigned int numberOfScalarComponents = GridImageType::PixelType::Dimension;
   if (numberOfScalarComponents!=VTKDimension)
@@ -993,31 +968,21 @@ bool vtkITKTransformConverter::SetVTKOrientedGridTransformFromITKImage(vtkObject
       << VTKDimension << " components but it actually contains " << numberOfScalarComponents );
     return false;
     }
-#if (VTK_MAJOR_VERSION <= 5)
-  gridImage_Ras->SetNumberOfScalarComponents( numberOfScalarComponents );
-  gridImage_Ras->SetScalarTypeToDouble();
-  gridImage_Ras->AllocateScalars();
-#else
   gridImage_Ras->AllocateScalars(VTK_DOUBLE, 3);
-#endif
 
   double* displacementVectors_Ras = reinterpret_cast<double*>(gridImage_Ras->GetScalarPointer());
   itk::ImageRegionConstIterator<GridImageType> inputIt(gridImage_Lps, gridImage_Lps->GetRequestedRegion());
   inputIt.GoToBegin();
   while( !inputIt.IsAtEnd() )
     {
-    GridImageType::PixelType displacementVectorLps=inputIt.Get();
+    typename GridImageType::PixelType displacementVectorLps=inputIt.Get();
     *(displacementVectors_Ras++) = -displacementVectorLps[0];
     *(displacementVectors_Ras++) = -displacementVectorLps[1];
     *(displacementVectors_Ras++) =  displacementVectorLps[2];
     ++inputIt;
     }
 
-#if (VTK_MAJOR_VERSION <= 5)
-  grid_Ras->SetDisplacementGrid( gridImage_Ras.GetPointer() );
-#else
   grid_Ras->SetDisplacementGridData( gridImage_Ras.GetPointer() );
-#endif
 
   // Set the interpolation to cubic to have smooth derivatives
   grid_Ras->SetInterpolationModeToCubic();
@@ -1026,13 +991,16 @@ bool vtkITKTransformConverter::SetVTKOrientedGridTransformFromITKImage(vtkObject
 }
 
 //----------------------------------------------------------------------------
-bool vtkITKTransformConverter::SetITKImageFromVTKOrientedGridTransform(vtkObject* loggerObject, GridImageType::Pointer &gridImage_Lps, vtkOrientedGridTransform* grid_Ras)
+bool vtkITKTransformConverter::SetITKImageFromVTKOrientedGridTransform(vtkObject* loggerObject, GridImageDoubleType::Pointer &gridImage_Lps, vtkOrientedGridTransform* grid_Ras)
 {
   if (grid_Ras==NULL)
     {
     vtkErrorWithObjectMacro(loggerObject, "Cannot save grid transform: the input vtkOrientedGridTransform is invalid");
     return false;
     }
+
+  // Update is needed because DisplacementGrid may be out-of-date if the transform depends on its inverse
+  grid_Ras->Update();
 
   vtkImageData* gridImage_Ras = grid_Ras->GetDisplacementGrid();
   if (gridImage_Ras==NULL)
@@ -1047,7 +1015,7 @@ bool vtkITKTransformConverter::SetITKImageFromVTKOrientedGridTransform(vtkObject
     return false;
     }
 
-  gridImage_Lps = GridImageType::New();
+  gridImage_Lps = GridImageDoubleType::New();
 
   // Origin
   double* origin_Ras = gridImage_Ras->GetOrigin();
@@ -1070,7 +1038,7 @@ bool vtkITKTransformConverter::SetITKImageFromVTKOrientedGridTransform(vtkObject
   rasToLps->SetElement(1,1,-1);
   vtkNew<vtkMatrix4x4> gridDirectionMatrix_Lps;
   vtkMatrix4x4::Multiply4x4(rasToLps.GetPointer(), gridDirectionMatrix_Ras.GetPointer(), gridDirectionMatrix_Lps.GetPointer());
-  GridImageType::DirectionType gridDirectionMatrixItk_Lps;
+  GridImageDoubleType::DirectionType gridDirectionMatrixItk_Lps;
   for (unsigned int row=0; row<VTKDimension; row++)
     {
     for (unsigned int column=0; column<VTKDimension; column++)
@@ -1081,22 +1049,37 @@ bool vtkITKTransformConverter::SetITKImageFromVTKOrientedGridTransform(vtkObject
   gridImage_Lps->SetDirection(gridDirectionMatrixItk_Lps);
 
   // Vectors
-  GridImageType::IndexType start;
+  GridImageDoubleType::IndexType start;
   start[0] = start[1] = start[2] = 0;
   int* Nijk = gridImage_Ras->GetDimensions();
-  GridImageType::SizeType size;
+  GridImageDoubleType::SizeType size;
   size[0] = Nijk[0]; size[1] = Nijk[1]; size[2] = Nijk[2];
-  GridImageType::RegionType region;
+  GridImageDoubleType::RegionType region;
   region.SetSize( size );
   region.SetIndex( start );
   gridImage_Lps->SetRegions( region );
   gridImage_Lps->Allocate();
-  double* displacementVectors_Ras = reinterpret_cast<double*>(gridImage_Ras->GetScalarPointer());
-  itk::ImageRegionIterator<GridImageType> gridImageIt_Lps(gridImage_Lps, region);
+  itk::ImageRegionIterator<GridImageDoubleType> gridImageIt_Lps(gridImage_Lps, region);
   gridImageIt_Lps.GoToBegin();
-  GridImageType::PixelType displacementVectorLps;
+  GridImageDoubleType::PixelType displacementVectorLps;
   double displacementScale = grid_Ras->GetDisplacementScale();
   double displacementShift = grid_Ras->GetDisplacementShift();
+
+  if (gridImage_Ras->GetScalarType()==VTK_DOUBLE)
+    {
+    double* displacementVectors_Ras = reinterpret_cast<double*>(gridImage_Ras->GetScalarPointer());
+    while( !gridImageIt_Lps.IsAtEnd() )
+      {
+      displacementVectorLps[0] = -( displacementScale * (*(displacementVectors_Ras++)) + displacementShift );
+      displacementVectorLps[1] = -( displacementScale * (*(displacementVectors_Ras++)) + displacementShift );
+      displacementVectorLps[2] =  ( displacementScale * (*(displacementVectors_Ras++)) + displacementShift );
+      gridImageIt_Lps.Set(displacementVectorLps);
+      ++gridImageIt_Lps;
+      }
+    }
+  else if (gridImage_Ras->GetScalarType()==VTK_FLOAT)
+    {
+    float* displacementVectors_Ras = reinterpret_cast<float*>(gridImage_Ras->GetScalarPointer());
   while( !gridImageIt_Lps.IsAtEnd() )
     {
     displacementVectorLps[0] = -( displacementScale * (*(displacementVectors_Ras++)) + displacementShift );
@@ -1105,32 +1088,56 @@ bool vtkITKTransformConverter::SetITKImageFromVTKOrientedGridTransform(vtkObject
     gridImageIt_Lps.Set(displacementVectorLps);
     ++gridImageIt_Lps;
     }
-
+    }
+  else
+    {
+    vtkErrorWithObjectMacro(loggerObject, "Cannot save grid transform: only float and double scalar types are supported");
+    return false;
+    }
   return true;
 }
 
 //----------------------------------------------------------------------------
-bool vtkITKTransformConverter::SetVTKThinPlateSplineTransformFromITK(vtkObject* loggerObject, vtkThinPlateSplineTransform* transformVtk_RAS, TransformType::Pointer transformItk_LPS)
+template<typename T>
+bool vtkITKTransformConverter::SetVTKThinPlateSplineTransformFromITK(vtkObject* loggerObject, vtkThinPlateSplineTransform* transformVtk_RAS, typename itk::TransformBaseTemplate<T>::Pointer transformItk_LPS)
 {
+  typedef itk::ThinPlateSplineKernelTransform<T,3> ThinPlateSplineTransformType;
+  typedef itk::InverseThinPlateSplineKernelTransform< T, 3 > InverseThinPlateSplineTransformType;
+
   if (transformVtk_RAS==NULL)
     {
     vtkErrorWithObjectMacro(loggerObject, "Cannot set VTK thin-plate spline transform from ITK: the output vtkThinPlateSplineTransform is invalid");
     return false;
     }
 
-  ThinPlateSplineTransformType* tpsTransform = dynamic_cast<ThinPlateSplineTransformType*>( transformItk_LPS.GetPointer() );
-  ThinPlateSplineTransformType* inverseTpsTransform = dynamic_cast<InverseThinPlateSplineTransformType*>( transformItk_LPS.GetPointer() );
-  bool inverse = false;
-  ThinPlateSplineTransformType::PointSetType::Pointer sourceLandmarksItk_Lps;
-  ThinPlateSplineTransformType::PointSetType::Pointer targetLandmarksItk_Lps;
-  if (inverseTpsTransform!=NULL) // inverse class is derived from forward class, so it has to be checked first
+  if (!transformItk_LPS)
     {
+    vtkErrorWithObjectMacro(loggerObject, "Cannot set VTK thin-plate spline transform from ITK: the input transform is NULL");
+    return false;
+    }
+
+  if (transformItk_LPS->GetOutputSpaceDimension() != VTKDimension)
+    {
+    vtkErrorWithObjectMacro(loggerObject, "Unsupported number of dimensions in thin-plate spline transform file (expected = "
+      << VTKDimension << ", actual = " << transformItk_LPS->GetOutputSpaceDimension() << ")");
+    return false;
+    }
+
+  std::string transformItkClassName = transformItk_LPS->GetNameOfClass();
+
+  bool inverse = false;
+  typename ThinPlateSplineTransformType::PointSetType::Pointer sourceLandmarksItk_Lps;
+  typename ThinPlateSplineTransformType::PointSetType::Pointer targetLandmarksItk_Lps;
+  if (transformItkClassName == "InverseThinPlateSplineKernelTransform") // inverse class is derived from forward class, so it has to be checked first
+    {
+    ThinPlateSplineTransformType* inverseTpsTransform = static_cast<InverseThinPlateSplineTransformType*>( transformItk_LPS.GetPointer() );
     inverse = true;
     sourceLandmarksItk_Lps = inverseTpsTransform->GetSourceLandmarks();
     targetLandmarksItk_Lps = inverseTpsTransform->GetTargetLandmarks();
     }
-  else if (tpsTransform!=NULL)
+  else if (transformItkClassName == "ThinPlateSplineKernelTransform")
     {
+    ThinPlateSplineTransformType* tpsTransform = static_cast<ThinPlateSplineTransformType*>( transformItk_LPS.GetPointer() );
     inverse = false;
     sourceLandmarksItk_Lps = tpsTransform->GetSourceLandmarks();
     targetLandmarksItk_Lps = tpsTransform->GetTargetLandmarks();
@@ -1145,7 +1152,7 @@ bool vtkITKTransformConverter::SetVTKThinPlateSplineTransformFromITK(vtkObject* 
   unsigned int numberOfSourceLandmarks = sourceLandmarksItk_Lps->GetNumberOfPoints();
   for(unsigned int i = 0; i < numberOfSourceLandmarks; i++)
     {
-    ThinPlateSplineTransformType::InputPointType pointItk_Lps;
+    typename ThinPlateSplineTransformType::InputPointType pointItk_Lps;
     bool pointExists = sourceLandmarksItk_Lps->GetPoint(i, &pointItk_Lps);
     if (!pointExists)
       {
@@ -1162,7 +1169,7 @@ bool vtkITKTransformConverter::SetVTKThinPlateSplineTransformFromITK(vtkObject* 
   unsigned int numberOfTargetLandmarks = targetLandmarksItk_Lps->GetNumberOfPoints();
   for(unsigned int i = 0; i < numberOfTargetLandmarks; i++)
     {
-    ThinPlateSplineTransformType::InputPointType pointItk_Lps;
+    typename ThinPlateSplineTransformType::InputPointType pointItk_Lps;
     bool pointExists = targetLandmarksItk_Lps->GetPoint(i, &pointItk_Lps);
     if (!pointExists)
       {
@@ -1187,7 +1194,8 @@ bool vtkITKTransformConverter::SetVTKThinPlateSplineTransformFromITK(vtkObject* 
 }
 
 //----------------------------------------------------------------------------
-bool vtkITKTransformConverter::SetITKThinPlateSplineTransformFromVTK(vtkObject* loggerObject, itk::Object::Pointer& transformItk_LPS, vtkThinPlateSplineTransform* transformVtk_RAS)
+bool vtkITKTransformConverter::SetITKThinPlateSplineTransformFromVTK(vtkObject* loggerObject,
+  itk::Object::Pointer& transformItk_LPS, vtkThinPlateSplineTransform* transformVtk_RAS, bool initialize /*= true*/)
 {
   if (transformVtk_RAS==NULL)
     {
@@ -1195,13 +1203,17 @@ bool vtkITKTransformConverter::SetITKThinPlateSplineTransformFromVTK(vtkObject* 
     return false;
     }
 
+  // Update is needed because the Basis value and Inverse flag may be out-of-date if the transform depends on its inverse
+  transformVtk_RAS->Update();
+
   if (transformVtk_RAS->GetBasis()!=VTK_RBF_R)
     {
-    vtkErrorWithObjectMacro(loggerObject, "Cannot set ITK thin-plate spline transform from VTK: basis function must be R");
+    vtkErrorWithObjectMacro(loggerObject, "Cannot set ITK thin-plate spline transform from VTK: basis function must be R."
+      " Call SetBasisToR() method of the vtkThinPlateSplineTransform object before attempting to write it to file.");
     return false;
     }
 
-  ThinPlateSplineTransformType::PointSetType::Pointer sourceLandmarksItk_Lps = ThinPlateSplineTransformType::PointSetType::New();
+  ThinPlateSplineTransformDoubleType::PointSetType::Pointer sourceLandmarksItk_Lps = ThinPlateSplineTransformDoubleType::PointSetType::New();
   vtkPoints* sourceLandmarksVtk_Ras=transformVtk_RAS->GetSourceLandmarks();
   if (sourceLandmarksVtk_Ras!=NULL)
     {
@@ -1209,14 +1221,14 @@ bool vtkITKTransformConverter::SetITKThinPlateSplineTransformFromVTK(vtkObject* 
       {
       double posVtk_Ras[3]={0};
       sourceLandmarksVtk_Ras->GetPoint(i, posVtk_Ras);
-      ThinPlateSplineTransformType::InputPointType posItk_Lps;
+      ThinPlateSplineTransformDoubleType::InputPointType posItk_Lps;
       posItk_Lps[0] = -posVtk_Ras[0];
       posItk_Lps[1] = -posVtk_Ras[1];
       posItk_Lps[2] =  posVtk_Ras[2];
       sourceLandmarksItk_Lps->GetPoints()->InsertElement(i,posItk_Lps);
       }
     }
-  ThinPlateSplineTransformType::PointSetType::Pointer targetLandmarksItk_Lps = ThinPlateSplineTransformType::PointSetType::New();
+  ThinPlateSplineTransformDoubleType::PointSetType::Pointer targetLandmarksItk_Lps = ThinPlateSplineTransformDoubleType::PointSetType::New();
   vtkPoints* targetLandmarksVtk_Ras=transformVtk_RAS->GetTargetLandmarks();
   if (targetLandmarksVtk_Ras!=NULL)
     {
@@ -1224,7 +1236,7 @@ bool vtkITKTransformConverter::SetITKThinPlateSplineTransformFromVTK(vtkObject* 
       {
       double posVtk_Ras[3]={0};
       targetLandmarksVtk_Ras->GetPoint(i, posVtk_Ras);
-      ThinPlateSplineTransformType::InputPointType posItk_Lps;
+      ThinPlateSplineTransformDoubleType::InputPointType posItk_Lps;
       posItk_Lps[0] = -posVtk_Ras[0];
       posItk_Lps[1] = -posVtk_Ras[1];
       posItk_Lps[2] =  posVtk_Ras[2];
@@ -1232,22 +1244,26 @@ bool vtkITKTransformConverter::SetITKThinPlateSplineTransformFromVTK(vtkObject* 
       }
     }
 
-  // Update is needed because it refreshes the inverse flag (the flag may be out-of-date if the transform depends on its inverse)
-  transformVtk_RAS->Update();
   if (transformVtk_RAS->GetInverseFlag())
     {
-    InverseThinPlateSplineTransformType::Pointer tpsTransformItk = InverseThinPlateSplineTransformType::New();
+    InverseThinPlateSplineTransformDoubleType::Pointer tpsTransformItk = InverseThinPlateSplineTransformDoubleType::New();
     tpsTransformItk->SetSourceLandmarks(sourceLandmarksItk_Lps);
     tpsTransformItk->SetTargetLandmarks(targetLandmarksItk_Lps);
-    tpsTransformItk->ComputeWMatrix();
+    if (initialize)
+      {
+      tpsTransformItk->ComputeWMatrix();
+      }
     transformItk_LPS = tpsTransformItk;
     }
   else
     {
-    ThinPlateSplineTransformType::Pointer tpsTransformItk = ThinPlateSplineTransformType::New();
+    ThinPlateSplineTransformDoubleType::Pointer tpsTransformItk = ThinPlateSplineTransformDoubleType::New();
     tpsTransformItk->SetSourceLandmarks(sourceLandmarksItk_Lps);
     tpsTransformItk->SetTargetLandmarks(targetLandmarksItk_Lps);
-    tpsTransformItk->ComputeWMatrix();
+    if (initialize)
+      {
+      tpsTransformItk->ComputeWMatrix();
+      }
     transformItk_LPS = tpsTransformItk;
     }
   return true;
@@ -1255,13 +1271,17 @@ bool vtkITKTransformConverter::SetITKThinPlateSplineTransformFromVTK(vtkObject* 
 
 
 //----------------------------------------------------------------------------
-vtkAbstractTransform* vtkITKTransformConverter::CreateVTKTransformFromITK(vtkObject* loggerObject, TransformType::Pointer transformItk)
+template <typename T>
+vtkAbstractTransform* vtkITKTransformConverter::CreateVTKTransformFromITK(
+    vtkObject* loggerObject,
+    typename itk::TransformBaseTemplate<T>::Pointer transformItk)
 {
   bool conversionSuccess = false;
 
   // Linear
   vtkNew<vtkMatrix4x4> transformMatrixVtk;
-  conversionSuccess = SetVTKLinearTransformFromITK(loggerObject, transformMatrixVtk.GetPointer(), transformItk);
+  conversionSuccess = SetVTKLinearTransformFromITK<T>(loggerObject, transformMatrixVtk.GetPointer(), transformItk);
+  std::cout << "CreateVTKTransformFromITK - SetVTKLinearTransformFromITK conversionSuccess:" << conversionSuccess << std::endl;
   if (conversionSuccess)
     {
     vtkNew<vtkTransform> linearTransformVtk;
@@ -1271,7 +1291,7 @@ vtkAbstractTransform* vtkITKTransformConverter::CreateVTKTransformFromITK(vtkObj
     }
   // Grid
   vtkNew<vtkOrientedGridTransform> gridTransformVtk;
-  conversionSuccess = SetVTKOrientedGridTransformFromITK(loggerObject, gridTransformVtk.GetPointer(), transformItk);
+  conversionSuccess = SetVTKOrientedGridTransformFromITK<T>(loggerObject, gridTransformVtk.GetPointer(), transformItk);
   if (conversionSuccess)
     {
     gridTransformVtk->Register(NULL);
@@ -1279,7 +1299,7 @@ vtkAbstractTransform* vtkITKTransformConverter::CreateVTKTransformFromITK(vtkObj
     }
   // BSpline
   vtkNew<vtkOrientedBSplineTransform> bsplineTransformVtk;
-  conversionSuccess = SetVTKBSplineFromITKv4(loggerObject, bsplineTransformVtk.GetPointer(), transformItk);
+  conversionSuccess = SetVTKBSplineFromITKv4Generic<T>(loggerObject, bsplineTransformVtk.GetPointer(), transformItk);
   if (conversionSuccess)
     {
     bsplineTransformVtk->Register(NULL);
@@ -1287,7 +1307,7 @@ vtkAbstractTransform* vtkITKTransformConverter::CreateVTKTransformFromITK(vtkObj
     }
   // ThinPlateSpline
   vtkNew<vtkThinPlateSplineTransform> tpsTransformVtk;
-  conversionSuccess = SetVTKThinPlateSplineTransformFromITK(loggerObject, tpsTransformVtk.GetPointer(), transformItk);
+  conversionSuccess = SetVTKThinPlateSplineTransformFromITK<T>(loggerObject, tpsTransformVtk.GetPointer(), transformItk);
   if (conversionSuccess)
     {
     tpsTransformVtk->Register(NULL);
@@ -1298,8 +1318,11 @@ vtkAbstractTransform* vtkITKTransformConverter::CreateVTKTransformFromITK(vtkObj
 }
 
 //----------------------------------------------------------------------------
-itk::Object::Pointer vtkITKTransformConverter::CreateITKTransformFromVTK(vtkObject* loggerObject, vtkAbstractTransform* transformVtk, itk::Object::Pointer& secondaryTransformItk, int preferITKv3CompatibleTransforms)
+itk::Object::Pointer vtkITKTransformConverter::CreateITKTransformFromVTK(vtkObject* loggerObject,
+  vtkAbstractTransform* transformVtk, itk::Object::Pointer& secondaryTransformItk, int preferITKv3CompatibleTransforms, bool initialize /*= true*/)
 {
+  typedef itk::CompositeTransform< double > CompositeTransformType;
+
   if (transformVtk==NULL)
     {
     vtkErrorWithObjectMacro(loggerObject, "CreateITKTransformFromVTK failed: invalid VTK transform");
@@ -1309,8 +1332,9 @@ itk::Object::Pointer vtkITKTransformConverter::CreateITKTransformFromVTK(vtkObje
   vtkMRMLTransformNode::FlattenGeneralTransform(transformList.GetPointer(), transformVtk);
   if (transformList->GetNumberOfItems()==0)
     {
-    vtkErrorWithObjectMacro(loggerObject, "CreateITKTransformFromVTK failed: invalid VTK transform");
-    return 0;
+    // no transformation means identity transform
+    vtkNew<vtkTransform> identity;
+    transformList->AddItem(identity.GetPointer());
     }
 
   itk::Object::Pointer primaryTransformItk;
@@ -1369,7 +1393,7 @@ itk::Object::Pointer vtkITKTransformConverter::CreateITKTransformFromVTK(vtkObje
     else if (vtkThinPlateSplineTransform::SafeDownCast(singleTransformVtk))
       {
       vtkThinPlateSplineTransform* tpsTransformVtk = vtkThinPlateSplineTransform::SafeDownCast(singleTransformVtk);
-      if (!SetITKThinPlateSplineTransformFromVTK(loggerObject, primaryTransformItk, tpsTransformVtk))
+      if (!SetITKThinPlateSplineTransformFromVTK(loggerObject, primaryTransformItk, tpsTransformVtk, initialize))
         {
         // conversion failed
         return 0;
@@ -1408,12 +1432,13 @@ itk::Object::Pointer vtkITKTransformConverter::CreateITKTransformFromVTK(vtkObje
         return 0;
         }
 
-      CompositeTransformType::TransformType::Pointer singleTransformItkTypeChecked = dynamic_cast< CompositeTransformType::TransformType* >( singleTransformItk.GetPointer() );
-      if (singleTransformItkTypeChecked.IsNull())
+      if (singleTransformItk.IsNull()
+          || std::string(singleTransformItk->GetNameOfClass()).find("Transform") == std::string::npos)
         {
         vtkErrorWithObjectMacro(loggerObject, "vtkITKTransformConverter::CreateITKTransformFromVTK failed: invalid element found while trying to create a composite transform");
         return 0;
         }
+      CompositeTransformType::TransformType::Pointer singleTransformItkTypeChecked = static_cast< CompositeTransformType::TransformType* >( singleTransformItk.GetPointer() );
       compositeTransformItk->AddTransform(singleTransformItkTypeChecked.GetPointer());
       }
     return primaryTransformItk;

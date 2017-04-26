@@ -19,6 +19,7 @@
 ==============================================================================*/
 
 // MRML includes
+#include "vtkMRMLCoreTestingMacros.h"
 #include "vtkMRMLScalarVolumeDisplayNode.h"
 #include "vtkMRMLScalarVolumeNode.h"
 #include "vtkMRMLScene.h"
@@ -34,14 +35,14 @@ namespace
 {
 
 void populateScene(vtkMRMLScene* scene);
-bool store();
-bool storeAndRestore();
-bool storeAndRemoveVolume();
-bool storeTwice();
-bool storeAndRestoreTwice();
-bool storeTwiceAndRemoveVolume();
-bool references();
-bool storePerformance();
+int store();
+int storeAndRestore();
+int storeAndRemoveVolume();
+int storeTwice();
+int storeAndRestoreTwice();
+int storeTwiceAndRemoveVolume();
+int references();
+int storePerformance();
 
 } // end of anonymous namespace
 
@@ -49,47 +50,14 @@ bool storePerformance();
 int vtkMRMLSceneViewNodeStoreSceneTest(int vtkNotUsed(argc),
                                        char * vtkNotUsed(argv)[] )
 {
-  if (!store())
-    {
-    std::cerr << "store call not successful." << std::endl;
-    return EXIT_FAILURE;
-    }
-  if (!storeAndRestore())
-    {
-    std::cerr << "storeAndRestore call not successful." << std::endl;
-    return EXIT_FAILURE;
-    }
-  if (!storeAndRemoveVolume())
-    {
-    std::cerr << "storeAndRemoveVolume call not successful." << std::endl;
-    return EXIT_FAILURE;
-    }
-  if (!storeTwice())
-    {
-    std::cerr << "storeTwice call not successful." << std::endl;
-    return EXIT_FAILURE;
-    }
-  if (!storeAndRestoreTwice())
-    {
-    std::cerr << "storeAndRestoreTwice call not successful." << std::endl;
-    return EXIT_FAILURE;
-    }
-  if (!storeTwiceAndRemoveVolume())
-    {
-    std::cerr << "storeTwiceAndRemoveVolume call not successful." << std::endl;
-    return EXIT_FAILURE;
-    }
-  if (!references())
-    {
-    std::cerr << "references call not successful." << std::endl;
-    return EXIT_FAILURE;
-    }
-  if (!storePerformance())
-    {
-    std::cerr << "updateNodeIDs call not successful." << std::endl;
-    return EXIT_FAILURE;
-    }
-
+  CHECK_EXIT_SUCCESS(store());
+  CHECK_EXIT_SUCCESS(storeAndRestore());
+  CHECK_EXIT_SUCCESS(storeAndRemoveVolume());
+  CHECK_EXIT_SUCCESS(storeTwice());
+  CHECK_EXIT_SUCCESS(storeAndRestoreTwice());
+  CHECK_EXIT_SUCCESS(storeTwiceAndRemoveVolume());
+  CHECK_EXIT_SUCCESS(references());
+  CHECK_EXIT_SUCCESS(storePerformance());
   return EXIT_SUCCESS;
 }
 
@@ -109,7 +77,7 @@ void populateScene(vtkMRMLScene* scene)
 }
 
 //---------------------------------------------------------------------------
-bool store()
+int store()
 {
   vtkNew<vtkMRMLScene> scene;
   populateScene(scene.GetPointer());
@@ -119,17 +87,13 @@ bool store()
 
   sceneViewNode->StoreScene();
 
-  if (sceneViewNode->GetStoredScene()->GetNodeByID("vtkMRMLScalarVolumeNode1") == 0)
-    {
-    std::cout << "vtkMRMLSceneViewNode::StoreScene() failed" << std::endl;
-    return false;
-    }
+  CHECK_NOT_NULL(sceneViewNode->GetStoredScene()->GetNodeByID("vtkMRMLScalarVolumeNode1"));
 
-  return true;
+  return EXIT_SUCCESS;
 }
 
 //---------------------------------------------------------------------------
-bool storeAndRestore()
+int storeAndRestore()
 {
   vtkNew<vtkMRMLScene> scene;
   populateScene(scene.GetPointer());
@@ -140,22 +104,18 @@ bool storeAndRestore()
   vtkMRMLNode* volumeNode = scene->GetNodeByID("vtkMRMLScalarVolumeNode1");
 
   sceneViewNode->StoreScene();
+
   sceneViewNode->RestoreScene();
 
   vtkMRMLNode* restoredVolumeNode = scene->GetNodeByID("vtkMRMLScalarVolumeNode1");
   // Restoring the volume should re-use the same node.
-  if (restoredVolumeNode != volumeNode)
-    {
-    std::cout << __LINE__ << ": vtkMRMLSceneViewNode::RestoreScene() failed"
-              << std::endl;
-    return false;
-    }
+  CHECK_POINTER(restoredVolumeNode, volumeNode);
 
-  return true;
+  return EXIT_SUCCESS;
 }
 
 //---------------------------------------------------------------------------
-bool storeAndRemoveVolume()
+int storeAndRemoveVolume()
 {
   vtkNew<vtkMRMLScene> scene;
   populateScene(scene.GetPointer());
@@ -179,35 +139,30 @@ bool storeAndRemoveVolume()
   allocatedSpace->AddItem(vtkNew<vtkMRMLScalarVolumeNode>().GetPointer());
   (void)allocatedSpace;
 
+  // TODO: We expect errors here because of http://www.na-mic.org/Bug/view.php?id=2816 is not resolved.
+  // Once that bug is fixed, RestoreScene() should not throw any errors, and so the
+  // TESTING_OUTPUT_ASSERT_ERRORS_BEGIN/END macros should be removed.
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   sceneViewNode->RestoreScene();
+  TESTING_OUTPUT_ASSERT_ERRORS_END();
 
   // Make sure the node has been restored.
   vtkMRMLNode* restoredVolumeNode = scene->GetNodeByID("vtkMRMLScalarVolumeNode1");
-  if (restoredVolumeNode == 0 ||
-      restoredVolumeNode == volumeNode)
-    {
-    std::cout << __LINE__ << ": vtkMRMLSceneViewNode::RestoreScene() failed"
-              << std::endl;
-    return false;
-    }
+  CHECK_NOT_NULL(restoredVolumeNode);
+  CHECK_POINTER_DIFFERENT(restoredVolumeNode, volumeNode)
 
   sceneViewNode->RestoreScene();
 
   // Make sure the node has been restored.
   vtkMRMLNode* rerestoredVolumeNode = scene->GetNodeByID("vtkMRMLScalarVolumeNode1");
-  if (rerestoredVolumeNode == 0 ||
-      rerestoredVolumeNode != restoredVolumeNode)
-    {
-    std::cout << __LINE__ << ": vtkMRMLSceneViewNode::RestoreScene() failed"
-              << std::endl;
-    return false;
-    }
+  CHECK_NOT_NULL(rerestoredVolumeNode);
+  CHECK_POINTER(rerestoredVolumeNode, restoredVolumeNode)
 
-  return true;
+  return EXIT_SUCCESS;
 }
 
 //---------------------------------------------------------------------------
-bool storeTwice()
+int storeTwice()
 {
   vtkNew<vtkMRMLScene> scene;
   populateScene(scene.GetPointer());
@@ -218,36 +173,24 @@ bool storeTwice()
   // Empty scene view nodes until "stored"
   int defaultNodes = sceneViewNode->GetStoredScene() ?
     sceneViewNode->GetStoredScene()->GetNumberOfNodes() : 0;
-  if (defaultNodes != 0)
-    {
-    std::cout << __LINE__ << ": vtkMRMLSceneViewNode::vtkMRMLSceneViewNode()"
-              << " failed" << std::endl;
-    return false;
-    }
+  CHECK_INT(defaultNodes, 0);
+
   sceneViewNode->StoreScene();
 
+  // a storage node gets added
   int nodeCount = sceneViewNode->GetStoredScene()->GetNumberOfNodes();
-  if (nodeCount != 2)
-    {
-    std::cout << __LINE__ << ": vtkMRMLSceneViewNode::StoreScene() failed"
-              << std::endl;
-    return false;
-    }
+  CHECK_INT(nodeCount, 3);
+
   sceneViewNode->StoreScene();
 
   int newNodeCount = sceneViewNode->GetStoredScene()->GetNumberOfNodes();
-  if (newNodeCount != nodeCount)
-    {
-    std::cout << __LINE__ << ": vtkMRMLSceneViewNode::StoreScene() failed"
-              << std::endl;
-    return false;
-    }
+  CHECK_INT(newNodeCount, nodeCount);
 
-  return true;
+  return EXIT_SUCCESS;
 }
 
 //---------------------------------------------------------------------------
-bool storeAndRestoreTwice()
+int storeAndRestoreTwice()
 {
   vtkNew<vtkMRMLScene> scene;
   populateScene(scene.GetPointer());
@@ -256,16 +199,17 @@ bool storeAndRestoreTwice()
   scene->AddNode(sceneViewNode.GetPointer());
 
   sceneViewNode->StoreScene();
+
   sceneViewNode->StoreScene();
 
   sceneViewNode->RestoreScene();
   sceneViewNode->RestoreScene();
 
-  return true;
+  return EXIT_SUCCESS;
 }
 
 //---------------------------------------------------------------------------
-bool storeTwiceAndRemoveVolume()
+int storeTwiceAndRemoveVolume()
 {
   vtkNew<vtkMRMLScene> scene;
   populateScene(scene.GetPointer());
@@ -274,17 +218,25 @@ bool storeTwiceAndRemoveVolume()
   scene->AddNode(sceneViewNode.GetPointer());
 
   sceneViewNode->StoreScene();
+
   sceneViewNode->StoreScene();
+
   vtkMRMLNode* node = scene->GetNodeByID("vtkMRMLScalarVolumeNode1");
   scene->RemoveNode(node);
-  sceneViewNode->RestoreScene();
-  sceneViewNode->RestoreScene();
 
-  return true;
+  // TODO: We expect errors here because of http://www.na-mic.org/Bug/view.php?id=2816 is not resolved.
+  // Once that bug is fixed, RestoreScene() should not throw any errors, and so the
+  // TESTING_OUTPUT_ASSERT_ERRORS_BEGIN/END macros should be removed.
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
+  sceneViewNode->RestoreScene();
+  sceneViewNode->RestoreScene();
+  TESTING_OUTPUT_ASSERT_ERRORS_END();
+
+  return EXIT_SUCCESS;
 }
 
 //---------------------------------------------------------------------------
-bool references()
+int references()
 {
   vtkNew<vtkMRMLScene> scene;
   populateScene(scene.GetPointer());
@@ -297,15 +249,10 @@ bool references()
   vtkSmartPointer<vtkCollection> sceneReferencedNodes;
   sceneReferencedNodes.TakeReference(
     scene->GetReferencedNodes(volumeNode));
-  if (sceneReferencedNodes->GetNumberOfItems() != 2)
-    {
-    std::cout << __LINE__ << ": vtkMRMLScene::GetReferencedNodes() failed. \n"
-              << sceneReferencedNodes->GetNumberOfItems() << " items"
-              << std::endl;
-    return false;
-    }
+  CHECK_INT(sceneReferencedNodes->GetNumberOfItems(), 2);
 
   sceneViewNode->StoreScene();
+
   vtkMRMLNode* sceneViewVolumeNode =
     sceneViewNode->GetStoredScene()->GetNodeByID("vtkMRMLScalarVolumeNode1");
   vtkMRMLNode* sceneViewVolumeDisplayNode =
@@ -318,37 +265,18 @@ bool references()
     sceneViewNode->GetStoredScene()->GetReferencedNodes(sceneViewVolumeNode));
 
   // Number of references in scene view node scene should be the same as the
-  // main scene reference count.
-  if (sceneViewReferencedNodes->GetNumberOfItems() != 2 ||
-      sceneViewReferencedNodes->GetItemAsObject(0) != sceneViewVolumeNode ||
-      sceneViewReferencedNodes->GetItemAsObject(1) != sceneViewVolumeDisplayNode ||
-      sceneViewNode->GetStoredScene()->GetNumberOfNodeReferences() != 1 ||
-      sceneViewNode->GetStoredScene()->GetNthReferencingNode(0) != sceneViewVolumeNode)
-    {
-    std::cout << __LINE__ << ": vtkMRMLSceneViewNode::StoreScene() failed." << std::endl
-              << sceneViewReferencedNodes->GetNumberOfItems() << " items for "
-              << sceneViewVolumeNode << ": "
-              << sceneViewReferencedNodes->GetItemAsObject(0) << ", "
-              << sceneViewReferencedNodes->GetItemAsObject(1) << std::endl;
-    unsigned int referencingNodesSize = sceneViewNode->GetStoredScene()->GetNumberOfNodeReferences();
-    std::cout << "Referencing nodes: " << referencingNodesSize << "(1 expected) ";
-    for (unsigned int i = 0; i < referencingNodesSize; ++i)
-      {
-      std::cout << sceneViewNode->GetStoredScene()->GetNthReferencingNode(i) << "("
-                << sceneViewNode->GetStoredScene()->GetNthReferencingNode(i)->GetID() << ") ";
-      }
-    std::cout << std::endl;
-    std::cout << referencedNodes->GetNumberOfItems() << " items in scene for "
-              << volumeNode << ": "
-              << referencedNodes->GetItemAsObject(0) << ", "
-              << referencedNodes->GetItemAsObject(1) << std::endl;
-    return false;
-    }
-  return true;
+  // main scene reference count (+1 for new storage node).
+  CHECK_INT(sceneViewReferencedNodes->GetNumberOfItems(), 3);
+  CHECK_POINTER(sceneViewReferencedNodes->GetItemAsObject(0), sceneViewVolumeNode);
+  CHECK_POINTER(sceneViewReferencedNodes->GetItemAsObject(1), sceneViewVolumeDisplayNode);
+  CHECK_INT(sceneViewNode->GetStoredScene()->GetNumberOfNodeReferences(), 2);
+  CHECK_POINTER(sceneViewNode->GetStoredScene()->GetNthReferencingNode(0), sceneViewVolumeNode);
+
+  return EXIT_SUCCESS;
 }
 
 //---------------------------------------------------------------------------
-bool storePerformance()
+int storePerformance()
 {
   // This test is for performance
   vtkNew<vtkMRMLScene> scene;
@@ -370,7 +298,8 @@ bool storePerformance()
   std::cout<< "<DartMeasurement name=\"vtkMRMLSceneViewNode-StorePerformance-"
            << displayNodePairCount <<"\" type=\"numeric/double\">"
            << timer->GetElapsedTime() << "</DartMeasurement>" << std::endl;
-  return true;
+
+  return EXIT_SUCCESS;
 }
 
 } // end of anonymous namespace

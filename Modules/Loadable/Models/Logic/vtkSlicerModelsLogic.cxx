@@ -111,7 +111,6 @@ vtkMRMLModelNode* vtkSlicerModelsLogic::AddModel(vtkPolyData* polyData)
 }
 
 //----------------------------------------------------------------------------
-#if VTK_MAJOR_VERSION >5
 vtkMRMLModelNode* vtkSlicerModelsLogic::AddModel(vtkAlgorithmOutput* polyData)
 {
   if (this->GetMRMLScene() == 0)
@@ -129,7 +128,6 @@ vtkMRMLModelNode* vtkSlicerModelsLogic::AddModel(vtkAlgorithmOutput* polyData)
 
   return model.GetPointer();
 }
-#endif
 
 //----------------------------------------------------------------------------
 int vtkSlicerModelsLogic::AddModels (const char* dirname, const char* suffix )
@@ -195,10 +193,10 @@ vtkMRMLModelNode* vtkSlicerModelsLogic::AddModel (const char* filename)
     fsmStorageNode->SetFileName(filename);
     localFile = filename;
     }
-  const itksys_stl::string fname(localFile?localFile:"");
+  const std::string fname(localFile?localFile:"");
   // the model name is based on the file name (itksys call should work even if
   // file is not on disk yet)
-  itksys_stl::string name = itksys::SystemTools::GetFilenameName(fname);
+  std::string name = itksys::SystemTools::GetFilenameName(fname);
   vtkDebugMacro("AddModel: got model name = " << name.c_str());
 
   // check to see which node can read this type of file
@@ -224,7 +222,7 @@ vtkMRMLModelNode* vtkSlicerModelsLogic::AddModel (const char* filename)
   */
   if (storageNode != NULL)
     {
-    itksys_stl::string baseName = itksys::SystemTools::GetFilenameWithoutExtension(fname);
+    std::string baseName = itksys::SystemTools::GetFilenameWithoutExtension(fname);
     std::string uname( this->GetMRMLScene()->GetUniqueNameByString(baseName.c_str()));
     modelNode->SetName(uname.c_str());
 
@@ -248,6 +246,7 @@ vtkMRMLModelNode* vtkSlicerModelsLogic::AddModel (const char* filename)
       {
       vtkErrorMacro("AddModel: error reading " << filename);
       this->GetMRMLScene()->RemoveNode(modelNode.GetPointer());
+      return 0;
       }
     }
   else
@@ -448,11 +447,7 @@ void vtkSlicerModelsLogic::TransformModel(vtkMRMLTransformNode *tnode,
     //--- Triangle strips are broken up into triangle polygons.
     //--- Polygons are not automatically re-stripped.
     vtkNew<vtkPolyDataNormals> normals;
-#if (VTK_MAJOR_VERSION <= 5)
-    normals->SetInput(poly.GetPointer());
-#else
     normals->SetInputData(poly.GetPointer());
-#endif
     //--- NOTE: This assumes a completely closed surface
     //---(i.e. no boundary edges) and no non-manifold edges.
     //--- If these constraints do not hold, the AutoOrientNormals
@@ -466,11 +461,7 @@ void vtkSlicerModelsLogic::TransformModel(vtkMRMLTransformNode *tnode,
     normals->ConsistencyOn();
 
     normals->Update();
-#if (VTK_MAJOR_VERSION <= 5)
-    modelOut->SetAndObservePolyData(normals->GetOutput());
-#else
     modelOut->SetPolyDataConnection(normals->GetOutputPort());
-#endif
    }
 
   modelOut->SetAndObserveTransformNodeID(mtnode == NULL ? NULL : mtnode->GetID());
@@ -486,16 +477,11 @@ void vtkSlicerModelsLogic::SetAllModelsVisibility(int flag)
     return;
     }
 
-  std::vector<vtkMRMLNode *> selectionNodes;
   vtkMRMLSelectionNode *selectionNode = 0;
   if (this->GetMRMLScene())
     {
-    this->GetMRMLScene()->GetNodesByClass("vtkMRMLSelectionNode", selectionNodes);
-    }
-
-  if (selectionNodes.size() > 0)
-    {
-    selectionNode = vtkMRMLSelectionNode::SafeDownCast(selectionNodes[0]);
+    selectionNode = vtkMRMLSelectionNode::SafeDownCast(
+      this->GetMRMLScene()->GetNodeByID("vtkMRMLSelectionNodeSingleton"));
     }
 
   std::map<std::string, std::string> displayNodeClasses =

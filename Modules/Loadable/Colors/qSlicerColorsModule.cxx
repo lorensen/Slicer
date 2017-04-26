@@ -102,7 +102,7 @@ void qSlicerColorsModule::setup()
     new qSlicerColorsReader(colorLogic, this));
   app->coreIOManager()->registerIO(new qSlicerNodeWriter(
     "Colors", QString("ColorTableFile"),
-    QStringList() << "vtkMRMLColorNode", this));
+    QStringList() << "vtkMRMLColorNode", true, this));
 
   QStringList paths = app->userSettings()->value("QTCoreModules/Colors/ColorFilePaths").toStringList();
 #ifdef Q_OS_WIN32
@@ -191,4 +191,10 @@ QStringList qSlicerColorsModule::contributors()const
 bool qSlicerColorsModule::isHidden()const
 {
   return false;
+}
+
+//-----------------------------------------------------------------------------
+QStringList qSlicerColorsModule::associatedNodeTypes() const
+{
+  return QStringList() << "vtkMRMLColorNode";
 }

@@ -109,7 +109,7 @@ int vtkMRMLFreeSurferModelStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
 {
   vtkMRMLModelNode *modelNode = dynamic_cast <vtkMRMLModelNode *> (refNode);
   std::string fullName = this->GetFullNameFromFileName();
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("ReadDataInternal: File name not specified");
     return 0;
@@ -134,18 +134,10 @@ int vtkMRMLFreeSurferModelStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
 
     reader->SetFileName(fullName.c_str());
     normals->SetSplitting(0);
-#if (VTK_MAJOR_VERSION <= 5)
-    normals->SetInput( reader->GetOutput() );
-#else
     normals->SetInputConnection( reader->GetOutputPort() );
-#endif
     if ( this->GetUseStripper() )
       {
-#if (VTK_MAJOR_VERSION <= 5)
-      stripper->SetInput( normals->GetOutput() );
-#else
       stripper->SetInputConnection( normals->GetOutputPort() );
-#endif
       stripper->Update();
       if (stripper->GetOutput() == NULL ||
           stripper->GetOutput()->GetNumberOfCells() == 0)
@@ -155,11 +147,7 @@ int vtkMRMLFreeSurferModelStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
         }
       else
         {
-#if (VTK_MAJOR_VERSION <= 5)
-        modelNode->SetAndObservePolyData(stripper->GetOutput());
-#else
         modelNode->SetPolyDataConnection(stripper->GetOutputPort());
-#endif
         }
       }
     else
@@ -173,11 +161,7 @@ int vtkMRMLFreeSurferModelStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
         }
       else
         {
-#if (VTK_MAJOR_VERSION <= 5)
-        modelNode->SetAndObservePolyData(normals->GetOutput());
-#else
         modelNode->SetPolyDataConnection(normals->GetOutputPort());
-#endif
         }
       }
 
@@ -215,12 +199,12 @@ int vtkMRMLFreeSurferModelStorageNode::CopyData(vtkMRMLNode *refNode,
   //vtkMRMLModelNode *modelNode = vtkMRMLModelNode::SafeDownCast(refNode);
   std::string newName = newFileName;
   std::string fullName = this->GetFullNameFromFileName();
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("vtkMRMLFreeSurferModelNode: File name not specified");
     return 0;
     }
-  if ( newName == std::string(""))
+  if ( newName.empty())
     {
     vtkErrorMacro("vtkMRMLFreeSurferModelNode: Copy-to file name not specified");
     return 0;
@@ -251,10 +235,10 @@ int vtkMRMLFreeSurferModelStorageNode::CopyData(vtkMRMLNode *refNode,
 //----------------------------------------------------------------------------
 void vtkMRMLFreeSurferModelStorageNode::InitializeSupportedReadFileTypes()
 {
-  this->SupportedReadFileTypes->InsertNextValue(".orig");
-  this->SupportedReadFileTypes->InsertNextValue(".inflated");
-  this->SupportedReadFileTypes->InsertNextValue(".sphere");
-  this->SupportedReadFileTypes->InsertNextValue(".white");
-  this->SupportedReadFileTypes->InsertNextValue(".smoothwm");
-  this->SupportedReadFileTypes->InsertNextValue(".pial");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Original (.orig)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Inflated (.inflated)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Sphere (.sphere)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer WhiteMatter (.white)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer SmoothWM (.smoothwm)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Pial (.pial)");
 }

@@ -1,6 +1,6 @@
 import os
 import unittest
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 
 #
 # ViewControllersSliceInterpolationBug1926
@@ -127,7 +127,7 @@ class ViewControllersSliceInterpolationBug1926Logic:
     if not volumeNode:
       print('no volume node')
       return False
-    if volumeNode.GetImageData() == None:
+    if volumeNode.GetImageData() is None:
       print('no image data')
       return False
     return True
@@ -210,7 +210,7 @@ class ViewControllersSliceInterpolationBug1926Test(unittest.TestCase):
     logic.StartSliceCompositeNodeInteraction(2)  #BackgroundVolumeFlag
     compareCNode.SetBackgroundVolumeID(tumor.GetID())
     logic.EndSliceCompositeNodeInteraction()
-    self.assertTrue( compareCNode.GetBackgroundVolumeID() == tumor.GetID())
+    self.assertEqual( compareCNode.GetBackgroundVolumeID(), tumor.GetID())
     self.delayDisplay('Compare views configured')
 
     # Get handles to the Red viewer
@@ -231,9 +231,9 @@ class ViewControllersSliceInterpolationBug1926Test(unittest.TestCase):
     compareCNode2 = slicer.util.getNode('vtkMRMLSliceCompositeNodeCompare2')
 
     # Check whether the viewers have the proper data initially
-    self.assertTrue( redCNode.GetBackgroundVolumeID() == head.GetID())
-    self.assertTrue( compareCNode.GetBackgroundVolumeID() == tumor.GetID())
-    self.assertTrue( compareCNode2.GetBackgroundVolumeID() == tumor.GetID())
+    self.assertEqual( redCNode.GetBackgroundVolumeID(), head.GetID())
+    self.assertEqual( compareCNode.GetBackgroundVolumeID(), tumor.GetID())
+    self.assertEqual( compareCNode2.GetBackgroundVolumeID(), tumor.GetID())
     self.delayDisplay('All viewers configured properly')
 
     # Switch to the View Controllers module

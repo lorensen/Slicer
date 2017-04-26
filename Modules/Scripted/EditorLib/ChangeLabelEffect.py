@@ -1,13 +1,18 @@
 import os
-from __main__ import vtk
-from __main__ import qt
-from __main__ import ctk
-from __main__ import slicer
-from EditOptions import EditOptions
-import EditUtil
-import EditorLib
+import vtk
+import qt
+import ctk
+import slicer
+from EditOptions import HelpButton
+from EditUtil import EditUtil
 import Effect
 
+__all__ = [
+  'ChangeLabelEffectOptions',
+  'ChangeLabelEffectTool',
+  'ChangeLabelEffectLogic',
+  'ChangeLabelEffect'
+  ]
 
 #########################################################
 #
@@ -57,7 +62,7 @@ class ChangeLabelEffectOptions(Effect.EffectOptions):
     self.frame.layout().addWidget(self.apply)
     self.widgets.append(self.apply)
 
-    EditorLib.HelpButton(self.frame, "Replace all instances of input color with output color in current label map")
+    HelpButton(self.frame, "Replace all instances of input color with output color in current label map")
 
     self.connections.append( (self.apply, 'clicked()', self.onApply) )
 
@@ -73,7 +78,7 @@ class ChangeLabelEffectOptions(Effect.EffectOptions):
     defined in the leaf classes in EditOptions.py
     in each leaf subclass so that "self" in the observer
     is of the correct type """
-    node = self.editUtil.getParameterNode()
+    node = EditUtil.getParameterNode()
     if node != self.parameterNode:
       if self.parameterNode:
         node.RemoveObserver(self.parameterNodeTag)
@@ -166,17 +171,14 @@ class ChangeLabelEffectLogic(Effect.EffectLogic):
     # change the label values based on the parameter node
     #
     if not self.sliceLogic:
-      self.sliceLogic = self.editUtil.getSliceLogic()
-    parameterNode = self.editUtil.getParameterNode()
-    parameterNode = self.editUtil.getParameterNode()
+      self.sliceLogic = EditUtil.getSliceLogic()
+    parameterNode = EditUtil.getParameterNode()
+    parameterNode = EditUtil.getParameterNode()
     inputColor = int(parameterNode.GetParameter("ChangeLabelEffect,inputColor"))
     outputColor = int(parameterNode.GetParameter("ChangeLabelEffect,outputColor"))
 
     change = slicer.vtkImageLabelChange()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      change.SetInput( self.getScopedLabelInput() )
-    else:
-      change.SetInputData( self.getScopedLabelInput() )
+    change.SetInputData( self.getScopedLabelInput() )
     change.SetOutput( self.getScopedLabelOutput() )
     change.SetInputLabel( inputColor )
     change.SetOutputLabel( outputColor )

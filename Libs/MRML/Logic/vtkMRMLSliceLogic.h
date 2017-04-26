@@ -105,6 +105,9 @@ public:
   void GetBackgroundWindowLevelAndRange(double& window, double& level,
                                       double& rangeLow, double& rangeHigh);
 
+  ///
+  /// Helper to set the foreground layer Window/Level
+  void SetForegroundWindowLevel(double window, double level);
 
   ///
   /// Helper to aget the foreground layer Window/Level
@@ -148,13 +151,7 @@ public:
   ///
   /// the tail of the pipeline
   /// -- returns NULL if none of the inputs exist
-#if (VTK_MAJOR_VERSION <= 5)
-  //BTX
-  vtkImageData *GetImageData();
-  //ETX
-#else
   vtkAlgorithmOutput *GetImageDataConnection();
-#endif
 
   ///
   /// update the pipeline to reflect the current state of the nodes
@@ -333,6 +330,8 @@ public:
   std::vector< vtkMRMLDisplayNode*> GetPolyDataDisplayNodes();
   /// Return the associated slicerlayer nodes
   static vtkMRMLSliceCompositeNode* GetSliceCompositeNode(vtkMRMLSliceNode* node);
+  /// Return the associated slice node
+  static vtkMRMLSliceNode* GetSliceNode(vtkMRMLSliceCompositeNode* node);
 
   /// Default node name suffix for use with volume slice models to distinguish them
   /// as built in models rather than user accessible.
@@ -376,6 +375,12 @@ protected:
   virtual void OnMRMLNodeModified(vtkMRMLNode* node);
   static vtkMRMLSliceCompositeNode* GetSliceCompositeNode(vtkMRMLScene* scene,
                                                           const char* layoutName);
+  static vtkMRMLSliceNode* GetSliceNode(vtkMRMLScene* scene,
+    const char* layoutName);
+
+  ///
+  /// Helper to set Window/Level in any layer
+  void SetWindowLevel(double window, double level, int layer);
 
   bool                        AddingSliceModelNodes;
   bool                        Initialized;
@@ -391,11 +396,7 @@ protected:
   vtkImageBlend *   Blend;
   vtkImageBlend *   BlendUVW;
   vtkImageReslice * ExtractModelTexture;
-#if (VTK_MAJOR_VERSION <= 5)
-  vtkImageData *    ImageData;
-#else
   vtkAlgorithmOutput *    ImageDataConnection;
-#endif
   vtkTransform *    ActiveSliceTransform;
 
   vtkPolyDataCollection * PolyDataCollection;

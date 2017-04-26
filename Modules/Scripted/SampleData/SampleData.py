@@ -1,26 +1,36 @@
 import os
-from __main__ import slicer
-import qt, ctk
+import unittest
+import vtk, qt, ctk, slicer
+from slicer.ScriptedLoadableModule import *
+import logging
 
 #
 # SampleData
 #
 
-class SampleData:
+class SampleData(ScriptedLoadableModule):
+  """Uses ScriptedLoadableModule base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
+
   def __init__(self, parent):
-    import string
-    parent.title = "Sample Data"
-    parent.categories = ["Informatics"]
-    parent.contributors = ["Steve Pieper (Isomics), Benjamin Long (Kitware), Jean-Christophe Fillion-Robin (Kitware)"]
-    parent.helpText = string.Template("""
+    ScriptedLoadableModule.__init__(self, parent)
+    self.parent.title = "Sample Data"
+    self.parent.categories = ["Informatics"]
+    self.parent.dependencies = []
+    self.parent.contributors = ["Steve Pieper (Isomics), Benjamin Long (Kitware), Jean-Christophe Fillion-Robin (Kitware)"]
+    self.parent.helpText = """
 The SampleData module can be used to download data for working with in slicer.  Use of this module requires an active network connection.
-See <a href=\"$a/Documentation/$b.$c/Modules/SampleData\">$a/Documentation/$b.$c/Modules/SampleData</a> for more information.
-    """).substitute({ 'a':parent.slicerWikiUrl, 'b':slicer.app.majorVersion, 'c':slicer.app.minorVersion })
-    parent.acknowledgementText = """
-This work is supported by NA-MIC, NAC, BIRN, NCIGT, and the Slicer Community. See <a>http://www.slicer.org</a> for details.  Module implemented by Steve Pieper.
-    """
-    parent.icon = qt.QIcon(':Icons/XLarge/SlicerDownloadMRHead.png')
-    self.parent = parent
+"""
+    self.parent.helpText += self.getDefaultModuleDocumentationLink()
+    self.parent.acknowledgementText = """
+<p>This work was was funded by Cancer Care Ontario
+and the Ontario Consortium for Adaptive Interventions in Radiation Oncology (OCAIRO)</p>
+
+<p>CTA abdomen (Panoramix) dataset comes from <a href="http://www.osirix-viewer.com/resources/dicom-image-library/">Osirix DICOM image library</a>
+and is exclusively available for research and teaching. You are not authorized to redistribute or sell it, or
+use it for commercial purposes.</p>
+"""
 
     if slicer.mrmlScene.GetTagByClassName( "vtkMRMLScriptedModuleNode" ) != 'ScriptedModule':
       slicer.mrmlScene.RegisterNodeClass(vtkMRMLScriptedModuleNode())
@@ -84,33 +94,27 @@ class SampleDataSource:
 # SampleData widget
 #
 
-class SampleDataWidget:
+class SampleDataWidget(ScriptedLoadableModuleWidget):
+  """Uses ScriptedLoadableModuleWidget base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
 
-  def __init__(self, parent=None):
+  def setup(self):
+    ScriptedLoadableModuleWidget.setup(self)
+
+    # This module is often used in developer mode, therefore
+    # collapse reload & test section by default.
+    if hasattr(self, "reloadCollapsibleButton"):
+      self.reloadCollapsibleButton.collapsed = True
+
     self.observerTags = []
     self.logic = SampleDataLogic(self.logMessage)
 
-    if not parent:
-      self.parent = slicer.qMRMLWidget()
-      self.parent.setLayout(qt.QVBoxLayout())
-      self.parent.setMRMLScene(slicer.mrmlScene)
-      self.layout = self.parent.layout()
-      self.setup()
-      self.parent.show()
-    else:
-      self.parent = parent
-      self.layout = parent.layout()
-
-  def enter(self):
-    pass
-
-  def exit(self):
-    pass
-
-  def updateGUIFromMRML(self, caller, event):
-    pass
-
-  def setup(self):
+    numberOfColumns = 3
+    iconPath = os.path.join(os.path.dirname(__file__).replace('\\','/'), 'Resources','Icons')
+    desktop = qt.QDesktopWidget()
+    mainScreenSize = desktop.availableGeometry(desktop.primaryScreen)
+    iconSize = qt.QSize(mainScreenSize.width()/15,mainScreenSize.height()/10)
 
     categories = slicer.modules.sampleDataSources.keys()
     categories.sort()
@@ -122,14 +126,37 @@ class SampleDataWidget:
       self.layout.addWidget(frame)
       frame.title = category
       frame.name = '%sCollapsibleGroupBox' % category
-      layout = qt.QVBoxLayout(frame)
+      layout = qt.QGridLayout(frame)
+      columnIndex = 0
+      rowIndex = 0
       for source in slicer.modules.sampleDataSources[category]:
         name = source.sampleName
         if not name:
           name = source.nodeNames[0]
-        b = qt.QPushButton('Download %s' % name)
+
+        b = qt.QToolButton()
+        b.setText(name)
+
+        # Look for thumbnail image with the name of any node name with .png extension
+        for nodeName in source.nodeNames:
+          if not nodeName:
+            continue
+          thumbnailImage = os.path.join(iconPath, nodeName+'.png')
+          if os.path.exists(thumbnailImage):
+            b.setIcon(qt.QIcon(thumbnailImage))
+            break
+        b.setIconSize(iconSize)
+        b.setToolButtonStyle(qt.Qt.ToolButtonTextUnderIcon)
+        qSize = qt.QSizePolicy()
+        qSize.setHorizontalPolicy(qt.QSizePolicy.Expanding)
+        b.setSizePolicy(qSize)
+
         b.name = '%sPushButton' % name
-        layout.addWidget(b)
+        layout.addWidget(b, rowIndex, columnIndex)
+        columnIndex += 1
+        if columnIndex==numberOfColumns:
+          rowIndex += 1
+          columnIndex = 0
         if source.customDownloader:
           b.connect('clicked()', source.customDownloader)
         else:
@@ -183,7 +210,7 @@ class SampleDataLogic:
             'http://slicer.kitware.com/midas3/download/?items=2010,1', ),
           ('DTIVolume.raw.gz', 'DTIVolume.nhdr'), (None, 'DTIVolume')),
         ('DWIVolume', ('http://slicer.kitware.com/midas3/download/?items=2142,1', 'http://slicer.kitware.com/midas3/download/?items=2141,1'), ('dwi.raw.gz', 'dwi.nhdr'), (None, 'dwi')),
-        ('Panoramix', 'http://slicer.kitware.com/midas3/download/?items=9073,1', 'Panoramix-cropped.nrrd', 'Panoramix-cropped'),
+        ('CTA abdomen\n(Panoramix)', 'http://slicer.kitware.com/midas3/download/?items=9073,1', 'Panoramix-cropped.nrrd', 'Panoramix-cropped'),
         ('CBCTDentalSurgery',
           ('http://slicer.kitware.com/midas3/download/item/94510/Greyscale_presurg.gipl.gz',
             'http://slicer.kitware.com/midas3/download/item/94509/Greyscale_postsurg.gipl.gz',),
@@ -192,6 +219,7 @@ class SampleDataLogic:
           ('http://slicer.kitware.com/midas3/download/item/142475/Case10-MR.nrrd',
             'http://slicer.kitware.com/midas3/download/item/142476/case10_US_resampled.nrrd',),
           ('Case10-MR.nrrd', 'case10_US_resampled.nrrd'), ('MRProstate', 'USProstate')),
+        ('CTBrain', 'http://slicer.kitware.com/midas3/download/?items=284192,1', 'CT-brain.nrrd', 'CTBrain'),
         )
 
     if not slicer.modules.sampleDataSources.has_key('BuiltIn'):
@@ -273,7 +301,7 @@ class SampleDataLogic:
     return self.downloadSample('dwi')[0]
 
   def downloadAbdominalCTVolume(self):
-    return self.downloadSample('Panoramix-cropped')[0]
+    return self.downloadSample('CTA abdomen\n(Panoramix)')[0]
 
   def downloadDentalSurgery(self):
     # returns list since that's what earlier method did
@@ -322,7 +350,11 @@ class SampleDataLogic:
     success, volumeNode = slicer.util.loadVolume(uri, properties = {'name' : name}, returnNode=True)
     if success:
       self.logMessage('<b>Load finished</b>\n')
-      volumeNode.SetAndObserveStorageNodeID(None) # since it was read from a temp directory
+      # since it was read from a temp directory remove the storage node
+      volumeStorageNode = volumeNode.GetStorageNode()
+      if volumeStorageNode is not None:
+        slicer.mrmlScene.RemoveNode(volumeStorageNode)
+      volumeNode.SetAndObserveStorageNodeID(None)
     else:
       self.logMessage('<b><font color="red">\tLoad failed!</font></b>\n')
     return volumeNode

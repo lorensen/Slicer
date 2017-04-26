@@ -15,8 +15,8 @@
 
 =========================================================================*/
 
-#ifndef __InitialImageToImageRegistrationMethod_h
-#define __InitialImageToImageRegistrationMethod_h
+#ifndef itkInitialImageToImageRegistrationMethod_h
+#define itkInitialImageToImageRegistrationMethod_h
 
 #include "itkImage.h"
 #include "itkCommand.h"
@@ -105,13 +105,13 @@ protected:
   InitialImageToImageRegistrationMethod( void );
   virtual ~InitialImageToImageRegistrationMethod( void );
 
-  void PrintSelf( std::ostream & os, Indent indent ) const;
+  void PrintSelf( std::ostream & os, Indent indent ) const ITK_OVERRIDE;
 
   //
   //  Methods from Superclass. Only the GenerateData() method should be
   //  overloaded. The Update() method must not be overloaded.
   //
-  void    GenerateData();
+  void    GenerateData() ITK_OVERRIDE;
 
 private:
 

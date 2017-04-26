@@ -21,6 +21,7 @@ if(BUILD_TESTING)
   if(Slicer_USE_PYTHONQT)
     list(APPEND KIT_TEST_SRCS
       qSlicerCorePythonManagerWithoutApplicationTest.cxx
+      qSlicerScriptedUtilsTest1.cxx
       )
   endif()
   if(Slicer_USE_PYTHONQT_WITH_OPENSSL)
@@ -52,8 +53,21 @@ if(BUILD_TESTING)
 
   QT4_ADD_RESOURCES(Tests Resources/${KIT}Testing.qrc)
 
+  set(KIT_TEST_TARGET_LIBRARIES ${KIT})
+  if(CTK_QT_VERSION VERSION_GREATER "4")
+    list(APPEND KIT_TEST_TARGET_LIBRARIES Qt5::Test)
+  else()
+    list(APPEND KIT_TEST_TARGET_LIBRARIES Qt4::QtTest)
+  endif()
+
+  if(Slicer_USE_PYTHONQT)
+  list(APPEND KIT_TEST_TARGET_LIBRARIES
+    CTKScriptingPythonWidgets
+    )
+  endif()
+
   add_executable(${KIT}CxxTests ${Tests})
-  target_link_libraries(${KIT}CxxTests ${KIT})
+  target_link_libraries(${KIT}CxxTests ${KIT_TEST_TARGET_LIBRARIES})
   set_target_properties(${KIT}CxxTests PROPERTIES LABELS ${KIT})
   set_target_properties(${KIT}CxxTests PROPERTIES FOLDER "Core-Base")
 
@@ -78,6 +92,7 @@ if(BUILD_TESTING)
 
   if(Slicer_USE_PYTHONQT)
     simple_test( qSlicerCorePythonManagerWithoutApplicationTest )
+    simple_test( qSlicerScriptedUtilsTest1 )
   endif()
 
   if(Slicer_USE_PYTHONQT_WITH_OPENSSL)

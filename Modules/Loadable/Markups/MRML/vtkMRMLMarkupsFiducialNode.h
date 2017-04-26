@@ -72,6 +72,9 @@ public:
   /// Create default storage node or NULL if does not have one
   virtual vtkMRMLStorageNode* CreateDefaultStorageNode();
 
+  /// Create and observe default display node(s)
+  virtual void CreateDefaultDisplayNodes();
+
   /// Return a cast display node, returns null if none
   vtkMRMLMarkupsDisplayNode *GetMarkupsDisplayNode();
 
@@ -83,12 +86,7 @@ public:
   int AddFiducial(double x, double y, double z);
   int AddFiducial(double x, double y, double z, std::string label);
   /// Add a new fiducial from an array and return the fiducial index
-#if (VTK_MAJOR_VERSION >= 6)
   int AddFiducialFromArray(double pos[3], std::string label = std::string());
-#else
-  int AddFiducialFromArray(double pos[3]);
-  int AddFiducialFromArray(double pos[3], std::string label);
-#endif
   /// Get the position of the nth fiducial, returning it in the pos array
   void GetNthFiducialPosition(int n, double pos[3]);
   /// Set the position of the nth fiducial from x, y, z coordinates
@@ -121,6 +119,9 @@ public:
   void SetNthFiducialWorldCoordinates(int n, double coords[4]);
   /// Get world coordinates on nth fiducial
   void GetNthFiducialWorldCoordinates(int n, double coords[4]);
+
+  virtual void GetRASBounds(double bounds[6]);
+  virtual void GetBounds(double bounds[6]);
 
 protected:
   vtkMRMLMarkupsFiducialNode();

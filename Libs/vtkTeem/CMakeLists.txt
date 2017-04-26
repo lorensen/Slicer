@@ -4,13 +4,6 @@ project(vtkTeem)
 cmake_minimum_required(VERSION 2.8.4)
 #-----------------------------------------------------------------------------
 
-#-----------------------------------------------------------------------------
-# See http://cmake.org/cmake/help/cmake-2-8-docs.html#section_Policies for details
-#-----------------------------------------------------------------------------
-if(POLICY CMP0017)
-  cmake_policy(SET CMP0017 OLD)
-endif()
-
 # --------------------------------------------------------------------------
 # Options
 # --------------------------------------------------------------------------
@@ -37,15 +30,7 @@ if(${Teem_VERSION_MAJOR}.${Teem_VERSION_MINOR}.${Teem_VERSION_PATCH} VERSION_LES
   message(FATAL_ERROR
     "Could not find a configuration file for package \"Teem\" that is compatible with requested version \"1.10\".")
 endif()
-
-# XXX Waiting Teem gets ride of 'export_library_dependencies'
-#     and switch to an export of targets, set policy CMP0033.
-cmake_policy(PUSH)
-if(POLICY CMP0033)
-  cmake_policy(SET CMP0033 OLD)
-endif()
 include(${Teem_USE_FILE})
-cmake_policy(POP)
 
 # XXX Teem 1.11.0 or Teem >= 4168 - This variable won't be needed anymore.
 #     See http://sourceforge.net/p/teem/code/4168/
@@ -78,39 +63,12 @@ endif()
 # --------------------------------------------------------------------------
 set(vtkTeem_SRCS
   vtkDiffusionTensorMathematics.cxx
-  vtkTeemEstimateDiffusionTensor.cxx
   vtkDiffusionTensorGlyph.cxx
-  vtkPolyDataTensorToColor.cxx
-  vtkPolyDataColorLinesByOrientation.cxx
-  vtkBSplineInterpolateImageFunction.cxx
-  vtkHyperPointandArray.cxx
-  vtkHyperStreamlineDTMRI.cxx
-  vtkHyperStreamlineTeem.cxx
   vtkNRRDReader.cxx
   vtkNRRDWriter.cxx
-  vtkPreciseHyperStreamline.cxx
-  vtkPreciseHyperStreamlinePoints.cxx
-  vtkSeedTracts.cxx
-  vtkTensorImplicitFunctionToFunctionSet.cxx
-  vtkTractographyPointAndArray.cxx
-  vtkTensorMask.cxx
-  vtkTensorRotate.cxx
   vtkImageLabelCombine.cxx
   )
 
-# Abstract/pure virtual classes
-
-#set_source_files_properties(
-#  ABSTRACT
-#  )
-
-# Helper classes
-
-set_source_files_properties(
-  vtkHyperPointandArray.cxx
-  vtkTractographyPointAndArray.cxx
-  WRAP_EXCLUDE
-  )
 # --------------------------------------------------------------------------
 # Include dirs
 # --------------------------------------------------------------------------
@@ -128,21 +86,9 @@ set(lib_name ${PROJECT_NAME})
 set(srcs ${vtkTeem_SRCS})
 add_library(${lib_name} ${srcs})
 
-if(${VTK_VERSION_MAJOR} GREATER 5)
-  # Minimum set of libraries already specified using components
-
-  # Teem vtkNRRDReader overwrites VTK vtkNrrdReader
-  set(VTK_WRAP_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${VTK_INCLUDE_DIRS}
-      CACHE INTERNAL "VTK wrap include dirs" FORCE)
-else()
-  set(VTK_LIBRARIES
-    vtkCommon
-    vtkFiltering
-    vtkGraphics
-    vtkIO
-    vtkImaging
-  )
-endif()
+# Teem vtkNRRDReader overwrites VTK vtkNrrdReader
+set(VTK_WRAP_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${VTK_INCLUDE_DIRS}
+    CACHE INTERNAL "VTK wrap include dirs" FORCE)
 
 set(libs
   ${Teem_LIBRARIES}

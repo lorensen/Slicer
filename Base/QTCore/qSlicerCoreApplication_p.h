@@ -33,6 +33,7 @@
 //
 
 // Qt includes
+#include <QPointer>
 #include <QProcessEnvironment>
 #include <QSettings>
 #include <QSharedPointer>
@@ -63,6 +64,11 @@ public:
   virtual ~qSlicerCoreApplicationPrivate();
 
   virtual void init();
+
+  /// Set up the local and remote data input/output for this application.
+  /// Use this as a template for creating stand alone scenes, then call
+  /// vtkSlicerApplicationLogic::SetMRMLSceneDataIO to hook it into a scene.
+  virtual void initDataIO();
 
   /// Instanciate settings object
   virtual QSettings* newSettings();
@@ -130,6 +136,7 @@ public:
   /// Release, RelWithDebInfo, MinSizeRel or any other custom build type.
   QString                                     IntDir;
 
+  QSettings*                                  DefaultSettings;
   QSettings*                                  UserSettings;
   QSettings*                                  RevisionUserSettings;
 
@@ -148,6 +155,7 @@ public:
 #ifdef Slicer_USE_PYTHONQT
   /// CorePythonManager - It should exist only one instance of the CorePythonManager
   QSharedPointer<qSlicerCorePythonManager>    CorePythonManager;
+  QPointer<ctkPythonConsole> PythonConsole; // it may be owned by a widget, so we cannot refer to it by a strong pointer
 #endif
 
 #ifdef Slicer_BUILD_EXTENSIONMANAGER_SUPPORT
@@ -167,6 +175,10 @@ public:
 
   QHash<int, QByteArray>                      LoadedResources;
   int                                         NextResourceHandle;
+
+  /// Associated modules for each node type.
+  /// Key: node class name; values: module names.
+  QMultiMap<QString, QString> ModulesForNodes;
 };
 
 #endif

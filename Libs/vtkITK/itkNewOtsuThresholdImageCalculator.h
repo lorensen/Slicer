@@ -1,6 +1,6 @@
 
-#ifndef __itkNewOtsuThresholdImageCalculator_h
-#define __itkNewOtsuThresholdImageCalculator_h
+#ifndef itkNewOtsuThresholdImageCalculator_h
+#define itkNewOtsuThresholdImageCalculator_h
 
 #include "itkObject.h"
 #include "itkObjectFactory.h"
@@ -30,9 +30,9 @@ class NewOtsuThresholdImageCalculator : public Object
 public:
   /** Standard class typedefs. */
   typedef NewOtsuThresholdImageCalculator Self;
-  typedef Object  Superclass;
-  typedef SmartPointer<Self>   Pointer;
-  typedef SmartPointer<const Self>  ConstPointer;
+  typedef Object                          Superclass;
+  typedef SmartPointer<Self>              Pointer;
+  typedef SmartPointer<const Self>        ConstPointer;
 
   /** Method for creation through the object factory. */
   itkNewMacro(Self);
@@ -72,7 +72,7 @@ public:
 protected:
   NewOtsuThresholdImageCalculator();
   virtual ~NewOtsuThresholdImageCalculator() {};
-  void PrintSelf(std::ostream& os, Indent indent) const;
+  void PrintSelf(std::ostream& os, Indent indent) const ITK_OVERRIDE;
 
 private:
   NewOtsuThresholdImageCalculator(const Self&); //purposely not implemented
@@ -80,7 +80,7 @@ private:
 
   PixelType            m_Threshold;
   unsigned long        m_NumberOfHistogramBins;
-  double m_Omega;
+  double               m_Omega;
   ImageConstPointer    m_Image;
 
 };

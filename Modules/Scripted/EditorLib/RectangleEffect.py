@@ -1,12 +1,17 @@
 import os
-from __main__ import vtk
-from __main__ import ctk
-from __main__ import qt
-from __main__ import slicer
-from EditOptions import EditOptions
-from EditorLib import EditorLib
+import vtk
+import ctk
+import qt
+import slicer
+from EditOptions import HelpButton
 import LabelEffect
 
+__all__ = [
+  'RectangleEffectOptions',
+  'RectangleEffectTool',
+  'RectangleEffectLogic',
+  'RectangleEffect'
+  ]
 
 #########################################################
 #
@@ -39,7 +44,7 @@ class RectangleEffectOptions(LabelEffect.LabelEffectOptions):
   def create(self):
     super(RectangleEffectOptions,self).create()
 
-    EditorLib.HelpButton(self.frame, "Use this tool to draw a rectangle.\n\nLeft Click and Drag: sweep out an outline that will draw when the button is released.")
+    HelpButton(self.frame, "Use this tool to draw a rectangle.\n\nLeft Click and Drag: sweep out an outline that will draw when the button is released.")
 
     # Add vertical spacer
     self.frame.layout().addStretch(1)
@@ -102,10 +107,7 @@ class RectangleEffectTool(LabelEffect.LabelEffectTool):
 
     self.mapper = vtk.vtkPolyDataMapper2D()
     self.actor = vtk.vtkActor2D()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      self.mapper.SetInput(self.polyData)
-    else:
-      self.mapper.SetInputData(self.polyData)
+    self.mapper.SetInputData(self.polyData)
     self.actor.SetMapper(self.mapper)
     property_ = self.actor.GetProperty()
     property_.SetColor(1,1,0)
@@ -131,13 +133,13 @@ class RectangleEffectTool(LabelEffect.LabelEffectTool):
 
     for x,y in ((0,0),)*4:
       p = points.InsertNextPoint( x, y, 0 )
-      if prevPoint != None:
+      if prevPoint is not None:
         idList = vtk.vtkIdList()
         idList.InsertNextId( prevPoint )
         idList.InsertNextId( p )
         self.polyData.InsertNextCell( vtk.VTK_LINE, idList )
       prevPoint = p
-      if firstPoint == None:
+      if firstPoint is None:
         firstPoint = p
 
     # make the last line in the polydata

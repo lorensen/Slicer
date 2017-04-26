@@ -51,7 +51,6 @@ void TestCallback( vtkObject *caller,
 int vtkObserverManagerTest1(int , char * [] )
 {
   vtkNew<vtkObserverManager> observerManager;
-
   EXERCISE_BASIC_OBJECT_METHODS(observerManager.GetPointer());
 
   observerManager->Modified();
@@ -94,8 +93,7 @@ int vtkObserverManagerTest1(int , char * [] )
 
   // make a new node to observe
   vtkSmartPointer<vtkMRMLModelNode> observed2 = vtkSmartPointer<vtkMRMLModelNode>::New();
-  observerManager->SetAndObserveObject(vtkObjectPointer( &(observed2)), observed2);
-  observerManager->AddObjectEvents(observed2, events.GetPointer());
+  observerManager->SetAndObserveObjectEvents(vtkObjectPointer( &(observed2)), observed2, events.GetPointer());
   observed2->SetName("Testing a second model node");
 
   observerManager->RemoveObjectEvents(observed2);

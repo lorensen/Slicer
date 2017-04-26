@@ -51,6 +51,7 @@ static void vtkImageLabelOutlineExecute(vtkImageLabelOutline *self,
                      vtkImageData *outData,
                      int outExt[6], int id)
 {
+  int *kernelMiddle, *kernelSize;
   // For looping though output (and input) pixels.
   int outMin0, outMax0, outMin1, outMax1, outMin2, outMax2;
   int outIdx0, outIdx1, outIdx2;
@@ -62,15 +63,12 @@ static void vtkImageLabelOutlineExecute(vtkImageLabelOutline *self,
   int hoodMin0, hoodMax0, hoodMin1, hoodMax1, hoodMin2, hoodMax2;
   int hoodIdx0, hoodIdx1, hoodIdx2;
   T *hoodPtr0, *hoodPtr1, *hoodPtr2;
-  // For looping through the mask.
-  unsigned char *maskPtr, *maskPtr0, *maskPtr1, *maskPtr2;
-  vtkIdType maskInc0, maskInc1, maskInc2;
   // The extent of the whole input image
   int inImageMin0, inImageMin1, inImageMin2;
   int inImageMax0, inImageMax1, inImageMax2;
   // Other
-  T backgnd = (T)(self->GetBackground());
-  T pix;
+  T backgroundLabelValue = (T)(self->GetBackground());
+  T inLabelValue;
   T *outPtr = (T*)outData->GetScalarPointerForExtent(outExt);
   unsigned long count = 0;
   unsigned long target;
@@ -78,29 +76,34 @@ static void vtkImageLabelOutlineExecute(vtkImageLabelOutline *self,
   // Get information to march through data
 
   inData->GetIncrements(inInc0, inInc1, inInc2);
-#if (VTK_MAJOR_VERSION <= 5)
-  self->GetInput()->GetWholeExtent(inImageMin0, inImageMax0, inImageMin1,
-    inImageMax1, inImageMin2, inImageMax2);  
-#else
   int inExt[6];
   self->GetInputInformation()->Get(
         vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), inExt);
   inImageMin0 = inExt[0]; inImageMax0 = inExt[1];
   inImageMin1 = inExt[2]; inImageMax1 = inExt[3];
   inImageMin2 = inExt[4]; inImageMax2 = inExt[5];
-#endif
   outData->GetIncrements(outInc0, outInc1, outInc2);
   outMin0 = outExt[0];   outMax0 = outExt[1];
   outMin1 = outExt[2];   outMax1 = outExt[3];
   outMin2 = outExt[4];   outMax2 = outExt[5];
 
   // Neighborhood around current voxel
-  self->GetRelativeHoodExtent(hoodMin0, hoodMax0, hoodMin1,
-    hoodMax1, hoodMin2, hoodMax2);
+  kernelSize = self->GetKernelSize();
+  kernelMiddle = self->GetKernelMiddle();
+  hoodMin0 = kernelMiddle[0] - kernelSize[0]/2; // truncate on purpose
+  hoodMin1 = kernelMiddle[1] - kernelSize[1]/2; // to round down odd sizes
+  hoodMin2 = kernelMiddle[2] - kernelSize[2]/2;
+  hoodMax0 = hoodMin0 + kernelSize[0];
+  hoodMax1 = hoodMin1 + kernelSize[1];
+  hoodMax2 = hoodMin2 + kernelSize[2];
 
-  // Set up mask info
-  maskPtr = (unsigned char *)(self->GetMaskPointer());
-  self->GetMaskIncrements(maskInc0, maskInc1, maskInc2);
+  int outline = self->GetOutline();
+  hoodMin0 = - outline;
+  hoodMin1 = - outline;
+  hoodMin2 = 0;
+  hoodMax0 = outline;
+  hoodMax1 = outline;
+  hoodMax2 = 0;
 
   // in and out should be marching through corresponding pixels.
   inPtr = (T *)(inData->GetScalarPointer(outMin0, outMin1, outMin2));
@@ -130,52 +133,59 @@ static void vtkImageLabelOutlineExecute(vtkImageLabelOutline *self,
       inPtr0 = inPtr1;
       for (outIdx0 = outMin0; outIdx0 <= outMax0; outIdx0++)
         {
-        pix = *inPtr0;
-        // Default output equal to backgnd
-        *outPtr0 = backgnd;
+        inLabelValue = *inPtr0;
+        // Default output equal to backgroundLabelValue
+        // on the assumption this is not an outline pixel
+        *outPtr0 = backgroundLabelValue;
 
-        if (pix != backgnd)
+        // look at neighborhood around non-background
+        // pixels to see if there is a transition.
+        // If there is, then this is an outline pixel
+        if (inLabelValue != backgroundLabelValue)
           {
-          // Loop through neighborhood pixels (kernel radius=1)
-          // Note: input pointer marches out of bounds.
-          //hoodPtr2 = inPtr0 - inInc0 - inInc1 - inInc2;
-          hoodPtr2 = inPtr0 + inInc0*hoodMin0 + inInc1*hoodMin1
-            + inInc2*hoodMin2;
-          maskPtr2 = maskPtr;
+          // Loop through neighborhood pixels
+          // Note: hood pointer marches out of bounds.
+          // start at lower left pixel
+          hoodPtr2 = inPtr0 + hoodMin0 * inInc0
+                            + hoodMin1 * inInc1
+                            + hoodMin2 * inInc2;
+
           for (hoodIdx2 = hoodMin2; hoodIdx2 <= hoodMax2; ++hoodIdx2)
             {
             hoodPtr1 = hoodPtr2;
-            maskPtr1 = maskPtr2;
-            for (hoodIdx1 = hoodMin1; hoodIdx1 <= hoodMax1;    ++hoodIdx1)
+            for (hoodIdx1 = hoodMin1; hoodIdx1 <= hoodMax1; ++hoodIdx1)
               {
               hoodPtr0 = hoodPtr1;
-              maskPtr0 = maskPtr1;
               for (hoodIdx0 = hoodMin0; hoodIdx0 <= hoodMax0; ++hoodIdx0)
                 {
-                if (*maskPtr0)
-                  {
-                  // handle boundaries
-                  if (outIdx0 + hoodIdx0 >= inImageMin0 &&
+                // handle boundaries
+                if (outIdx0 + hoodIdx0 >= inImageMin0 &&
                     outIdx0 + hoodIdx0 <= inImageMax0 &&
                     outIdx1 + hoodIdx1 >= inImageMin1 &&
                     outIdx1 + hoodIdx1 <= inImageMax1 &&
                     outIdx2 + hoodIdx2 >= inImageMin2 &&
                     outIdx2 + hoodIdx2 <= inImageMax2)
+                  {
+                  // If the neighbor value is not the same label value
+                  // that means this is an outline pixel
+                  // (border is within neighborhood).
+                  // so set the output to foreground
+                  if (*hoodPtr0 != inLabelValue)
                     {
-                    // If the neighbor not identical, use this pixel
-                    // (set the output to foreground)
-                    if (*hoodPtr0 != pix)
-                      *outPtr0 = pix;
+                    *outPtr0 = inLabelValue;
                     }
                   }
+                else
+                  {
+                  // neighborhood reaches outside of the input
+                  // domain, so this is also an outline pixel
+                  *outPtr0 = inLabelValue;
+                  }
                 hoodPtr0 += inInc0;
-                maskPtr0 += maskInc0;
                 }//for0
               hoodPtr1 += inInc1;
-              maskPtr1 += maskInc1;
               }//for1
             hoodPtr2 += inInc2;
-            maskPtr2 += maskInc2;
             }//for2
           }//if
         inPtr0 += inInc0;
@@ -279,3 +289,19 @@ void vtkImageLabelOutline::PrintSelf(ostream& os, vtkIndent indent)
       }
 }
 
+//----------------------------------------------------------------------------
+void vtkImageLabelOutline::SetOutline(int outline)
+{
+  if (this->Outline == outline)
+    {
+    return;
+    }
+
+  this->Outline = outline;
+
+  // also set the kernel size for 2D
+  int kernelSize = (outline * 2) + 1;
+  this->SetKernelSize(kernelSize, kernelSize, 1);
+
+  this->Modified();
+}

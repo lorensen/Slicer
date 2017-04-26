@@ -83,7 +83,7 @@ int vtkMRMLFreeSurferModelOverlayStorageNode::ReadDataInternal(vtkMRMLNode *refN
 
   std::string fullName = this->GetFullNameFromFileName();
 
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("ReadData: File name not specified");
     return 0;
@@ -720,7 +720,7 @@ int vtkMRMLFreeSurferModelOverlayStorageNode::WriteDataInternal(vtkMRMLNode *ref
   //vtkMRMLModelNode *modelNode = vtkMRMLModelNode::SafeDownCast(refNode);
 
   std::string fullName = this->GetFullNameFromFileName();
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("WriteData: File name not specified");
     return 0;
@@ -752,12 +752,12 @@ int vtkMRMLFreeSurferModelOverlayStorageNode::CopyData(vtkMRMLNode *refNode,
 //  vtkMRMLModelNode *modelNode = vtkMRMLModelNode::SafeDownCast(refNode);
   std::string newName = newFileName;
   std::string fullName = this->GetFullNameFromFileName();
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("vtkMRMLFreeSurferModelOverlayNode: File name not specified");
     return 0;
     }
-  if ( newName == std::string(""))
+  if ( newName.empty())
     {
     vtkErrorMacro("vtkMRMLFreeSurferModelOverlayNode: Copy-to file name not specified");
     return 0;
@@ -787,17 +787,17 @@ int vtkMRMLFreeSurferModelOverlayStorageNode::CopyData(vtkMRMLNode *refNode,
 //----------------------------------------------------------------------------
 void vtkMRMLFreeSurferModelOverlayStorageNode::InitializeSupportedReadFileTypes()
 {
-  this->SupportedReadFileTypes->InsertNextValue(".w");
-  this->SupportedReadFileTypes->InsertNextValue(".thickness");
-  this->SupportedReadFileTypes->InsertNextValue(".curv");
-  this->SupportedReadFileTypes->InsertNextValue(".avg_curv");
-  this->SupportedReadFileTypes->InsertNextValue(".sulc");
-  this->SupportedReadFileTypes->InsertNextValue(".area");
-  this->SupportedReadFileTypes->InsertNextValue(".annot");
-  this->SupportedReadFileTypes->InsertNextValue(".mgz");
-  this->SupportedReadFileTypes->InsertNextValue(".mgh.gz");
-  this->SupportedReadFileTypes->InsertNextValue(".mgh");
-  this->SupportedReadFileTypes->InsertNextValue(".label");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer W file (.w)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Thickness (.thickness)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Curvature (.curv)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Avg. Curvature (.avg_curv)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Sulcus (.sulc)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Area (.area)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Annotation (.annot)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer MGZ (.mgz)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer MGH GZ (.mgh.gz)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer MGH (.mgh)");
+  this->SupportedReadFileTypes->InsertNextValue("FreeSurfer Label (.label)");
 }
 
 //----------------------------------------------------------------------------

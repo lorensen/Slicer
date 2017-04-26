@@ -19,6 +19,9 @@
 #include "vtkSlicerAnnotationModuleLogic.h"
 #include "qSlicerAnnotationsReader.h"
 
+// PythonQt includes
+#include "PythonQt.h"
+
 //-----------------------------------------------------------------------------
 Q_EXPORT_PLUGIN2(qSlicerAnnotationsModule, qSlicerAnnotationsModule);
 
@@ -90,7 +93,16 @@ void qSlicerAnnotationsModule::setup()
 
   ioManager->registerIO(new qSlicerNodeWriter(
     "Annotations", QString("AnnotationFile"),
-    QStringList() << "vtkMRMLAnnotationNode", this));
+    QStringList() << "vtkMRMLAnnotationNode", true, this));
+
+  // Register subject hierarchy plugin
+  PythonQt::init();
+  PythonQtObjectPtr context = PythonQt::self()->getMainModule();
+  context.evalScript( QString(
+    "from SubjectHierarchyPlugins import AnnotationsSubjectHierarchyPlugin \n"
+    "scriptedPlugin = slicer.qSlicerSubjectHierarchyScriptedPlugin(None) \n"
+    "scriptedPlugin.setPythonSource(AnnotationsSubjectHierarchyPlugin.filePath) \n"
+    ) );
 }
 
 //-----------------------------------------------------------------------------
@@ -150,9 +162,27 @@ QStringList qSlicerAnnotationsModule::categories() const
 }
 
 //-----------------------------------------------------------------------------
+QStringList qSlicerAnnotationsModule::dependencies() const
+{
+  QStringList moduleDependencies;
+  moduleDependencies << "SubjectHierarchy";
+  return moduleDependencies;
+}
+
+//-----------------------------------------------------------------------------
 void qSlicerAnnotationsModule::showScreenshotDialog()
 {
   Q_ASSERT(this->widgetRepresentation());
   dynamic_cast<qSlicerAnnotationModuleWidget*>(this->widgetRepresentation())
       ->grabSnapShot();
+}
+
+//-----------------------------------------------------------------------------
+QStringList qSlicerAnnotationsModule::associatedNodeTypes() const
+{
+  return QStringList()
+    << "vtkMRMLAnnotationNode"
+    << "vtkMRMLAnnotationDisplayNode"
+    << "vtkMRMLAnnotationStorageNode"
+    << "vtkMRMLAnnotationHierarchyNode";
 }

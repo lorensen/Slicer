@@ -54,6 +54,7 @@
 #include "qMRMLSliceWidgetPlugin.h"
 #include "qMRMLSliderWidgetPlugin.h"
 #include "qMRMLSpinBoxPlugin.h"
+#include "qMRMLThreeDViewInformationWidgetPlugin.h"
 #include "qMRMLThreeDViewPlugin.h"
 #include "qMRMLTransformSlidersPlugin.h"
 #include "qMRMLTreeViewPlugin.h"
@@ -62,6 +63,7 @@
 #include "qMRMLWidgetPlugin.h"
 #include "qMRMLWindowLevelWidgetPlugin.h"
 #include "qMRMLSceneFactoryWidgetPlugin.h"
+#include "qMRMLTableViewPlugin.h"
 
 // \class Group the plugins in one library
 class QMRML_WIDGETS_PLUGINS_EXPORT qMRMLWidgetsPlugin
@@ -106,6 +108,8 @@ public:
             << new qMRMLSliceWidgetPlugin
             << new qMRMLSliderWidgetPlugin
             << new qMRMLSpinBoxPlugin
+            << new qMRMLTableViewPlugin
+            << new qMRMLThreeDViewInformationWidgetPlugin
             << new qMRMLThreeDViewPlugin
             << new qMRMLTransformSlidersPlugin
             << new qMRMLTreeViewPlugin

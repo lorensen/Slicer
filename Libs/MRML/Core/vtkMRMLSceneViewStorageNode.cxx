@@ -43,6 +43,7 @@ vtkMRMLNodeNewMacro(vtkMRMLSceneViewStorageNode);
 //----------------------------------------------------------------------------
 vtkMRMLSceneViewStorageNode::vtkMRMLSceneViewStorageNode()
 {
+  this->DefaultWriteFileExtension = "png";
 }
 
 //----------------------------------------------------------------------------
@@ -74,7 +75,7 @@ int vtkMRMLSceneViewStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
   vtkMRMLSceneViewNode *sceneViewNode = dynamic_cast <vtkMRMLSceneViewNode *> (refNode);
 
   std::string fullName = this->GetFullNameFromFileName();
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("ReadData: File name not specified");
     return 0;
@@ -146,9 +147,6 @@ int vtkMRMLSceneViewStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
   sceneViewNode->SetScreenShot(imageData.GetPointer());
   sceneViewNode->GetScreenShot()->SetSpacing(1.0, 1.0, 1.0);
   sceneViewNode->GetScreenShot()->SetOrigin(0.0, 0.0, 0.0);
-#if (VTK_MAJOR_VERSION <= 5)
-  sceneViewNode->GetScreenShot()->SetScalarType(VTK_UNSIGNED_CHAR);
-#endif
 
   return result;
 }
@@ -165,7 +163,7 @@ int vtkMRMLSceneViewStorageNode::WriteDataInternal(vtkMRMLNode *refNode)
     }
 
   std::string fullName = this->GetFullNameFromFileName();
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("vtkMRMLSceneViewNode: File name not specified");
     return 0;
@@ -199,11 +197,7 @@ int vtkMRMLSceneViewStorageNode::WriteDataInternal(vtkMRMLNode *refNode)
   int result = 1; // success by default
 
   writer->SetFileName(fullName.c_str());
-#if (VTK_MAJOR_VERSION <= 5)
-  writer->SetInput( sceneViewNode->GetScreenShot() );
-#else
   writer->SetInputData( sceneViewNode->GetScreenShot() );
-#endif
   try
     {
     writer->Write();
@@ -246,10 +240,4 @@ void vtkMRMLSceneViewStorageNode::InitializeSupportedWriteFileTypes()
   this->SupportedWriteFileTypes->InsertNextValue("JPEG (.jpeg)");
   this->SupportedWriteFileTypes->InsertNextValue("TIFF (.tiff)");
   this->SupportedWriteFileTypes->InsertNextValue("BMP (.bmp)");
-}
-
-//----------------------------------------------------------------------------
-const char* vtkMRMLSceneViewStorageNode::GetDefaultWriteFileExtension()
-{
-  return "png";
 }

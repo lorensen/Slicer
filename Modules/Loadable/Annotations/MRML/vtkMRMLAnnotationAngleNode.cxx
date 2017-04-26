@@ -119,32 +119,29 @@ void vtkMRMLAnnotationAngleNode::WriteXML(ostream& of, int nIndent)
 {
   Superclass::WriteXML(of, nIndent);
 
-  vtkIndent indent(nIndent);
-
-  of << indent << " labelFormat=\"";
+  of << " labelFormat=\"";
   if (this->LabelFormat)
     {
-      of << this->LabelFormat << "\"";
+    of << this->LabelFormat << "\"";
     }
   else
     {
-      of << "\"";
+    of << "\"";
     }
-  of << indent << " angleResolution=\""<< this->Resolution << "\"";
+  of << " angleResolution=\""<< this->Resolution << "\"";
 
   if (this->ModelID1)
     {
-    of << indent << " modelID1=\"" << this->ModelID1 << "\"";
+    of << " modelID1=\"" << this->ModelID1 << "\"";
     }
   if (this->ModelID2)
     {
-    of << indent << " modelID2=\"" << this->ModelID2 << "\"";
+    of << " modelID2=\"" << this->ModelID2 << "\"";
     }
   if (this->ModelIDCenter)
     {
-    of << indent << " modelIDCenter=\"" << this->ModelIDCenter << "\"";
+    of << " modelIDCenter=\"" << this->ModelIDCenter << "\"";
     }
-
 }
 
 
@@ -446,57 +443,6 @@ void vtkMRMLAnnotationAngleNode::SetLineColour(double initColor[3])
       return;
     }
   node->SetSelectedColor(initColor);
-}
-
-//----------------------------------------------------------------------------
-void vtkMRMLAnnotationAngleNode::ApplyTransformMatrix(vtkMatrix4x4* transformMatrix)
-{
-  double (*matrix)[4] = transformMatrix->Element;
-  double xyzIn[3];
-  double xyzOut[3];
-  double *p = NULL;
-
-  // first point
-  p = this->GetPosition1();
-  if (p)
-    {
-    xyzIn[0] = p[0];
-    xyzIn[1] = p[1];
-    xyzIn[2] = p[2];
-
-    xyzOut[0] = matrix[0][0]*xyzIn[0] + matrix[0][1]*xyzIn[1] + matrix[0][2]*xyzIn[2] + matrix[0][3];
-    xyzOut[1] = matrix[1][0]*xyzIn[0] + matrix[1][1]*xyzIn[1] + matrix[1][2]*xyzIn[2] + matrix[1][3];
-    xyzOut[2] = matrix[2][0]*xyzIn[0] + matrix[2][1]*xyzIn[1] + matrix[2][2]*xyzIn[2] + matrix[2][3];
-    this->SetPosition1(xyzOut);
-    }
-
-  // second point
-  p = this->GetPosition2();
-  if (p)
-    {
-    xyzIn[0] = p[0];
-    xyzIn[1] = p[1];
-    xyzIn[2] = p[2];
-
-    xyzOut[0] = matrix[0][0]*xyzIn[0] + matrix[0][1]*xyzIn[1] + matrix[0][2]*xyzIn[2] + matrix[0][3];
-    xyzOut[1] = matrix[1][0]*xyzIn[0] + matrix[1][1]*xyzIn[1] + matrix[1][2]*xyzIn[2] + matrix[1][3];
-    xyzOut[2] = matrix[2][0]*xyzIn[0] + matrix[2][1]*xyzIn[1] + matrix[2][2]*xyzIn[2] + matrix[2][3];
-    this->SetPosition2(xyzOut);
-    }
-  // center
-  p = this->GetPositionCenter();
-  if (p)
-    {
-    xyzIn[0] = p[0];
-    xyzIn[1] = p[1];
-    xyzIn[2] = p[2];
-
-    xyzOut[0] = matrix[0][0]*xyzIn[0] + matrix[0][1]*xyzIn[1] + matrix[0][2]*xyzIn[2] + matrix[0][3];
-    xyzOut[1] = matrix[1][0]*xyzIn[0] + matrix[1][1]*xyzIn[1] + matrix[1][2]*xyzIn[2] + matrix[1][3];
-    xyzOut[2] = matrix[2][0]*xyzIn[0] + matrix[2][1]*xyzIn[1] + matrix[2][2]*xyzIn[2] + matrix[2][3];
-    this->SetPositionCenter(xyzOut);
-    }
-
 }
 
 //---------------------------------------------------------------------------

@@ -28,11 +28,15 @@ public:
   virtual QString helpText()const;
   virtual QString acknowledgementText()const;
   virtual QStringList contributors()const;
+  virtual QStringList dependencies() const;
 
   /// Return the icon of the Annotation module.
   virtual QIcon icon()const;
 
   virtual QStringList categories()const;
+
+  /// Specify editable node types
+  virtual QStringList associatedNodeTypes()const;
 
   qSlicerGetTitleMacro(QTMODULE_TITLE);
 

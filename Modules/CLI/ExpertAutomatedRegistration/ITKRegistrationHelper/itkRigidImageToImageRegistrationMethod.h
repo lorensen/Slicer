@@ -15,8 +15,8 @@
 
 =========================================================================*/
 
-#ifndef __RigidImageToImageRegistrationMethod_h
-#define __RigidImageToImageRegistrationMethod_h
+#ifndef itkRigidImageToImageRegistrationMethod_h
+#define itkRigidImageToImageRegistrationMethod_h
 
 #include "itkImage.h"
 #include "itkAffineTransform.h"
@@ -76,7 +76,7 @@ public:
   //
   //  Superclass Methods
   //
-  void GenerateData( void );
+  void GenerateData( void ) ITK_OVERRIDE;
 
   //
   // Custom Methods
@@ -120,7 +120,7 @@ protected:
   RigidImageToImageRegistrationMethod( void );
   virtual ~RigidImageToImageRegistrationMethod( void );
 
-  void PrintSelf( std::ostream & os, Indent indent ) const;
+  void PrintSelf( std::ostream & os, Indent indent ) const ITK_OVERRIDE;
 
 private:
 

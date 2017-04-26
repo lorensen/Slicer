@@ -13,6 +13,7 @@ def quit():
 
 def exit(status=EXIT_SUCCESS):
   from slicer import app
+  app.commandOptions().runPythonAndExit = False
   app.exit(status)
 
 def restart():
@@ -53,46 +54,75 @@ def sourceDir():
 #
 
 def importVTKClassesFromDirectory(directory, dest_module_name, filematch = '*'):
-  importClassesFromDirectory(directory, dest_module_name, 'vtkclass', filematch)
+  from vtk import vtkObjectBase
+  importClassesFromDirectory(directory, dest_module_name, vtkObjectBase, filematch)
 
 def importQtClassesFromDirectory(directory, dest_module_name, filematch = '*'):
   importClassesFromDirectory(directory, dest_module_name, 'PythonQtClassWrapper', filematch)
 
-def importClassesFromDirectory(directory, dest_module_name, type_name, filematch = '*'):
+# To avoid globbing multiple times the same directory, successful
+# call to ``importClassesFromDirectory()`` will be indicated by
+# adding an entry to the ``__import_classes_cache`` set.
+#
+# Each entry is a tuple of form (directory, dest_module_name, type_info, filematch)
+__import_classes_cache = set()
+
+def importClassesFromDirectory(directory, dest_module_name, type_info, filematch = '*'):
+  # Create entry for __import_classes_cache
+  cache_key = ",".join([str(arg) for arg in [directory, dest_module_name, type_info, filematch]])
+  # Check if function has already been called with this set of parameters
+  if cache_key in __import_classes_cache:
+    return
+
   import glob, os, re, fnmatch
+  re_filematch = re.compile(fnmatch.translate(filematch))
   for fname in glob.glob(os.path.join(directory, filematch)):
-    if not re.compile(fnmatch.translate(filematch)).match(os.path.basename(fname)):
+    if not re_filematch.match(os.path.basename(fname)):
       continue
     try:
       from_module_name = os.path.splitext(os.path.basename(fname))[0]
-      importModuleObjects(from_module_name, dest_module_name, type_name)
+      importModuleObjects(from_module_name, dest_module_name, type_info)
     except ImportError as detail:
       import sys
       print(detail, file=sys.stderr)
 
-def importModuleObjects(from_module_name, dest_module_name, type_name):
-  """Import object of type 'type_name' from module identified
+  __import_classes_cache.add(cache_key)
+
+def importModuleObjects(from_module_name, dest_module_name, type_info):
+  """Import object of type 'type_info' (str or type) from module identified
   by 'from_module_name' into the module identified by 'dest_module_name'."""
 
   # Obtain a reference to the module identifed by 'dest_module_name'
   import sys
   dest_module = sys.modules[dest_module_name]
 
-  exec "import %s" % (from_module_name)
+  # Skip if module has already been loaded
+  if from_module_name in sys.modules:
+    return
 
-  # Obtain a reference to the associated VTK module
-  module = eval(from_module_name)
+  # Obtain a reference to the module identified by 'from_module_name'
+  import imp
+  fp, pathname, description = imp.find_module(from_module_name)
+  module = imp.load_module(from_module_name, fp, pathname, description)
 
-  # Loop over content of the python module associated with the given VTK python library
+  # Loop over content of the python module associated with the given python library
   for item_name in dir(module):
 
     # Obtain a reference associated with the current object
-    item = eval("%s.%s" % (from_module_name, item_name))
+    item = getattr(module, item_name)
 
-    # Add the object to dest_module_globals_dict if any
-    if type(item).__name__ == type_name:
-      exec("from %s import %s" % (from_module_name, item_name))
-      exec("dest_module.%s = %s"%(item_name, item_name))
+    # Check type match by type or type name
+    match = False
+    if isinstance(type_info, type):
+      try:
+        match = issubclass(item, type_info)
+      except TypeError as e:
+        pass
+    else:
+      match = type(item).__name__ == type_info
+
+    if match:
+      setattr(dest_module, item_name, item)
 
 #
 # UI
@@ -114,17 +144,28 @@ def mainWindow(verbose = True):
   return lookupTopLevelWidget('qSlicerAppMainWindow', verbose)
 
 def pythonShell(verbose = True):
-  return lookupTopLevelWidget('pythonConsole', verbose)
+  console = slicer.app.pythonConsole()
+  if not console and verbose:
+    print("Failed to obtain reference to python shell", file=sys.stderr)
+  return console
 
 def showStatusMessage(message, duration = 0):
   mw = mainWindow(verbose=False)
   if mw:
     mw.statusBar().showMessage(message, duration)
 
-def findChildren(widget=None,name="",text="",title="",className=""):
-  """ return a list of child widgets that match the passed name """
-  # TODO: figure out why the native QWidget.findChildren method
-  # does not seem to work from PythonQt
+def findChildren(widget=None, name="", text="", title="", className=""):
+  """ Return a list of child widgets that meet all the given criteria.
+  If no criteria are provided, the function will return all widgets descendants.
+  If no widget is provided, slicer.util.mainWindow() is used.
+  :param widget: parent widget where the widgets will be searched
+  :param name: name attribute of the widget
+  :param text: text attribute of the widget
+  :param title: title attribute of the widget
+  :param className: className() attribute of the widget
+  :return: list with all the widgets that meet all the given criteria.
+  """
+  # TODO: figure out why the native QWidget.findChildren method does not seem to work from PythonQt
   import slicer, fnmatch
   if not widget:
     widget = mainWindow()
@@ -132,7 +173,12 @@ def findChildren(widget=None,name="",text="",title="",className=""):
     return []
   children = []
   parents = [widget]
-  while parents != []:
+  kwargs = {'name': name, 'text': text, 'title': title, 'className': className}
+  expected_matches = []
+  for kwarg in kwargs.iterkeys():
+    if kwargs[kwarg]:
+      expected_matches.append(kwarg)
+  while parents:
     p = parents.pop()
     # sometimes, p is null, f.e. when using --python-script or --python-code
     if not p:
@@ -140,30 +186,83 @@ def findChildren(widget=None,name="",text="",title="",className=""):
     if not hasattr(p,'children'):
       continue
     parents += p.children()
-    if name and fnmatch.fnmatch(p.name, name):
+    matched_filter_criteria = 0
+    for attribute in expected_matches:
+      if hasattr(p, attribute):
+        attr_name = getattr(p, attribute)
+        if attribute == 'className':
+          # className is a method, not a direct attribute. Invoke the method
+          attr_name = attr_name()
+        # Objects may have text attributes with non-string value (for example,
+        # QUndoStack objects have text attribute of 'builtin_qt_slot' type.
+        # We only consider string type attributes.
+        if isinstance(attr_name, basestring):
+          if fnmatch.fnmatchcase(attr_name, kwargs[attribute]):
+            matched_filter_criteria = matched_filter_criteria + 1
+    if matched_filter_criteria == len(expected_matches):
       children.append(p)
-    elif text:
-      try:
-        p.text
-        if fnmatch.fnmatch(p.text, text):
-          children.append(p)
-      except (AttributeError, TypeError):
-        pass
-    elif title:
-      try:
-        p.title
-        if fnmatch.fnmatch(p.title, title):
-          children.append(p)
-      except AttributeError:
-        pass
-    elif className:
-      try:
-        p.className()
-        if fnmatch.fnmatch(p.className(), className):
-          children.append(p)
-      except AttributeError:
-        pass
   return children
+
+def findChild(widget, name):
+  """
+  Convenience method to access a widget by its ``name``.
+  A ``RuntimeError`` exception is raised if the widget with the
+  given ``name`` does not exist.
+  """
+  errorMessage = "Widget named " + str(name) + " does not exists."
+  child = None
+  try:
+    child = findChildren(widget, name=name)[0]
+    if not child:
+      raise RuntimeError(errorMessage)
+  except IndexError:
+    raise RuntimeError(errorMessage)
+  return child
+
+def loadUI(path):
+  """ Load UI file ``path`` and return the corresponding widget.
+  Raises a ``RuntimeError`` exception if the UI file is not found or if no
+  widget was instantiated.
+  """
+  import qt
+  qfile = qt.QFile(path)
+  qfile.open(qt.QFile.ReadOnly)
+  loader = qt.QUiLoader()
+  widget = loader.load(qfile)
+  if not widget:
+    errorMessage = "Could not load UI file: " + str(path) + "\n\n"
+    raise RuntimeError(errorMessage)
+  return widget
+
+def setSliceViewerLayers(background=None, foreground=None, label=None,
+                         foregroundOpacity=None, labelOpacity=None):
+  """ Set the slice views with the given nodes.
+  :param background: node or node ID to be used for the background layer
+  :param foreground: node or node ID to be used for the foreground layer
+  :param label: node or node ID to be used for the label layer
+  :param foregroundOpacity: opacity of the foreground layer
+  :param labelOpacity: opacity of the label layer
+  """
+  import slicer
+  def _nodeID(nodeOrID):
+    nodeID = nodeOrID
+    if isinstance(nodeOrID, slicer.vtkMRMLNode):
+      nodeID = nodeOrID.GetID()
+    return nodeID
+
+  num = slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLSliceCompositeNode')
+  for i in range(num):
+      sliceViewer = slicer.mrmlScene.GetNthNodeByClass(i, 'vtkMRMLSliceCompositeNode')
+      if background is not None:
+          sliceViewer.SetBackgroundVolumeID(_nodeID(background))
+      if foreground is not None:
+          sliceViewer.SetForegroundVolumeID(_nodeID(foreground))
+      if foregroundOpacity is not None:
+          sliceViewer.SetForegroundOpacity(foregroundOpacity)
+      if label is not None:
+          sliceViewer.SetLabelVolumeID(_nodeID(label))
+      if labelOpacity is not None:
+          sliceViewer.SetLabelOpacity(labelOpacity)
 
 #
 # IO
@@ -200,6 +299,18 @@ def loadAnnotationFiducial(filename, returnNode=False):
   properties['fiducial'] = 1
   return loadNodeFromFile(filename, filetype, properties, returnNode)
 
+def loadAnnotationRuler(filename, returnNode=False):
+  filetype = 'AnnotationFile'
+  properties = {}
+  properties['ruler'] = 1
+  return loadNodeFromFile(filename, filetype, properties, returnNode)
+
+def loadAnnotationROI(filename, returnNode=False):
+  filetype = 'AnnotationFile'
+  properties = {}
+  properties['roi'] = 1
+  return loadNodeFromFile(filename, filetype, properties, returnNode)
+
 def loadMarkupsFiducialList(filename, returnNode=False):
   filetype = 'MarkupsFiducials'
   properties = {}
@@ -211,6 +322,10 @@ def loadModel(filename, returnNode=False):
 
 def loadScalarOverlay(filename, returnNode=False):
   filetype = 'ScalarOverlayFile'
+  return loadNodeFromFile(filename, filetype, {}, returnNode)
+
+def loadSegmentation(filename, returnNode=False):
+  filetype = 'SegmentationFile'
   return loadNodeFromFile(filename, filetype, {}, returnNode)
 
 def loadTransform(filename, returnNode=False):
@@ -245,6 +360,10 @@ def openAddModelDialog():
 def openAddScalarOverlayDialog():
   from slicer import app
   return app.coreIOManager().openAddScalarOverlayDialog()
+
+def openAddSegmentationDialog():
+  from slicer import app, qSlicerFileDialog
+  return app.coreIOManager().openDialog('SegmentationFile', qSlicerFileDialog.Read)
 
 def openAddTransformDialog():
   from slicer import app
@@ -436,43 +555,78 @@ def resetSliceViews():
 # MRML
 #
 
-def getNodes(pattern = "", scene=None):
-    """Return a dictionary of nodes where the name or id matches the 'pattern'.
-    Providing an empty 'pattern' string will return all nodes.
-    """
-    import slicer, fnmatch
-    nodes = {}
-    if scene is None:
-      scene = slicer.mrmlScene
-    count = scene.GetNumberOfNodes()
-    for idx in range(count):
-      node = scene.GetNthNode(idx)
-      name = node.GetName()
-      id = node.GetID()
-      if fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(id, pattern):
+def getNodes(pattern="*", scene=None, useLists=False):
+  """Return a dictionary of nodes where the name or id matches the ``pattern``.
+  By default, ``pattern`` is a wildcard and it returns all nodes associated
+  with ``slicer.mrmlScene``.
+  If multiple node share the same name, using ``useLists=False`` (default behavior)
+  returns only the last node with that name. If ``useLists=True``, it returns
+  a dictionary of lists of nodes.
+  """
+  import slicer, collections, fnmatch
+  nodes = collections.OrderedDict()
+  if scene is None:
+    scene = slicer.mrmlScene
+  count = scene.GetNumberOfNodes()
+  for idx in range(count):
+    node = scene.GetNthNode(idx)
+    name = node.GetName()
+    id = node.GetID()
+    if (fnmatch.fnmatchcase(name, pattern) or
+        fnmatch.fnmatchcase(id, pattern)):
+      if useLists:
+        nodes.setdefault(node.GetName(), []).append(node)
+      else:
         nodes[node.GetName()] = node
-    return nodes
+  return nodes
 
-def getNode(pattern = "", index = 0, scene=None):
-    """Return the indexth node where name or id matches 'pattern'.
-    Providing an empty 'pattern' string will return all nodes.
-    """
-    nodes = getNodes(pattern, scene)
-    try:
-      if nodes.keys():
-        return nodes.values()[index]
-    except IndexError:
-      return None
+def getNode(pattern="*", index=0, scene=None):
+  """Return the indexth node where name or id matches ``pattern``.
+  By default, ``pattern`` is a wildcard and it returns the first node
+  associated with ``slicer.mrmlScene``.
+  """
+  nodes = getNodes(pattern, scene)
+  try:
+    return nodes.values()[index]
+  except IndexError:
+    return None
 
-def getFirstNodeByClassByName(className, name, scene=None):
+def getNodesByClass(className, scene=None):
+  """Return all nodes in the scene of the specified class.
+  """
   import slicer
   if scene is None:
-      scene = slicer.mrmlScene
+    scene = slicer.mrmlScene
+  nodes = slicer.mrmlScene.GetNodesByClass(className)
+  nodes.UnRegister(slicer.mrmlScene)
+  nodeList = []
+  nodes.InitTraversal()
+  node = nodes.GetNextItemAsObject()
+  while node:
+    nodeList.append(node)
+    node = nodes.GetNextItemAsObject()
+  return nodeList
+
+def getFirstNodeByClassByName(className, name, scene=None):
+  """Return the frist node in the scene that matches the specified node name and node class.
+  """
+  import slicer
+  if scene is None:
+    scene = slicer.mrmlScene
   nodes = scene.GetNodesByClassByName(className, name)
   nodes.UnRegister(nodes)
   if nodes.GetNumberOfItems() > 0:
     return nodes.GetItemAsObject(0)
   return None
+
+def getFirstNodeByName(name, className=None):
+  """get the first MRML node that has the given name
+  - use a regular expression to match names post-pended with addition characters
+  - optionally specify a classname that must match
+  """
+  import slicer
+  scene = slicer.mrmlScene
+  return scene.GetFirstNode(name, className, None, False)
 
 class NodeModify:
   """Context manager to conveniently compress mrml node modified event.
@@ -495,11 +649,13 @@ def array(pattern = "", index = 0):
   console for quick debugging/testing.  More specific API should be
   used in scripts to be sure you get exactly what you want.
   """
+  scalarTypes = ('vtkMRMLScalarVolumeNode', 'vtkMRMLLabelMapVolumeNode')
   vectorTypes = ('vtkMRMLVectorVolumeNode', 'vtkMRMLMultiVolumeNode')
   tensorTypes = ('vtkMRMLDiffusionTensorVolumeNode',)
+  pointTypes = ('vtkMRMLModelNode',)
   import vtk.util.numpy_support
   n = getNode(pattern=pattern, index=index)
-  if n.GetClassName() == 'vtkMRMLScalarVolumeNode':
+  if n.GetClassName() in scalarTypes:
     i = n.GetImageData()
     shape = list(n.GetImageData().GetDimensions())
     shape.reverse()
@@ -520,6 +676,10 @@ def array(pattern = "", index = 0):
     shape.reverse()
     a = vtk.util.numpy_support.vtk_to_numpy(i.GetPointData().GetTensors()).reshape(shape+[3,3])
     return a
+  elif n.GetClassName() in pointTypes:
+    p = n.GetPolyData().GetPoints().GetData()
+    a = vtk.util.numpy_support.vtk_to_numpy(p)
+    return a
   # TODO: accessors for other node types: polydata (verts, polys...), colors
 
 
@@ -533,7 +693,7 @@ class VTKObservationMixin(object):
     self.Observations = []
 
   def removeObservers(self, method=None):
-    for o, e, m, g, t in self.Observations:
+    for o, e, m, g, t in list(self.Observations):
       if method == m or method is None:
         o.RemoveObserver(t)
         self.Observations.remove([o, e, m, g, t])
@@ -567,7 +727,34 @@ def toVTKString(str):
   """Convert unicode string into 8-bit encoded ascii string.
   Unicode characters without ascii equivalent will be stripped out.
   """
-  return str.encode('latin1', 'ignore')
+  vtkStr = ""
+  for c in str:
+    try:
+      cc = c.encode("latin1", "ignore")
+    except (UnicodeDecodeError):
+      cc = "?"
+    vtkStr = vtkStr + cc
+  return vtkStr
+
+#
+# File Utlities
+#
+
+def tempDirectory(key='__SlicerTemp__',tempDir=None,includeDateTime=True):
+  """Come up with a unique directory name in the temp dir and make it and return it
+  # TODO: switch to QTemporaryDir in Qt5.
+  Note: this directory is not automatically cleaned up
+  """
+  import qt, slicer
+  if not tempDir:
+    tempDir = qt.QDir(slicer.app.temporaryPath)
+  tempDirName = key
+  if includeDateTime:
+    key += qt.QDateTime().currentDateTime().toString("yyyy-MM-dd_hh+mm+ss.zzz")
+  fileInfo = qt.QFileInfo(qt.QDir(tempDir), tempDirName)
+  dirPath = fileInfo.absoluteFilePath()
+  qt.QDir().mkpath(dirPath)
+  return dirPath
 
 #
 # Misc. Utility methods
@@ -584,7 +771,7 @@ def delayDisplay(message,autoCloseMsec=1000):
   If autoCloseMsec>0 then the window is closed after waiting for autoCloseMsec milliseconds
   If autoCloseMsec=0 then the window is not closed until the user clicks on it.
   """
-  from __main__ import qt, slicer
+  import qt, slicer
   import logging
   logging.info(message)
   messagePopup = qt.QDialog()
@@ -600,20 +787,175 @@ def delayDisplay(message,autoCloseMsec=1000):
     okButton.connect('clicked()', messagePopup.close)
   messagePopup.exec_()
 
-def warningDisplay(message,autoCloseMsec=1000,windowTitle="Slicer warning"):
+def infoDisplay(text, windowTitle="Slicer information", parent=None, standardButtons=None, **kwargs):
+  """Display popup with a info message.
+  """
+  import qt
+  import logging
+  logging.info(text)
+  if mainWindow(verbose=False):
+    standardButtons = standardButtons if standardButtons else qt.QMessageBox.Ok
+    messageBox(text, parent, windowTitle=windowTitle, icon=qt.QMessageBox.Information, standardButtons=standardButtons,
+               **kwargs)
+
+def warningDisplay(text, windowTitle="Slicer warning", parent=None, standardButtons=None, **kwargs):
   """Display popup with a warning message.
   """
-  from __main__ import qt, slicer
+  import qt
   import logging
-  logging.warning(message)
+  logging.warning(text)
   if mainWindow(verbose=False):
-    qt.QMessageBox.warning(slicer.util.mainWindow(), windowTitle, message)
+    standardButtons = standardButtons if standardButtons else qt.QMessageBox.Ok
+    messageBox(text, parent, windowTitle=windowTitle, icon=qt.QMessageBox.Warning, standardButtons=standardButtons,
+               **kwargs)
 
-def errorDisplay(message,autoCloseMsec=1000,windowTitle="Slicer error"):
+def errorDisplay(text, windowTitle="Slicer error", parent=None, standardButtons=None, **kwargs):
   """Display an error popup.
   """
-  from __main__ import qt, slicer
+  import qt
   import logging
-  logging.error(message)
+  logging.error(text)
   if mainWindow(verbose=False):
-    qt.QMessageBox.critical(slicer.util.mainWindow(), windowTitle, message)
+    standardButtons = standardButtons if standardButtons else qt.QMessageBox.Ok
+    messageBox(text, parent, windowTitle=windowTitle, icon=qt.QMessageBox.Critical, standardButtons=standardButtons,
+               **kwargs)
+
+def confirmOkCancelDisplay(text, windowTitle="Slicer confirmation", parent=None, **kwargs):
+  """Display an confirmation popup. Return if confirmed with OK.
+  """
+  import qt
+  result = messageBox(text, parent=parent, windowTitle=windowTitle, icon=qt.QMessageBox.Question,
+                       standardButtons=qt.QMessageBox.Ok | qt.QMessageBox.Cancel, **kwargs)
+  return result == qt.QMessageBox.Ok
+
+def confirmYesNoDisplay(text, windowTitle="Slicer confirmation", parent=None, **kwargs):
+  """Display an confirmation popup. Return if confirmed with Yes.
+  """
+  import qt
+  result = messageBox(text, parent=parent, windowTitle=windowTitle, icon=qt.QMessageBox.Question,
+                       standardButtons=qt.QMessageBox.Yes | qt.QMessageBox.No, **kwargs)
+  return result == qt.QMessageBox.Yes
+
+def confirmRetryCloseDisplay(text, windowTitle="Slicer error", parent=None, **kwargs):
+  """Display an confirmation popup. Return if confirmed with Retry.
+  """
+  import qt
+  result = messageBox(text, parent=parent, windowTitle=windowTitle, icon=qt.QMessageBox.Critical,
+                       standardButtons=qt.QMessageBox.Retry | qt.QMessageBox.Close, **kwargs)
+  return result == qt.QMessageBox.Retry
+
+def messageBox(text, parent=None, **kwargs):
+  import qt
+  mbox = qt.QMessageBox(parent if parent else mainWindow())
+  mbox.text = text
+  for key, value in kwargs.iteritems():
+    if hasattr(mbox, key):
+      setattr(mbox, key, value)
+  return mbox.exec_()
+
+def createProgressDialog(parent=None, value=0, maximum=100, labelText="", windowTitle="Processing...", **kwargs):
+  """Display a modal QProgressDialog. Go to QProgressDialog documentation
+  http://pyqt.sourceforge.net/Docs/PyQt4/qprogressdialog.html for more keyword arguments, that could be used.
+  E.g. progressbar = createProgressIndicator(autoClose=False) if you don't want the progress dialog to automatically
+  close.
+  Updating progress value with progressbar.value = 50
+  Updating label text with progressbar.labelText = "processing XYZ"
+  """
+  import qt
+  progressIndicator = qt.QProgressDialog(parent if parent else mainWindow())
+  progressIndicator.minimumDuration = 0
+  progressIndicator.maximum = maximum
+  progressIndicator.value = value
+  progressIndicator.windowTitle = windowTitle
+  progressIndicator.labelText = labelText
+  for key, value in kwargs.iteritems():
+    if hasattr(progressIndicator, key):
+      setattr(progressIndicator, key, value)
+  return progressIndicator
+
+def toBool(value):
+  """Convert any type of value to a boolean.
+  The function uses the following heuristic:
+  1) If the value can be converted to an integer, the integer is then
+  converted to a boolean.
+  2) If the value is a string, return True if it is equal to 'true'. False otherwise.
+  Note that the comparison is case insensitive.
+  3) If the value is neither an integer or a string, the bool() function is applied.
+
+  >>> [toBool(x) for x in range(-2, 2)]
+  [True, True, False, True]
+  >>> [toBool(x) for x in ['-2', '-1', '0', '1', '2', 'Hello']]
+  [True, True, False, True, True, False]
+  >>> toBool(object())
+  True
+  >>> toBool(None)
+  False
+  """
+  try:
+    return bool(int(value))
+  except (ValueError, TypeError):
+    return value.lower() in ['true'] if isinstance(value, basestring) else bool(value)
+
+def settingsValue(key, default, converter=lambda v: v, settings=None):
+  """Return settings value associated with key if it exists or the provided default otherwise.
+  ``settings`` parameter is expected to be a valid ``qt.Settings`` object.
+  """
+  import qt
+  settings = qt.QSettings() if settings is None else settings
+  return converter(settings.value(key)) if settings.contains(key) else default
+
+def clickAndDrag(widget,button='Left',start=(10,10),end=(10,40),steps=20,modifiers=[]):
+  """
+  Send synthetic mouse events to the specified widget (qMRMLSliceWidget or qMRMLThreeDView)
+  button : "Left", "Middle", "Right", or "None"
+  start, end : window coordinates for action
+  steps : number of steps to move in, if <2 then mouse jumps to the end position
+  modifiers : list containing zero or more of "Shift" or "Control"
+
+  Hint: for generating test data you can use this snippet of code:
+
+layoutManager = slicer.app.layoutManager()
+threeDView = layoutManager.threeDWidget(0).threeDView()
+style = threeDView.interactorStyle()
+interactor = style.GetInteractor()
+def onClick(caller,event):
+    print(interactor.GetEventPosition())
+
+interactor.AddObserver(vtk.vtkCommand.LeftButtonPressEvent, onClick)
+
+  """
+  style = widget.interactorStyle()
+  interactor = style.GetInteractor()
+  if button == 'Left':
+    down = interactor.LeftButtonPressEvent
+    up = interactor.LeftButtonReleaseEvent
+  elif button == 'Right':
+    down = interactor.RightButtonPressEvent
+    up = interactor.RightButtonReleaseEvent
+  elif button == 'Middle':
+    down = interactor.MiddleButtonPressEvent
+    up = interactor.MiddleButtonReleaseEvent
+  elif button == 'None' or not button:
+    down = lambda : None
+    up = lambda : None
+  else:
+    raise Exception("Bad button - should be Left or Right, not %s" % button)
+  if 'Shift' in modifiers:
+    interactor.SetShiftKey(1)
+  if 'Control' in modifiers:
+    interactor.SetControlKey(1)
+  interactor.SetEventPosition(*start)
+  down()
+  if (steps<2):
+    interactor.SetEventPosition(end[0], end[1])
+    interactor.MouseMoveEvent()
+  else:
+    for step in xrange(steps):
+      frac = float(step)/(steps-1)
+      x = int(start[0] + frac*(end[0]-start[0]))
+      y = int(start[1] + frac*(end[1]-start[1]))
+      interactor.SetEventPosition(x,y)
+      interactor.MouseMoveEvent()
+  up()
+  interactor.SetShiftKey(0)
+  interactor.SetControlKey(0)

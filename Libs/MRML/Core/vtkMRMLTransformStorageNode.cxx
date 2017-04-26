@@ -37,6 +37,7 @@ vtkMRMLNodeNewMacro(vtkMRMLTransformStorageNode);
 vtkMRMLTransformStorageNode::vtkMRMLTransformStorageNode()
 {
   this->PreferITKv3CompatibleTransforms = 0;
+  this->DefaultWriteFileExtension = "h5";
   vtkITKTransformConverter::RegisterInverseTransformTypes();
 }
 
@@ -49,8 +50,8 @@ vtkMRMLTransformStorageNode::~vtkMRMLTransformStorageNode()
 void vtkMRMLTransformStorageNode::WriteXML(ostream& of, int nIndent)
 {
   Superclass::WriteXML(of, nIndent);
-  vtkIndent indent(nIndent);
-  of << indent << " preferITKv3CompatibleTransforms=\"" << (this->PreferITKv3CompatibleTransforms ? "true" : "false") << "\"";
+
+  of << " preferITKv3CompatibleTransforms=\"" << (this->PreferITKv3CompatibleTransforms ? "true" : "false") << "\"";
 }
 
 //----------------------------------------------------------------------------
@@ -119,6 +120,10 @@ bool vtkMRMLTransformStorageNode::CanReadInReferenceNode(vtkMRMLNode *refNode)
 //----------------------------------------------------------------------------
 int vtkMRMLTransformStorageNode::ReadFromITKv3BSplineTransformFile(vtkMRMLNode *refNode)
 {
+  typedef itk::TransformFileReaderTemplate<double> TransformReaderType;
+  typedef TransformReaderType::TransformListType TransformListType;
+  typedef TransformReaderType::TransformType TransformType;
+
   vtkMRMLTransformNode *transformNode = vtkMRMLTransformNode::SafeDownCast(refNode);
   if (transformNode==NULL)
     {
@@ -179,7 +184,7 @@ int vtkMRMLTransformStorageNode::ReadFromITKv3BSplineTransformFile(vtkMRMLNode *
     }
 
   vtkNew<vtkOrientedBSplineTransform> bsplineVtk;
-  if (!vtkITKTransformConverter::SetVTKBSplineFromITKv3(this, bsplineVtk.GetPointer(), transform, transform2))
+  if (!vtkITKTransformConverter::SetVTKBSplineFromITKv3Generic<double>(this, bsplineVtk.GetPointer(), transform, transform2))
     {
     // Log only at debug level because trial-and-error method is used for finding out what node can be retrieved
     // from a transform file
@@ -211,9 +216,9 @@ int vtkMRMLTransformStorageNode::ReadFromImageFile(vtkMRMLNode *refNode)
     return 0;
     }
 
-  GridImageType::Pointer gridImage_Lps = 0;
+  GridImageDoubleType::Pointer gridImage_Lps = 0;
 
-  typedef itk::ImageFileReader< GridImageType >  ReaderType;
+  typedef itk::ImageFileReader< GridImageDoubleType >  ReaderType;
   std::string fullName =  this->GetFullNameFromFileName();
   ReaderType::Pointer reader = ReaderType::New();
   reader->SetFileName( fullName );
@@ -246,7 +251,8 @@ int vtkMRMLTransformStorageNode::ReadFromImageFile(vtkMRMLNode *refNode)
     }
 
   vtkNew<vtkOrientedGridTransform> gridTransform_Ras;
-  vtkITKTransformConverter::SetVTKOrientedGridTransformFromITKImage(this, gridTransform_Ras.GetPointer(), gridImage_Lps);
+  vtkITKTransformConverter::SetVTKOrientedGridTransformFromITKImage<double>(
+        this, gridTransform_Ras.GetPointer(), gridImage_Lps);
 
   // Backward compatibility
   if (tn->GetReadAsTransformToParent())
@@ -263,6 +269,120 @@ int vtkMRMLTransformStorageNode::ReadFromImageFile(vtkMRMLNode *refNode)
 }
 
 //----------------------------------------------------------------------------
+template<typename T>
+vtkAbstractTransform* ReadFromTransformFile(vtkObject* loggerObject, const std::string& fullName)
+{
+  typedef itk::TransformFileReaderTemplate<T> TransformReaderType;
+  typedef typename TransformReaderType::TransformListType TransformListType;
+  typedef typename TransformReaderType::TransformType TransformType;
+
+  typename TransformReaderType::Pointer reader = TransformReaderType::New();
+  reader->SetFileName( fullName );
+  try
+    {
+    reader->Update();
+    }
+  catch (itk::ExceptionObject &exc)
+    {
+    vtkErrorWithObjectMacro(loggerObject, "ITK exception caught reading transform file: "<< fullName.c_str() << "\n" << exc);
+    return 0;
+    }
+  catch (...)
+    {
+    vtkErrorWithObjectMacro(loggerObject, "Unknown exception caught while reading transform file: "<< fullName.c_str());
+    return 0;
+    }
+
+  TransformListType *transforms = reader->GetTransformList();
+  if (transforms==NULL || transforms->empty())
+    {
+    vtkErrorWithObjectMacro(loggerObject, "Transforms not found in transform file: "<< fullName.c_str());
+    return 0;
+    }
+  if (transforms->size()>1)
+    {
+    // When a list of transforms is stored in a file then there is no rule how to interpret them.
+    // It is not necessarily a compositing, for example: in ITKv3 the list was used to store additive
+    // bulk transform for BSpline deformable transform. Therefore, if the file contains a transform list
+    // then we do not interpret it as a composite/ transform.
+    vtkErrorWithObjectMacro(loggerObject, "Multiple transforms are defined in the transform file but only one is allowed (composite transforms has to be stored as a single CompositeTransform). In file: "<< fullName.c_str());
+    return 0;
+    }
+  TransformType *firstTransform = transforms->front();
+  if (firstTransform==NULL)
+    {
+    vtkErrorWithObjectMacro(loggerObject, "Transforms not found in transform file: "<< fullName.c_str());
+    return 0;
+    }
+
+  vtkSmartPointer<vtkAbstractTransform> transformVtk;
+  std::string firstTransformType = firstTransform->GetTransformTypeAsString();
+  if( firstTransformType.find("CompositeTransform") == std::string::npos )
+    {
+    // just a single transform
+    transformVtk = vtkSmartPointer<vtkAbstractTransform>::Take(
+          vtkITKTransformConverter::CreateVTKTransformFromITK<T>(loggerObject, firstTransform));
+    }
+  else
+    {
+    typedef itk::CompositeTransformIOHelperTemplate<T> CompositeTransformIOHelper;
+
+    // The composite transform is itself a list of transforms.  There is a
+    // helper class in ITK to convert the internal transform list into a
+    // list that is possible to iterate over.  So we get this transformList.
+    CompositeTransformIOHelper compositeTransformIOHelper;
+
+    // if the first transform in the list is a
+    // composite transform, use its internal list
+    // instead of the IO
+    typedef typename CompositeTransformIOHelper::ConstTransformListType ConstTransformListType;
+    ConstTransformListType transformList =
+      compositeTransformIOHelper.GetTransformList(firstTransform);
+
+    if (transformList.empty())
+      {
+      // Log only at debug level because trial-and-error method is used for finding out
+      // what node can be retrieved from a transform file
+      vtkDebugWithObjectMacro(loggerObject, "Failed to retrieve any transform transform from file: "<< fullName.c_str());
+      return 0;
+      }
+
+    typename ConstTransformListType::const_iterator end = transformList.end();
+    if (transformList.size()==1)
+      {
+      // there is only one single transform, so we create a specific VTK transform type instead of a general transform
+      typename TransformType::Pointer transformComponentItk = const_cast< TransformType* >(transformList.front().GetPointer());
+      transformVtk = vtkSmartPointer<vtkAbstractTransform>::Take(
+            vtkITKTransformConverter::CreateVTKTransformFromITK<T>(loggerObject, transformComponentItk));
+      }
+    else
+      {
+      // we have multiple transforms, so we create a general transform that can hold a list of transforms
+      vtkNew<vtkGeneralTransform> generalTransform;
+      //generalTransform->PostMultiply();
+      for( typename ConstTransformListType::const_iterator it = transformList.begin();
+        it != end; ++it )
+        {
+        typename TransformType::Pointer transformComponentItk = const_cast< TransformType* >((*it).GetPointer());
+        vtkAbstractTransform* transformComponent = vtkITKTransformConverter::CreateVTKTransformFromITK<T>(loggerObject, transformComponentItk);
+        if (transformComponent!=NULL)
+          {
+          generalTransform->Concatenate(transformComponent);
+          transformComponent->Delete();
+          }
+        }
+      transformVtk = generalTransform.GetPointer();
+      }
+    }
+
+  if (transformVtk)
+    {
+    transformVtk->Register(NULL);
+    }
+  return transformVtk;
+}
+
+//----------------------------------------------------------------------------
 int vtkMRMLTransformStorageNode::ReadFromTransformFile(vtkMRMLNode *refNode)
 {
   vtkMRMLTransformNode *transformNode = vtkMRMLTransformNode::SafeDownCast(refNode);
@@ -272,100 +392,17 @@ int vtkMRMLTransformStorageNode::ReadFromTransformFile(vtkMRMLNode *refNode)
     return 0;
     }
 
-  TransformReaderType::Pointer reader = TransformReaderType::New();
-  std::string fullName =  this->GetFullNameFromFileName();
-  reader->SetFileName( fullName );
-  try
-    {
-    reader->Update();
-    }
-  catch (itk::ExceptionObject &exc)
-    {
-    vtkErrorMacro("ITK exception caught reading transform file: "<< fullName.c_str() << "\n" << exc);
-    return 0;
-    }
-  catch (...)
-    {
-    vtkErrorMacro("Unknown exception caught while reading transform file: "<< fullName.c_str());
-    return 0;
-    }
-
-  TransformListType *transforms = reader->GetTransformList();
-  if (transforms==NULL || transforms->empty())
-    {
-    vtkErrorMacro("Transforms not found in transform file: "<< fullName.c_str());
-    return 0;
-    }
-  if (transforms->size()>1)
-    {
-    // When a list of transforms is stored in a file then there is no rule how to interpret them.
-    // It is not necessarily a compositing, for example: in ITKv3 the list was used to store additive
-    // bulk transform for BSpline deformable transform. Therefore, if the file contains a transform list
-    // then we do not interpret it as a composite/ transform.
-    vtkErrorMacro("Multiple transforms are defined in the transform file but only one is allowed (composite transforms has to be stored as a single CompositeTransform). In file: "<< fullName.c_str());
-    return 0;
-    }
-  TransformType *firstTransform = transforms->front();
-  if (firstTransform==NULL)
-    {
-    vtkErrorMacro("Transforms not found in transform file: "<< fullName.c_str());
-    return 0;
-    }
+  std::string fullName = this->GetFullNameFromFileName();
 
   vtkSmartPointer<vtkAbstractTransform> transformVtk;
-  std::string firstTransformType = firstTransform->GetTransformTypeAsString();
-  if( firstTransformType.find("CompositeTransform") == std::string::npos )
+
+  transformVtk = vtkSmartPointer<vtkAbstractTransform>::Take(
+        ::ReadFromTransformFile<double>(this, fullName));
+
+  if (transformVtk.GetPointer()==NULL)
     {
-    // just a single transform
-    transformVtk = vtkSmartPointer<vtkAbstractTransform>::Take(vtkITKTransformConverter::CreateVTKTransformFromITK(this, firstTransform));
-    }
-  else
-    {
-    // The composite transform is itself a list of transforms.  There is a
-    // helper class in ITK to convert the internal transform list into a
-    // list that is possible to iterate over.  So we get this transformList.
-    itk::CompositeTransformIOHelper compositeTransformIOHelper;
-
-    // if the first transform in the list is a
-    // composite transform, use its internal list
-    // instead of the IO
-    typedef itk::CompositeTransformIOHelper::ConstTransformListType ConstTransformListType;
-    ConstTransformListType transformList =
-      compositeTransformIOHelper.GetTransformList(firstTransform);
-
-    if (transformList.empty())
-      {
-      // Log only at debug level because trial-and-error method is used for finding out
-      // what node can be retrieved from a transform file
-      vtkDebugMacro("Failed to retrieve any transform transform from file: "<< fullName.c_str());
-      return 0;
-      }
-
-    ConstTransformListType::const_iterator end = transformList.end();
-    if (transformList.size()==1)
-      {
-      // there is only one single transform, so we create a specific VTK transform type instead of a general transform
-      TransformType::Pointer transformComponentItk = const_cast< TransformType* >(transformList.front().GetPointer());
-      transformVtk = vtkSmartPointer<vtkAbstractTransform>::Take(vtkITKTransformConverter::CreateVTKTransformFromITK(this, transformComponentItk));
-      }
-    else
-      {
-      // we have multiple transforms, so we create a general transform that can hold a list of transforms
-      vtkNew<vtkGeneralTransform> generalTransform;
-      //generalTransform->PostMultiply();
-      for( ConstTransformListType::const_iterator it = transformList.begin();
-        it != end; ++it )
-        {
-        TransformType::Pointer transformComponentItk = const_cast< TransformType* >((*it).GetPointer());
-        vtkAbstractTransform* transformComponent = vtkITKTransformConverter::CreateVTKTransformFromITK(this, transformComponentItk);
-        if (transformComponent!=NULL)
-          {
-          generalTransform->Concatenate(transformComponent);
-          transformComponent->Delete();
-          }
-        }
-      transformVtk = generalTransform.GetPointer();
-      }
+    transformVtk = vtkSmartPointer<vtkAbstractTransform>::Take(
+          ::ReadFromTransformFile<float>(this, fullName));
     }
 
   if (transformVtk.GetPointer()==NULL)
@@ -441,7 +478,10 @@ int vtkMRMLTransformStorageNode::WriteToTransformFile(vtkMRMLNode *refNode)
 
   // Convert VTK transform to ITK transform
   itk::Object::Pointer secondaryTransformItk; // only used for ITKv3 compatibility
-  itk::Object::Pointer transformItk = vtkITKTransformConverter::CreateITKTransformFromVTK(this, transformVtk, secondaryTransformItk, this->PreferITKv3CompatibleTransforms);
+  // ITK transform is created without initialization, because initialization may take a long time for certain transform types
+  // which would slow down saving. Initialization is only needed for computing transformations, not necessary for file writing.
+  itk::Object::Pointer transformItk = vtkITKTransformConverter::CreateITKTransformFromVTK(
+    this, transformVtk, secondaryTransformItk, this->PreferITKv3CompatibleTransforms, false);
   if (transformItk.IsNull())
     {
     vtkErrorMacro("WriteTransform failed: cannot to convert VTK transform to ITK transform");
@@ -504,10 +544,10 @@ int vtkMRMLTransformStorageNode::WriteToImageFile(vtkMRMLNode *refNode)
     return 0;
     }
 
-  GridImageType::Pointer gridImage_Lps;
+  GridImageDoubleType::Pointer gridImage_Lps;
   vtkITKTransformConverter::SetITKImageFromVTKOrientedGridTransform(this, gridImage_Lps, gridTransform_Ras);
 
-  itk::ImageFileWriter<GridImageType>::Pointer writer = itk::ImageFileWriter<GridImageType>::New();
+  itk::ImageFileWriter<GridImageDoubleType>::Pointer writer = itk::ImageFileWriter<GridImageDoubleType>::New();
   writer->SetInput( gridImage_Lps );
   std::string fullName =  this->GetFullNameFromFileName();
   writer->SetFileName( fullName );
@@ -572,40 +612,24 @@ void vtkMRMLTransformStorageNode::InitializeSupportedWriteFileTypes()
   this->SupportedWriteFileTypes->InsertNextValue("Displacement field (.nii)");
   this->SupportedWriteFileTypes->InsertNextValue("Displacement field (.nii.gz)");
 }
-//----------------------------------------------------------------------------
-const char* vtkMRMLTransformStorageNode::GetDefaultWriteFileExtension()
-{
-  return "h5";
-}
 
 //----------------------------------------------------------------------------
 bool vtkMRMLTransformStorageNode::IsImageFile(const std::string &filename)
 {
   // determine file type
-  std::string extension = vtkMRMLStorageNode::GetLowercaseExtensionFromFileName(filename);
+  std::string extension = this->GetSupportedFileExtension(filename.c_str());
   if( extension.empty() )
     {
     vtkErrorMacro("ReadData: no file extension specified: " << filename.c_str());
     return false;
     }
-
   if ( !extension.compare(".nrrd")
       || !extension.compare(".nhdr")
       || !extension.compare(".mha")
       || !extension.compare(".mhd")
-      || !extension.compare(".nii") )
+      || !extension.compare(".nii")
+      || !extension.compare(".nii.gz"))
     {
-    return true;
-    }
-
-  // extension may contain only the last extension, which is not enough if we want to detect .nii.gz,
-  // so handle that case separately here
-  std::string filenameLowercase = vtksys::SystemTools::LowerCase(filename);
-  std::string ending=".nii.gz";
-  if (filenameLowercase.length() > ending.length()
-      && (0 == filenameLowercase.compare (filenameLowercase.length() - ending.length(), ending.length(), ending)) )
-    {
-    // filename ends with .nii.gz
     return true;
     }
 

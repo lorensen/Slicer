@@ -21,8 +21,6 @@
 // Qt includes
 #include <QFileInfo>
 
-// CTK includes
-
 // PythonQt includes
 #include <PythonQt.h>
 
@@ -33,11 +31,8 @@
 #include "qSlicerScriptedLoadableModuleWidget.h"
 #include "qSlicerScriptedFileDialog.h"
 #include "qSlicerScriptedFileWriter.h"
+#include "qSlicerScriptedUtils_p.h"
 #include "vtkSlicerScriptedLoadableModuleLogic.h"
-
-// VTK includes
-
-// Python includes
 
 //-----------------------------------------------------------------------------
 class qSlicerScriptedLoadableModulePrivate
@@ -50,6 +45,7 @@ public:
   QString Title;
   QStringList Categories;
   QStringList Contributors;
+  QStringList AssociatedNodeTypes;
   QStringList Dependencies;
   QString HelpText;
   QString AcknowledgementText;
@@ -62,49 +58,26 @@ public:
     SetupMethod = 0
     };
 
-  static int          APIMethodCount;
-  static const char * APIMethodNames[1];
+  mutable qSlicerPythonCppAPI PythonCppAPI;
 
-  PyObject*  PythonAPIMethods[1];
-  PyObject * PythonSelf;
   QString    PythonSource;
 };
 
 //-----------------------------------------------------------------------------
 // qSlicerScriptedLoadableModulePrivate methods
 
-//---------------------------------------------------------------------------
-int qSlicerScriptedLoadableModulePrivate::APIMethodCount = 1;
-
-//---------------------------------------------------------------------------
-const char* qSlicerScriptedLoadableModulePrivate::APIMethodNames[1] =
-{
-  "setup"
-};
-
 //-----------------------------------------------------------------------------
 qSlicerScriptedLoadableModulePrivate::qSlicerScriptedLoadableModulePrivate()
 {
-  this->PythonSelf = 0;
   this->Hidden = false;
   this->Index = -1;
-  for (int i = 0; i < Self::APIMethodCount; ++i)
-    {
-    this->PythonAPIMethods[i] = 0;
-    }
+
+  this->PythonCppAPI.declareMethod(Self::SetupMethod, "setup");
 }
 
 //-----------------------------------------------------------------------------
 qSlicerScriptedLoadableModulePrivate::~qSlicerScriptedLoadableModulePrivate()
 {
-  if (this->PythonSelf)
-    {
-    for (int i = 0; i < Self::APIMethodCount; ++i)
-      {
-      Py_XDECREF(this->PythonAPIMethods[i]);
-      }
-    Py_DECREF(this->PythonSelf);
-    }
 }
 
 
@@ -131,6 +104,7 @@ QString qSlicerScriptedLoadableModule::pythonSource()const
   Q_D(const qSlicerScriptedLoadableModule);
   return d->PythonSource;
 }
+
 //-----------------------------------------------------------------------------
 bool qSlicerScriptedLoadableModule::setPythonSource(const QString& newPythonSource)
 {
@@ -154,32 +128,27 @@ bool qSlicerScriptedLoadableModule::setPythonSource(const QString& newPythonSour
   PyObject * main_module = PyImport_AddModule("__main__");
   PyObject * global_dict = PyModule_GetDict(main_module);
 
-  // Load class definition if needed
-  PyObject * classToInstantiate = PyDict_GetItemString(global_dict, className.toLatin1());
+  // Get a reference (or create if needed) the <moduleName> python module
+  PyObject * module = PyImport_AddModule(moduleName.toLatin1());
+
+  // Get a reference to the python module class to instantiate
+  PythonQtObjectPtr classToInstantiate;
+  if (module && PyObject_HasAttrString(module, className.toLatin1()))
+    {
+    classToInstantiate.setNewRef(PyObject_GetAttrString(module, className.toLatin1()));
+    }
   if (!classToInstantiate)
     {
-    PyDict_SetItemString(global_dict, "__name__", PyString_FromString(className.toLatin1()));
-    PyObject* pyRes = 0;
-    if (newPythonSource.endsWith(".py"))
+    PythonQtObjectPtr local_dict;
+    local_dict.setNewRef(PyDict_New());
+    if (!qSlicerScriptedUtils::loadSourceAsModule(moduleName, newPythonSource, global_dict, local_dict))
       {
-      pyRes = PyRun_String(QString("execfile('%1')").arg(newPythonSource).toLatin1(),
-                           Py_file_input, global_dict, global_dict);
-      }
-    else if (newPythonSource.endsWith(".pyc"))
-      {
-      pyRes = PyRun_String(
-            QString("with open('%1', 'rb') as f:import imp;imp.load_module('__main__', f, '%1', ('.pyc', 'rb', 2))").arg(newPythonSource).toLatin1(),
-            Py_file_input, global_dict, global_dict);
-      }
-    if (!pyRes)
-      {
-      PythonQt::self()->handleError();
-      qCritical() << "setPythonSource - Failed to execute file" << newPythonSource << "!";
       return false;
       }
-    Py_DECREF(pyRes);
-    classToInstantiate = PyDict_GetItemString(global_dict, className.toLatin1());
-    PyDict_SetItemString(global_dict, "__name__", PyString_FromString("__main__"));
+    if (PyObject_HasAttrString(module, className.toLatin1()))
+      {
+      classToInstantiate.setNewRef(PyObject_GetAttrString(module, className.toLatin1()));
+      }
     }
 
   if (!classToInstantiate)
@@ -193,62 +162,27 @@ bool qSlicerScriptedLoadableModule::setPythonSource(const QString& newPythonSour
     return false;
     }
 
-  PyObject * wrappedThis = PythonQt::self()->priv()->wrapQObject(this);
-  if (!wrappedThis)
-    {
-    PythonQt::self()->handleError();
-    qCritical() << "qSlicerScriptedLoadableModuleWidget::setPythonSource" << newPythonSource
-        << "- Failed to wrap" << this->metaObject()->className();
-    return false;
-    }
+  d->PythonCppAPI.setObjectName(className);
 
-  PyObject * arguments = PyTuple_New(1);
-  PyTuple_SET_ITEM(arguments, 0, wrappedThis);
-
-  // Attempt to instantiate the associated python class
-  PyObject * self = PyInstance_New(classToInstantiate, arguments, 0);
-  Py_DECREF(arguments);
+  PyObject* self = d->PythonCppAPI.instantiateClass(this, className, classToInstantiate);
   if (!self)
     {
-    PythonQt::self()->handleError();
-    qCritical() << "qSlicerScriptedLoadableModuleWidget::setPythonSource" << newPythonSource
-                << "-  Failed to instantiate scripted pythonqt class" << className << classToInstantiate;
     return false;
-    }
-
-  // Retrieve API methods
-  for (int i = 0; i < Pimpl::APIMethodCount; ++i)
-    {
-    Q_ASSERT(Pimpl::APIMethodNames[i]);
-    if (!PyObject_HasAttrString(self, Pimpl::APIMethodNames[i]))
-      {
-      continue;
-      }
-    PyObject * method = PyObject_GetAttrString(self, Pimpl::APIMethodNames[i]);
-    d->PythonAPIMethods[i] = method;
     }
 
   d->PythonSource = newPythonSource;
-  d->PythonSelf = self;
 
-  QString instanceName = moduleName + QString("Instance");
-
-  PyObject * slicer = PyDict_GetItemString(global_dict, "slicer");
-  if (slicer)
+  if (!qSlicerScriptedUtils::setModuleAttribute(
+        "slicer.modules", moduleName + "Instance", self))
     {
-    PyObject * slicerModules = PyObject_GetAttrString(slicer, "modules");
-    if (slicerModules)
-      {
-      PyObject_SetAttrString(slicerModules, instanceName.toLatin1(), self);
-      }
-    else
-      {
-      qCritical() << "Could not access slicer.modules module";
-      }
+    qCritical() << "Failed to set" << ("slicer.modules." + moduleName + "Instance");
     }
-  else
+
+  // Check if there is module widget class
+  QString widgetClassName = className + "Widget";
+  if (!PyObject_HasAttrString(module, widgetClassName.toLatin1()))
     {
-    qCritical() << "Could not access slicer module";
+    this->setWidgetRepresentationCreationEnabled(false);
     }
 
   return true;
@@ -260,14 +194,7 @@ void qSlicerScriptedLoadableModule::setup()
   Q_D(qSlicerScriptedLoadableModule);
   this->registerFileDialog();
   this->registerIO();
-  PyObject * method = d->PythonAPIMethods[Pimpl::SetupMethod];
-  if (!method)
-    {
-    return;
-    }
-  PythonQt::self()->clearError();
-  PyObject_CallObject(method, 0);
-  PythonQt::self()->handleError();
+  d->PythonCppAPI.callMethod(Pimpl::SetupMethod);
 }
 
 //-----------------------------------------------------------------------------
@@ -304,6 +231,11 @@ void qSlicerScriptedLoadableModule::registerIO()
 qSlicerAbstractModuleRepresentation* qSlicerScriptedLoadableModule::createWidgetRepresentation()
 {
   Q_D(qSlicerScriptedLoadableModule);
+
+  if (!this->isWidgetRepresentationCreationEnabled())
+    {
+    return 0;
+    }
 
   QScopedPointer<qSlicerScriptedLoadableModuleWidget> widget(new qSlicerScriptedLoadableModuleWidget);
   bool ret = widget->setPythonSource(d->PythonSource);
@@ -343,6 +275,10 @@ CTK_GET_CPP(qSlicerScriptedLoadableModule, QStringList, categories, Categories)
 //-----------------------------------------------------------------------------
 CTK_SET_CPP(qSlicerScriptedLoadableModule, const QStringList&, setContributors, Contributors)
 CTK_GET_CPP(qSlicerScriptedLoadableModule, QStringList, contributors, Contributors)
+
+//-----------------------------------------------------------------------------
+CTK_SET_CPP(qSlicerScriptedLoadableModule, const QStringList&, setAssociatedNodeTypes, AssociatedNodeTypes)
+CTK_GET_CPP(qSlicerScriptedLoadableModule, QStringList, associatedNodeTypes, AssociatedNodeTypes)
 
 //-----------------------------------------------------------------------------
 CTK_SET_CPP(qSlicerScriptedLoadableModule, const QString&, setHelpText, HelpText)

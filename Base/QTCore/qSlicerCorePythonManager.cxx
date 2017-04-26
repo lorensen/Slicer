@@ -32,6 +32,7 @@
 #include "qSlicerCoreApplication.h"
 #include "qSlicerUtils.h"
 #include "qSlicerCorePythonManager.h"
+#include "qSlicerScriptedUtils_p.h"
 #include "vtkSlicerConfigure.h"
 
 // VTK includes
@@ -100,14 +101,10 @@ QStringList qSlicerCorePythonManager::pythonPaths()
   if (!app->isInstalled())
     {
     // Add here python path specific to the BUILD tree
-#if (VTK_MAJOR_VERSION <= 5)
-      QString vtkLibSubDir("bin");
-#else
 #if defined(Q_WS_WIN)
       QString vtkLibSubDir("bin");
 #else
       QString vtkLibSubDir("lib");
-#endif
 #endif
 #ifdef CMAKE_INTDIR
     paths << VTK_DIR "/" + vtkLibSubDir + "/" CMAKE_INTDIR "/";
@@ -160,30 +157,17 @@ void qSlicerCorePythonManager::preInitialization()
 //-----------------------------------------------------------------------------
 void qSlicerCorePythonManager::addVTKObjectToPythonMain(const QString& name, vtkObject * object)
 {
-  if (name.isNull() || !object)
-    {
-    return;
-    }
   // Split name using '.'
   QStringList moduleNameList = name.split('.', QString::SkipEmptyParts);
 
   // Remove the last part
-  QString varName = moduleNameList.takeLast();
+  QString attributeName = moduleNameList.takeLast();
 
-  PyObject * module = PythonQt::self()->getMainModule();
-
-  // Loop over module name and try to import them one by one
-  foreach(const QString& moduleName, moduleNameList)
-    {
-    module = PyImport_ImportModule(moduleName.toLatin1());
-    Q_ASSERT(module);
-    }
-
-  // Add the object to the imported module
-  int ret = PyModule_AddObject(module, varName.toLatin1(),
-                               vtkPythonUtil::GetObjectFromPointer(object));
-  Q_ASSERT(ret == 0);
-  if (ret != 0)
+  bool success = qSlicerScriptedUtils::setModuleAttribute(
+        moduleNameList.join("."),
+        attributeName,
+        vtkPythonUtil::GetObjectFromPointer(object));
+  if (!success)
     {
     qCritical() << "qSlicerCorePythonManager::addVTKObjectToPythonMain - "
                    "Failed to add VTK object:" << name;

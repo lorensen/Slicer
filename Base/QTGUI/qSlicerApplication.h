@@ -81,7 +81,7 @@ public:
   Q_INVOKABLE ctkErrorLogModel* errorLogModel()const;
 
   /// Get commandOptions
-  Q_INVOKABLE qSlicerCommandOptions* commandOptions();
+  Q_INVOKABLE qSlicerCommandOptions* commandOptions()const;
 
   /// Get IO Manager
   Q_INVOKABLE qSlicerIOManager* ioManager();
@@ -89,7 +89,8 @@ public:
   #ifdef Slicer_USE_PYTHONQT
   /// Get Python Manager
   Q_INVOKABLE qSlicerPythonManager * pythonManager();
-  #endif
+  Q_INVOKABLE ctkPythonConsole * pythonConsole();
+#endif
 
   #ifdef Slicer_USE_QtTesting
   /// Get test utility
@@ -98,7 +99,7 @@ public:
 
   /// Set/Get layout manager
   Q_INVOKABLE qSlicerLayoutManager* layoutManager()const;
-  void setLayoutManager(qSlicerLayoutManager* layoutManager);
+  Q_INVOKABLE void setLayoutManager(qSlicerLayoutManager* layoutManager);
 
   /// Return a pointer on the main window of the application if any.
   QMainWindow* mainWindow()const;
@@ -111,13 +112,29 @@ public:
   /// Enable/Disable tooltips
   void setToolTipsEnabled(bool enable);
 
-  /// Return the best module name for a given node.
-  /// \note qSlicerApplication is a temporary host for the function as it should be
-  /// moved into a DataManager where module can register new node
-  /// types/modules
+  /// Return the module name that is most suitable for editing the specified node.
   QString nodeModule(vtkMRMLNode* node)const;
 
   Q_INVOKABLE ctkSettingsDialog* settingsDialog()const;
+
+  /// Log application information.
+  ///
+  /// This function will log the following
+  /// details:
+  ///   - Session start time
+  ///   - Slicer version
+  ///   - Operating system
+  ///   - Memory
+  ///   - CPU
+  ///   - Developer mode enabled
+  ///   - Prefer executable CLI
+  ///   - Additional module paths
+  ///
+  /// \note Starting the application with `--application-information` will
+  /// also print the information to standard output.
+  ///
+  /// \sa qSlicerCoreCommandOptions::displayApplicationInformation()
+  Q_INVOKABLE virtual void logApplicationInformation() const;
 
 public slots:
 
@@ -142,8 +159,13 @@ public slots:
   /// Paths of recent log files
   QStringList recentLogFiles();
 
+  /// Path of the current log file
+  /// \sa recentLogFiles(), setupFileLogging()
+  QString currentLogFile()const;
+
 protected:
   /// Reimplemented from qSlicerCoreApplication
+  virtual void handlePreApplicationCommandLineArguments();
   virtual void handleCommandLineArguments();
   virtual void onSlicerApplicationLogicModified();
 

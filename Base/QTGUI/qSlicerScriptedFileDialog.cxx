@@ -27,8 +27,7 @@
 
 // SlicerQt includes
 #include "qSlicerScriptedFileDialog.h"
-
-// Python includes
+#include "qSlicerScriptedUtils_p.h"
 
 //-----------------------------------------------------------------------------
 class qSlicerScriptedFileDialogPrivate
@@ -52,27 +51,13 @@ public:
     DropEventMethod,
     };
 
-  static int          APIMethodCount;
-  static const char * APIMethodNames[3];
+  mutable qSlicerPythonCppAPI PythonCppAPI;
 
-  PyObject*  PythonAPIMethods[3];
-  PyObject*  PythonSelf;
   QString    PythonSource;
 };
 
 //-----------------------------------------------------------------------------
 // qSlicerScriptedFileDialogPrivate methods
-
-//---------------------------------------------------------------------------
-int qSlicerScriptedFileDialogPrivate::APIMethodCount = 3;
-
-//---------------------------------------------------------------------------
-const char* qSlicerScriptedFileDialogPrivate::APIMethodNames[3] =
-{
-  "execDialog",
-  "isMimeDataAccepted",
-  "dropEvent"
-};
 
 //-----------------------------------------------------------------------------
 qSlicerScriptedFileDialogPrivate::qSlicerScriptedFileDialogPrivate()
@@ -82,24 +67,14 @@ qSlicerScriptedFileDialogPrivate::qSlicerScriptedFileDialogPrivate()
   this->MimeDataAccepted = false;
   this->DropEvent = 0;
 
-  this->PythonSelf = 0;
-  for (int i = 0; i < Self::APIMethodCount; ++i)
-    {
-    this->PythonAPIMethods[i] = 0;
-    }
+  this->PythonCppAPI.declareMethod(Self::ExecMethod, "execDialog");
+  this->PythonCppAPI.declareMethod(Self::IsMimeDataAcceptedMethod, "isMimeDataAccepted");
+  this->PythonCppAPI.declareMethod(Self::DropEventMethod, "dropEvent");
 }
 
 //-----------------------------------------------------------------------------
 qSlicerScriptedFileDialogPrivate::~qSlicerScriptedFileDialogPrivate()
 {
-  if (this->PythonSelf)
-    {
-    for (int i = 0; i < Self::APIMethodCount; ++i)
-      {
-      Py_XDECREF(this->PythonAPIMethods[i]);
-      }
-    Py_DECREF(this->PythonSelf);
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -125,7 +100,7 @@ QString qSlicerScriptedFileDialog::pythonSource()const
 }
 
 //-----------------------------------------------------------------------------
-bool qSlicerScriptedFileDialog::setPythonSource(const QString& newPythonSource, const QString& className)
+bool qSlicerScriptedFileDialog::setPythonSource(const QString& newPythonSource, const QString& _className)
 {
   Q_D(qSlicerScriptedFileDialog);
 
@@ -140,23 +115,29 @@ bool qSlicerScriptedFileDialog::setPythonSource(const QString& newPythonSource, 
     }
 
   // Extract moduleName from the provided filename
-  QString classNameToLoad = className;
-  if (classNameToLoad.isEmpty())
+  QString moduleName = QFileInfo(newPythonSource).baseName();
+
+  QString className = _className;
+  if (className.isEmpty())
     {
-    QString moduleName = QFileInfo(newPythonSource).baseName();
-    classNameToLoad = moduleName;
+    className = moduleName;
     if (!moduleName.endsWith("FileDialog"))
       {
-      classNameToLoad.append("FileDialog");
+      className.append("FileDialog");
       }
     }
 
-  // Get a reference to the main module and global dictionary
-  PyObject * main_module = PyImport_AddModule("__main__");
-  PyObject * global_dict = PyModule_GetDict(main_module);
+  d->PythonCppAPI.setObjectName(className);
 
-  // Load class definition if needed
-  PyObject * classToInstantiate = PyDict_GetItemString(global_dict, classNameToLoad.toLatin1());
+  // Get a reference (or create if needed) the <moduleName> python module
+  PyObject * module = PyImport_AddModule(moduleName.toLatin1());
+
+  // Get a reference to the python module class to instantiate
+  PythonQtObjectPtr classToInstantiate;
+  if (PyObject_HasAttrString(module, className.toLatin1()))
+    {
+    classToInstantiate.setNewRef(PyObject_GetAttrString(module, className.toLatin1()));
+    }
   if (!classToInstantiate)
     {
     // HACK The file dialog class definition is expected to be available after executing the
@@ -200,44 +181,13 @@ bool qSlicerScriptedFileDialog::setPythonSource(const QString& newPythonSource, 
     return false;
     }
 
-  PyObject * wrappedThis = PythonQt::self()->priv()->wrapQObject(this);
-  if (!wrappedThis)
-    {
-    PythonQt::self()->handleError();
-    qCritical() << "qSlicerScriptedFileDialog::setPythonSource" << newPythonSource
-        << "- Failed to wrap" << this->metaObject()->className();
-    return false;
-    }
-
-  PyObject * arguments = PyTuple_New(1);
-  PyTuple_SET_ITEM(arguments, 0, wrappedThis);
-
-  // Attempt to instantiate the associated python class
-  PyObject * self = PyInstance_New(classToInstantiate, arguments, 0);
-  Py_DECREF(arguments);
+  PyObject* self = d->PythonCppAPI.instantiateClass(this, className, classToInstantiate);
   if (!self)
     {
-    PythonQt::self()->handleError();
-    qCritical() << "qSlicerScriptedFileDialog::setPythonSource" << newPythonSource
-        << " - Failed to instantiate scripted pythonqt class"
-        << classNameToLoad << classToInstantiate;
     return false;
-    }
-
-  // Retrieve API methods
-  for (int i = 0; i < d->APIMethodCount; ++i)
-    {
-    Q_ASSERT(d->APIMethodNames[i]);
-    if (!PyObject_HasAttrString(self, d->APIMethodNames[i]))
-      {
-      continue;
-      }
-    PyObject * method = PyObject_GetAttrString(self, d->APIMethodNames[i]);
-    d->PythonAPIMethods[i] = method;
     }
 
   d->PythonSource = newPythonSource;
-  d->PythonSelf = self;
 
   return true;
 }
@@ -246,7 +196,7 @@ bool qSlicerScriptedFileDialog::setPythonSource(const QString& newPythonSource, 
 PyObject* qSlicerScriptedFileDialog::self() const
 {
   Q_D(const qSlicerScriptedFileDialog);
-  return d->PythonSelf;
+  return d->PythonCppAPI.pythonSelf();
 }
 
 //-----------------------------------------------------------------------------
@@ -254,14 +204,11 @@ bool qSlicerScriptedFileDialog::exec(const qSlicerIO::IOProperties& ioProperties
 {
   Q_D(qSlicerScriptedFileDialog);
   d->Properties = ioProperties;
-  PyObject * method = d->PythonAPIMethods[d->ExecMethod];
-  if (!method)
+  PyObject * result = d->PythonCppAPI.callMethod(d->ExecMethod);
+  if (!result)
     {
     return false;
     }
-  PythonQt::self()->clearError();
-  PyObject_CallObject(method, 0);
-  PythonQt::self()->handleError();
   return true;
 }
 
@@ -271,14 +218,11 @@ bool qSlicerScriptedFileDialog::isMimeDataAccepted(const QMimeData* mimeData)con
   Q_D(const qSlicerScriptedFileDialog);
   d->MimeData = mimeData;
   d->MimeDataAccepted = false;
-  PyObject * method = d->PythonAPIMethods[d->IsMimeDataAcceptedMethod];
-  if (!method)
+  PyObject * result = d->PythonCppAPI.callMethod(d->IsMimeDataAcceptedMethod);
+  if (!result)
     {
-    return d->MimeDataAccepted;
+    return false;
     }
-  PythonQt::self()->clearError();
-  PyObject_CallObject(method, 0);
-  PythonQt::self()->handleError();
   return d->MimeDataAccepted;
 }
 
@@ -288,14 +232,7 @@ void qSlicerScriptedFileDialog::dropEvent(QDropEvent* event)
   Q_D(qSlicerScriptedFileDialog);
   d->DropEvent =  event;
   d->MimeData = event->mimeData();
-  PyObject * method = d->PythonAPIMethods[d->DropEventMethod];
-  if (!method)
-    {
-    return;
-    }
-  PythonQt::self()->clearError();
-  PyObject_CallObject(method, 0);
-  PythonQt::self()->handleError();
+  d->PythonCppAPI.callMethod(d->DropEventMethod);
 }
 
 //-----------------------------------------------------------------------------

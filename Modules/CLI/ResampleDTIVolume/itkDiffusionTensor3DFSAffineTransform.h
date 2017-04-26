@@ -11,8 +11,8 @@
   See License.txt or http://www.slicer.org/copyright/copyright.txt for details.
 
 ==========================================================================*/
-#ifndef __itkDiffusionTensor3DFSAffineTransform_h
-#define __itkDiffusionTensor3DFSAffineTransform_h
+#ifndef itkDiffusionTensor3DFSAffineTransform_h
+#define itkDiffusionTensor3DFSAffineTransform_h
 
 #include "itkDiffusionTensor3DAffineTransform.h"
 #include <vnl/vnl_matrix.h>
@@ -52,8 +52,12 @@ public:
   typedef SmartPointer<const Self>                         ConstPointer;
 
   itkNewMacro(Self);
+
+  /** Run-time type information (and related methods). */
+  itkTypeMacro(DiffusionTensor3DFSAffineTransform, DiffusionTensor3DAffineTransform);
+
 protected:
-  void PreCompute();
+  void PreCompute() ITK_OVERRIDE;
 
 private:
   MatrixTransformType ComputeMatrixSquareRoot( MatrixTransformType matrix );

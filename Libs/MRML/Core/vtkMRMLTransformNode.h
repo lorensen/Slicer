@@ -112,55 +112,116 @@ public:
 
   ///
   /// 1 if all the transforms to the top are linear, 0 otherwise
-  int  IsTransformToWorldLinear() ;
+  int  IsTransformToWorldLinear();
 
   ///
   /// 1 if all the transforms between nodes are linear, 0 otherwise
   int  IsTransformToNodeLinear(vtkMRMLTransformNode* node);
 
   ///
-  /// Get concatenated transforms to the top
+  /// Get concatenated transforms to world.
+  /// \sa GetTransformBetweenNodes
   void GetTransformToWorld(vtkGeneralTransform* transformToWorld);
 
   ///
-  /// Get concatenated transforms from the top
+  /// Get concatenated transforms from world.
+  /// \sa GetTransformBetweenNodes
   void GetTransformFromWorld(vtkGeneralTransform* transformToWorld);
 
   ///
-  /// Get concatenated transforms between nodes
+  /// Get concatenated transforms to the specified node.
+  /// \sa GetTransformBetweenNodes
   void GetTransformToNode(vtkMRMLTransformNode* node,
                           vtkGeneralTransform* transformToNode);
 
   ///
-  /// Get concatenated transforms to the top parent.
+  /// Get concatenated transforms from the specified node.
+  /// \sa GetTransformBetweenNodes
+  void GetTransformFromNode(vtkMRMLTransformNode* node,
+                          vtkGeneralTransform* transformFromNode);
+
+  ///
+  /// Get concatenated transforms from source to target node
+  /// Source and target nodes are allowed to be NULL, which means that transform is the world transform.
+  static void GetTransformBetweenNodes(vtkMRMLTransformNode* sourceNode,
+    vtkMRMLTransformNode* targetNode, vtkGeneralTransform* transformSourceToTarget);
+
+  ///
+  /// Get concatenated transforms to world.
   /// Returns 0 if the transform is not linear (cannot be described by a matrix).
+  /// \sa GetMatrixTransformBetweenNodes
   virtual int GetMatrixTransformToWorld(vtkMatrix4x4* transformToWorld);
 
   ///
-  /// Get concatenated transforms between nodes
+  /// Get concatenated transforms from world.
   /// Returns 0 if the transform is not linear (cannot be described by a matrix).
+  /// \sa GetMatrixTransformBetweenNodes
+  virtual int GetMatrixTransformFromWorld(vtkMatrix4x4* transformFromWorld);
+
+  ///
+  /// Get concatenated transforms to the specified node.
+  /// Returns 0 if the transform is not linear (cannot be described by a matrix).
+  /// \sa GetMatrixTransformBetweenNodes
   virtual int GetMatrixTransformToNode(vtkMRMLTransformNode* node,
                                        vtkMatrix4x4* transformToNode);
+
+  ///
+  /// Get concatenated transforms from the specified node.
+  /// Returns 0 if the transform is not linear (cannot be described by a matrix).
+  /// \sa GetMatrixTransformBetweenNodes
+  virtual int GetMatrixTransformFromNode(vtkMRMLTransformNode* node,
+                                       vtkMatrix4x4* transformFromNode);
+
+  ///
+  /// Get concatenated transforms from source to target node
+  /// Source and target nodes are allowed to be NULL, which means that transform is the world transform.
+  /// Returns 0 if the transform is not linear (cannot be described by a matrix).
+  static int GetMatrixTransformBetweenNodes(vtkMRMLTransformNode* sourceNode,
+    vtkMRMLTransformNode* targetNode, vtkMatrix4x4* transformSourceToTarget);
+
   ///
   /// Returns 1 if this node is one of the node's descendents
+  /// NULL designates the world transform node and so always returns with 1.
   int IsTransformNodeMyParent(vtkMRMLTransformNode* node);
+
+  ///
+  /// Returns 1 if the node is one of the this node's descendents
+  int IsTransformNodeMyChild(vtkMRMLTransformNode* node);
+
+  ///
+  /// Get the first common parent of he current and the target transform node
+  /// If there are no common parents then NULL is returned
+  /// \param targetNode The transform for which the current transform will be determined
+  vtkMRMLTransformNode* GetFirstCommonParent(vtkMRMLTransformNode* targetNode);
 
   ///
   /// Set a new matrix transform of this node to parent node.
   /// Invokes a TransformModified event (does not invoke Modified).
-  /// Returns 0 if the current transform is not linear.
+  /// The method only allows setting or updating an empty or simple
+  /// linear transform.
+  /// Returns nonzero if the transform is successfully updated,
+  /// returns 0 if the transform is non-linear or composite and therefore
+  /// cannot be updated.
+  /// To overwrite a non-linear or composite transform first remove
+  /// the old transform by calling SetAndObserveTransformToParent(NULL)
+  /// and then set the matrix.
+  /// \sa SetMatrixTransformFromParent
   virtual int SetMatrixTransformToParent(vtkMatrix4x4 *matrix);
 
   ///
   /// Set a new matrix transform of this node from parent node.
-  /// Invokes a TransformModified event (does not invoke Modified).
-  /// Returns 0 if the current transform is not linear.
+  /// \sa SetMatrixTransformToParent
   virtual int SetMatrixTransformFromParent(vtkMatrix4x4 *matrix);
 
   ///
-  /// Applies a transformation matrix by multiplying it with the current
-  /// matrix. The resulting transform will be a simple (non-composite)
+  /// Applies a transformation matrix to the current matrix.
+  /// Difference compared to ApplyTransform(): if the current
+  /// transform is a linear then instead of creating a composite
+  /// transform, the current and applicable transform matrices
+  /// are multiplied and stored in a simple (non-composite)
   /// linear transform.
+  /// If the current transformation was non-linear then the method
+  /// is equivalent to ApplyTransform (creates a composite transform).
   virtual void ApplyTransformMatrix(vtkMatrix4x4* transformMatrix);
 
   ///
@@ -174,10 +235,6 @@ public:
   /// Returns 0 if the current transform is not linear.
   /// Deprecated! Use SetMatrixTransformToParent instead.
   virtual int SetAndObserveMatrixTransformFromParent(vtkMatrix4x4 *matrix);
-
-  ///
-  /// Returns 1 if the node is one of the this node's descendents
-  int IsTransformNodeMyChild(vtkMRMLTransformNode* node);
 
   /// Reimplemented from vtkMRMLTransformableNode
   virtual bool CanApplyNonLinearTransforms()const;
@@ -209,97 +266,29 @@ public:
   vtkBooleanMacro(ReadAsTransformToParent, int);
 
   ///
-  /// Start modifying the transform in the node.
-  /// Disable vtkMRMLTransformableNode::TransformModifiedEvent events.
-  /// Returns the previous state of DisableTransformModifiedEvent flag
-  /// that should be passed to EndTransformModify() method
-  virtual int StartTransformModify()
-    {
-    int disabledTransformModify = this->GetDisableTransformModifiedEvent();
-    this->DisableTransformModifiedEventOn();
-    return disabledTransformModify;
-    };
-
-  ///
-  /// End modifying the transform in the node.
-  /// Enable vtkMRMLTransformableNode::TransformModifiedEvent events if the
-  /// previous state of DisableTransformModifiedEvent flag is 0.
-  /// Return the number of pending events (even if
-  /// InvokePendingTransformModifiedEvent is not called).
-  virtual int EndTransformModify(int previousDisableTransformModifiedEventState)
-    {
-    this->SetDisableTransformModifiedEvent(previousDisableTransformModifiedEventState);
-    if (!previousDisableTransformModifiedEventState)
-      {
-      return this->InvokePendingTransformModifiedEvent();
-      }
-    return this->TransformModifiedEventPending;
-    };
-
-  ///
-  /// Turn on/off generating InvokeEvent for transformation changes
-  vtkGetMacro(DisableTransformModifiedEvent, int);
-  void SetDisableTransformModifiedEvent(int onOff)
-    {
-    this->DisableTransformModifiedEvent = onOff;
-    }
-  void DisableTransformModifiedEventOn()
-    {
-    this->SetDisableTransformModifiedEvent(1);
-    }
-  void DisableTransformModifiedEventOff()
-    {
-    this->SetDisableTransformModifiedEvent(0);
-    }
-
-  /// Count of pending modified events
-  vtkGetMacro(TransformModifiedEventPending, int);
-
-  ///
   /// Indicates that the transform inside the object is modified.
   /// Typical usage would be to disable transform modified events, call a series of operations that change transforms
   /// and then re-enable transform modified events to invoke any pending notifications.
   virtual void TransformModified()
     {
-    if (!this->GetDisableTransformModifiedEvent())
-      {
-      this->InvokeEvent(vtkMRMLTransformableNode::TransformModifiedEvent, NULL);
-      }
-    else
-      {
-      ++this->TransformModifiedEventPending;
-      }
-    }
-
-  ///
-  /// Invokes any transform modified events that are 'pending', meaning they were generated
-  /// while the DisableTransformModifiedEvent flag was nonzero.
-  /// Returns the old flag state.
-  virtual int InvokePendingTransformModifiedEvent ()
-    {
-    if ( this->TransformModifiedEventPending )
-      {
-      int oldModifiedEventPending = this->TransformModifiedEventPending;
-      this->TransformModifiedEventPending = 0;
-      this->InvokeEvent(vtkMRMLTransformableNode::TransformModifiedEvent, NULL);
-      return oldModifiedEventPending;
-      }
-    return this->TransformModifiedEventPending;
+    this->InvokeCustomModifiedEvent(vtkMRMLTransformableNode::TransformModifiedEvent);
     }
 
   virtual bool GetModifiedSinceRead();
 
   ///
   /// Retrieves the transform as the specified transform class.
+  /// If modifiableOnly is set to true then NULL will be returned for transforms that cannot be modified (e.g., because it is computed from its inverse).
   /// Returns NULL if the transform is not a kind of transform that was requested.
   /// Example usage: vtkOrientedBSplineTransform* bsplineTransform=vtkOrientedBSplineTransform::SafeDownCast(GetTransformToParentAs("vtkOrientedBSplineTransform"));
-  vtkAbstractTransform* GetTransformToParentAs(const char* transformType, bool logErrorIfFails=true);
+  vtkAbstractTransform* GetTransformToParentAs(const char* transformType, bool logErrorIfFails = true, bool modifiableOnly = false);
 
   ///
   /// Retrieves the transform as the specified transform class.
+  /// If modifiableOnly is set to true then NULL will be returned for transforms that cannot be modified (e.g., because it is computed from its inverse).
   /// Returns NULL if the transform is not a kind of transform that was requested.
   /// Example usage: vtkOrientedBSplineTransform* bsplineTransform=vtkOrientedBSplineTransform::SafeDownCast(GetTransformFromParentAs("vtkOrientedBSplineTransform"));
-  vtkAbstractTransform* GetTransformFromParentAs(const char* transformType, bool logErrorIfFails=true);
+  vtkAbstractTransform* GetTransformFromParentAs(const char* transformType, bool logErrorIfFails = true, bool modifiableOnly = false);
 
   /// Set and observe a new transform of this node to parent node.
   /// Each time the transform is modified,
@@ -333,6 +322,12 @@ public:
   static bool IsGeneralTransformLinear(vtkAbstractTransform* inputTransform, vtkTransform* concatenatedLinearTransform=NULL);
 
   ///
+  /// Utility function that determines if a transform is computed from its inverse.
+  /// It may be important to know if a transform is computed from its inverse because then
+  /// it cannot not be modified (if modification is needed then he source transform has to be updated).
+  static bool IsAbstractTransformComputedFromInverse(vtkAbstractTransform* abstractTransform);
+
+  ///
   /// Some transforms have DeepCopy method that actually only creates a shallow copy
   /// (such as vtkGeneralTransform and vtkGridTransform). This method creates a true deep copy of a transform.
   /// Returns nonzero on success.
@@ -344,7 +339,7 @@ public:
   void Inverse();
 
   /// Get the latest modification time of the stored transform
-  unsigned long GetTransformToWorldMTime();
+  vtkMTimeType GetTransformToWorldMTime();
 
   /// Get a human-readable description of the transformation
   /// The returned string is stored in a shared buffer therefore the text has to be copied. This is a
@@ -380,9 +375,6 @@ protected:
   vtkAbstractTransform* TransformFromParent;
 
   int ReadAsTransformToParent;
-
-  int DisableTransformModifiedEvent;
-  int TransformModifiedEventPending;
 
   // Temporary buffers used for returning transform info as char*
   std::string TransformInfo;

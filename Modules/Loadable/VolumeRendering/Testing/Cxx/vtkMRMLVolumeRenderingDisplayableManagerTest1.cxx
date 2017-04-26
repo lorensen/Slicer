@@ -32,6 +32,7 @@
 #include <vtkMRMLApplicationLogic.h>
 
 // MRML includes
+#include <vtkMRMLCoreTestingMacros.h>
 #include <vtkMRMLScene.h>
 #include <vtkMRMLScalarVolumeDisplayNode.h>
 #include <vtkMRMLScalarVolumeNode.h>
@@ -49,6 +50,7 @@
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderWindowInteractor.h>
+#include <vtkGPUVolumeRayCastMapper.h>
 #include <vtkWindowToImageFilter.h>
 
 // STD includes
@@ -98,13 +100,7 @@ int vtkMRMLVolumeRenderingDisplayableManagerTest1(int argc, char* argv[])
   vtkNew<vtkMRMLScalarVolumeNode> volumeNode;
   vtkNew<vtkImageData> imageData;
   imageData->SetDimensions(3, 3, 3);
-#if (VTK_MAJOR_VERSION <= 5)
-  imageData->SetScalarTypeToUnsignedChar();
-  imageData->SetNumberOfScalarComponents(1);
-  imageData->AllocateScalars();
-#else
   imageData->AllocateScalars(VTK_UNSIGNED_CHAR, 1);
-#endif
   unsigned char* ptr = reinterpret_cast<unsigned char*>(
     imageData->GetScalarPointer(0,0,0));
   for (int z = 0; z < 3; ++z)
@@ -208,19 +204,41 @@ int vtkMRMLVolumeRenderingDisplayableManagerTest1(int argc, char* argv[])
     screenshootFilename += "/Baseline/vtkMRMLCameraDisplayableManagerTest1.png";
     vtkNew<vtkPNGWriter> writer;
     writer->SetFileName(screenshootFilename.c_str());
-#if (VTK_MAJOR_VERSION <= 5)
-    writer->SetInput(windowToImageFilter->GetOutput());
-#else
     writer->SetInputConnection(windowToImageFilter->GetOutputPort());
-#endif
     writer->Write();
     std::cout << "Saved screenshot: " << screenshootFilename << std::endl;
     }
+
+  vtkGPUVolumeRayCastMapper* mapper = vtkGPUVolumeRayCastMapper::SafeDownCast(vrDisplayableManager->GetVolumeMapper(vrDisplayNode.GetPointer()));
+  if (mapper)
+    {
+    CHECK_INT(mapper->GetMaxMemoryInBytes() / 1024 / 1024, 256);
+    vrDisplayNode->SetGPUMemorySize(250);
+    CHECK_INT(mapper->GetMaxMemoryInBytes() / 1024 / 1024, 256);
+    vrDisplayNode->SetGPUMemorySize(1024);
+    CHECK_INT(mapper->GetMaxMemoryInBytes() / 1024 / 1024, 1024);
+    vrDisplayNode->SetGPUMemorySize(256);
+    CHECK_INT(mapper->GetMaxMemoryInBytes() / 1024 / 1024, 256);
+    vrDisplayNode->SetGPUMemorySize(520);
+    CHECK_INT(mapper->GetMaxMemoryInBytes() / 1024 / 1024, 640);
+    vrDisplayNode->SetGPUMemorySize(0);
+    CHECK_INT(mapper->GetMaxMemoryInBytes() / 1024 / 1024, 256);
+    vrDisplayNode->SetGPUMemorySize(2048);
+    CHECK_INT(mapper->GetMaxMemoryInBytes() / 1024 / 1024, 2048);
+    vrDisplayNode->SetGPUMemorySize(4096);
+    CHECK_INT(mapper->GetMaxMemoryInBytes() / 1024 / 1024, 4096);
+    vrDisplayNode->SetGPUMemorySize(8192);
+    CHECK_INT(mapper->GetMaxMemoryInBytes() / 1024 / 1024, 8192);
+    vrDisplayNode->SetGPUMemorySize(16384);
+    CHECK_INT(mapper->GetMaxMemoryInBytes() / 1024 / 1024, 16384);
+   }
 
   vrDisplayableManager->SetMRMLApplicationLogic(0);
   applicationLogic->Delete();
   scene->Delete();
 
-  return !retval;
+  CHECK_BOOL(retval, 1);
+
+  return EXIT_SUCCESS;
 }
 

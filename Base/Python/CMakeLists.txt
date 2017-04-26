@@ -1,61 +1,50 @@
 
 set(Slicer_PYTHON_SCRIPTS
+  slicer/__init__
   slicer/logic
   slicer/ScriptedLoadableModule
   slicer/slicerqt
   slicer/testing
   slicer/util
-  slicer/moduledm/__init__
-  slicer/modulelogic/__init__
-  slicer/modulemrml/__init__
-  slicer/modulewidget/__init__
   freesurfer
   mrml
-  mrmlLogic
   saferef
   teem
+  vtkAddon
   vtkITK
   )
 
 set(Slicer_PYTHON_MODULES_CONFIG "
 # slicer libs
-'freesurfer',
 'mrml',
-'mrmlLogic',
 'teem',
 'qMRMLWidgetsPythonQt',
 # slicer base libs
 'logic',
 'qSlicerBaseQTCorePythonQt',
 'qSlicerBaseQTGUIPythonQt',
-'qSlicerBaseQTAppPythonQt',
-# slicer module
-'moduledm',
-'modulelogic',
-'modulemrml',
-'modulewidget'"
+'qSlicerBaseQTAppPythonQt'"
   )
 
 if(Slicer_BUILD_CLI_SUPPORT)
   list(APPEND Slicer_PYTHON_SCRIPTS
     slicer/cli
-    mrmlcli
     )
   set(Slicer_PYTHON_MODULES_CONFIG "${Slicer_PYTHON_MODULES_CONFIG},
 # CLI logic (Slicer_BUILD_CLI_SUPPORT:ON)
-'mrmlcli',
+'qSlicerBaseQTCLIPython',
 'qSlicerBaseQTCLIPythonQt',
 "
   )
 endif()
 
 configure_file(
-  slicer/__init__.py.in
-  ${CMAKE_CURRENT_BINARY_DIR}/slicer/__init__.py
+  slicer/kits.py.in
+  ${CMAKE_CURRENT_BINARY_DIR}/slicer/kits.py
   @ONLY
   )
 
-list(APPEND Slicer_PYTHON_SCRIPTS ${CMAKE_CURRENT_BINARY_DIR}/slicer/__init__.py)
+list(APPEND Slicer_PYTHON_SCRIPTS ${CMAKE_CURRENT_BINARY_DIR}/slicer/kits.py)
 
 set(Slicer_PYTHON_RESOURCES
   )

@@ -40,10 +40,22 @@ if((NOT DEFINED LibArchive_INCLUDE_DIR
     set(git_protocol "git")
   endif()
 
+  ExternalProject_SetIfNotDefined(
+    ${CMAKE_PROJECT_NAME}_${proj}_GIT_REPOSITORY
+    "${git_protocol}://github.com/Slicer/libarchive.git"
+    QUIET
+    )
+
+  ExternalProject_SetIfNotDefined(
+    ${CMAKE_PROJECT_NAME}_${proj}_GIT_TAG
+    "453b390286a59503f1ed3e2d8382e244cddbc304" # slicer-v3.0.4
+    QUIET
+    )
+
   ExternalProject_Add(${proj}
     ${${proj}_EP_ARGS}
-    GIT_REPOSITORY "${git_protocol}://github.com/Slicer/libarchive.git"
-    GIT_TAG "453b390286a59503f1ed3e2d8382e244cddbc304" # slicer-v3.0.4
+    GIT_REPOSITORY "${${CMAKE_PROJECT_NAME}_${proj}_GIT_REPOSITORY}"
+    GIT_TAG "${${CMAKE_PROJECT_NAME}_${proj}_GIT_TAG}"
     SOURCE_DIR ${CMAKE_BINARY_DIR}/${proj}
     BINARY_DIR ${proj}-build
     INSTALL_DIR LibArchive-install
@@ -72,13 +84,14 @@ if((NOT DEFINED LibArchive_INCLUDE_DIR
     DEPENDS
       ${${proj}_DEPENDENCIES}
     )
-
   if(APPLE)
     ExternalProject_Add_Step(${proj} fix_rpath
       COMMAND install_name_tool -id ${CMAKE_BINARY_DIR}/${proj}-install/lib/libarchive.12.dylib ${CMAKE_BINARY_DIR}/${proj}-install/lib/libarchive.12.dylib
       DEPENDEES install
       )
   endif()
+
+  ExternalProject_GenerateProjectDescription_Step(${proj})
 
   set(LibArchive_DIR ${CMAKE_BINARY_DIR}/LibArchive-install)
 

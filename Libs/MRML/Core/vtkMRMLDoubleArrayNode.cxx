@@ -22,6 +22,7 @@ Version:   $Revision: 1.2 $
 
 // STD includes
 #include <sstream>
+#include <vector>
 
 //------------------------------------------------------------------------------
 vtkCxxSetObjectMacro(vtkMRMLDoubleArrayNode, Array, vtkDoubleArray)
@@ -70,12 +71,12 @@ void vtkMRMLDoubleArrayNode::WriteXML(ostream& of, int nIndent)
     double xy[3];
     for (int i = 0; i < n; i ++)
       {
-      this->Array->GetTupleValue(i, xy);
+      this->Array->GetTypedTuple(i, xy);
       ssX    << xy[0] << ", ";
       ssY    << xy[1] << ", ";
       ssYerr << xy[2] << ", ";
       }
-    this->Array->GetTupleValue(n, xy);
+    this->Array->GetTypedTuple(n, xy);
     // put the last values
     ssX    << xy[0];
     ssY    << xy[1];
@@ -169,7 +170,7 @@ void vtkMRMLDoubleArrayNode::ReadXMLAttributes(const char** atts)
         xy[0] = valueX[i];
         xy[1] = valueY[i];
         xy[2] = valueYErr[i];
-        this->Array->SetTupleValue(i, xy);
+        this->Array->SetTypedTuple(i, xy);
         }
       }
     }
@@ -186,7 +187,7 @@ void vtkMRMLDoubleArrayNode::ReadXMLAttributes(const char** atts)
         xy[0] = valueX[i];
         xy[1] = valueY[i];
         xy[2] = 0.0;
-        this->Array->SetTupleValue(i, xy);
+        this->Array->SetTypedTuple(i, xy);
         }
       }
     }
@@ -259,6 +260,37 @@ unsigned int vtkMRMLDoubleArrayNode::GetSize()
 
 
 //----------------------------------------------------------------------------
+int vtkMRMLDoubleArrayNode::GetValues(int index, double* values)
+{
+  if (index < 0 ||
+    index >= this->Array->GetNumberOfTuples())
+    {
+    return 0;
+    }
+  this->Array->GetTypedTuple(index, values);
+  return 1;
+}
+
+
+//----------------------------------------------------------------------------
+double vtkMRMLDoubleArrayNode::GetValue(int index, int component, int& success)
+{
+  if (component < 0 ||
+    component >= this->Array->GetNumberOfComponents() ||
+    index < 0 ||
+    index >= this->Array->GetNumberOfTuples())
+    {
+    success = 0;
+    return -1;
+    }
+  std::vector<double> tuple(this->Array->GetNumberOfComponents());
+  success = this->GetValues(index, &tuple[0]);
+
+  return tuple[component];
+}
+
+
+//----------------------------------------------------------------------------
 double vtkMRMLDoubleArrayNode::GetYAxisValue(double vtkNotUsed(x), int vtkNotUsed(interp))
 {
   // not implemented yet
@@ -273,123 +305,164 @@ double vtkMRMLDoubleArrayNode::GetYAxisValue(double vtkNotUsed(x), int vtkNotUse
 //----------------------------------------------------------------------------
 int vtkMRMLDoubleArrayNode::GetXYValue(int index, double* x, double* y)
 {
-  double xy[3];
-
-  if (this->Array->GetNumberOfComponents() >= 2 && index < this->Array->GetNumberOfTuples())
-    {
-    this->Array->GetTupleValue(index, xy);
-    *x = xy[0];
-    *y = xy[1];
-    return 1;
-    }
-  else
+  if ( this->Array->GetNumberOfComponents() < 2 ||
+    index < 0 ||
+    index >= this->Array->GetNumberOfTuples())
     {
     return 0;
     }
+
+  std::vector<double> tuple(this->Array->GetNumberOfComponents());
+  int success = this->GetValues(index, &tuple[0]);
+  
+  *x = tuple[0];
+  *y = tuple[1];
+  
+  return success;
 }
 
 
 //----------------------------------------------------------------------------
 int vtkMRMLDoubleArrayNode::GetXYValue(int index, double* x, double* y, double* yerr)
 {
-  double xy[3];
-
-  if (this->Array->GetNumberOfComponents() >= 3 && index < this->Array->GetNumberOfTuples())
-    {
-    this->Array->GetTupleValue(index, xy);
-    *x    = xy[0];
-    *y    = xy[1];
-    *yerr = xy[2];
-    return 1;
-    }
-  else
+  if ( this->Array->GetNumberOfComponents() < 3 ||
+    index < 0 ||
+    index >= this->Array->GetNumberOfTuples())
     {
     return 0;
     }
+
+  std::vector<double> tuple(this->Array->GetNumberOfComponents());
+  int success = this->GetValues(index, &tuple[0]);
+
+  *x = tuple[0];
+  *y = tuple[1];
+  *yerr = tuple[2];
+
+  return success;
+}
+
+
+//----------------------------------------------------------------------------
+int vtkMRMLDoubleArrayNode::SetValues(int index, double* values)
+{
+  if (index < 0 ||
+    index >= this->Array->GetNumberOfTuples())
+    {
+    return 0;
+    }
+  this->Array->SetTypedTuple(index, values);
+  this->Modified();
+  return 1;
+}
+
+
+//----------------------------------------------------------------------------
+int vtkMRMLDoubleArrayNode::SetValue(int index, int component, double value)
+{
+  if (component < 0 ||
+    component >= this->Array->GetNumberOfComponents() ||
+    index < 0 ||
+    index >= this->Array->GetNumberOfTuples())
+    {
+    return 0;
+    }
+  std::vector<double> tuple(this->Array->GetNumberOfComponents());
+  int successGet = this->GetValues(index, &tuple[0]);
+
+  tuple[component] = value;
+  int successSet = this->SetValues(index, &tuple[0]);
+
+  return (successGet && successSet);
 }
 
 
 //----------------------------------------------------------------------------
 int vtkMRMLDoubleArrayNode::SetXYValue(int index, double x, double y)
 {
-  double xy[3];
-  if (this->Array->GetNumberOfComponents() >= 2 && index < this->Array->GetNumberOfTuples())
-    {
-    xy[0] = x;
-    xy[1] = y;
-    xy[2] = 0.0;
-    this->Array->SetTupleValue(index, xy);
-    this->Modified();
-    return 1;
-    }
-  else
+  if (this->Array->GetNumberOfComponents() < 2 ||
+    index < 0 ||
+    index >= this->Array->GetNumberOfTuples())
     {
     return 0;
     }
+  std::vector<double> tuple(this->Array->GetNumberOfComponents(), 0.0);
 
+  tuple[0] = x;
+  tuple[1] = y;
+  return this->SetValues(index, &tuple[0]);
 }
-
 
 //----------------------------------------------------------------------------
 int vtkMRMLDoubleArrayNode::SetXYValue(int index, double x, double y, double yerr)
 {
-  double xy[3];
-  if (this->Array->GetNumberOfComponents() >= 3 && index < this->Array->GetNumberOfTuples())
-    {
-    xy[0] = x;
-    xy[1] = y;
-    xy[2] = yerr;
-    this->Array->SetTupleValue(index, xy);
-    this->Modified();
-    return 1;
-    }
-  else
+  if (this->Array->GetNumberOfComponents() < 3 ||
+    index < 0 ||
+    index >= this->Array->GetNumberOfTuples())
     {
     return 0;
     }
+  std::vector<double> tuple(this->Array->GetNumberOfComponents(), 0.0);
 
+  tuple[0] = x;
+  tuple[1] = y;
+  tuple[2] = yerr;
+  return this->SetValues(index, &tuple[0]);
+}
+
+
+//----------------------------------------------------------------------------
+int vtkMRMLDoubleArrayNode::AddValues(double* values)
+{
+  this->Array->InsertNextTuple(values);
+  this->Modified();
+  return 1;
+}
+
+
+//----------------------------------------------------------------------------
+int vtkMRMLDoubleArrayNode::AddValue(int component, double value)
+{
+  if (component < 0 ||
+    component >= this->Array->GetNumberOfComponents())
+    {
+    return 0;
+    }
+  std::vector<double> tuple(this->Array->GetNumberOfComponents(), 0.0);
+
+  tuple[component] = value;
+  return this->AddValues(&tuple[0]);
 }
 
 
 //----------------------------------------------------------------------------
 int vtkMRMLDoubleArrayNode::AddXYValue(double x, double y)
 {
-  double xy[3];
-  if (this->Array->GetNumberOfComponents() >= 2)
-    {
-    xy[0] = x;
-    xy[1] = y;
-    xy[2] = 0.0;
-    this->Array->InsertNextTuple(xy);
-    this->Modified();
-    return 1;
-    }
-  else
+  if (this->Array->GetNumberOfComponents() < 2)
     {
     return 0;
     }
+  std::vector<double> tuple(this->Array->GetNumberOfComponents(), 0.0);
 
-
+  tuple[0] = x;
+  tuple[1] = y;
+  return this->AddValues(&tuple[0]);
 }
 
 
 //----------------------------------------------------------------------------
 int vtkMRMLDoubleArrayNode::AddXYValue(double x, double y, double yerr)
 {
-  double xy[3];
-  if (this->Array->GetNumberOfComponents() >= 3)
-    {
-    xy[0] = x;
-    xy[1] = y;
-    xy[2] = yerr;
-    this->Array->InsertNextTuple(xy);
-    this->Modified();
-    return 1;
-    }
-  else
+  if (this->Array->GetNumberOfComponents() < 3)
     {
     return 0;
     }
+  std::vector<double> tuple(this->Array->GetNumberOfComponents(), 0.0);
+
+  tuple[0] = x;
+  tuple[1] = y;
+  tuple[2] = yerr;
+  return this->AddValues(&tuple[0]);
 }
 
 
@@ -428,7 +501,7 @@ void vtkMRMLDoubleArrayNode::GetRange(double* rangeX, double* rangeY, int fInclu
   if (nTuples > 0)
     {
     // Get the first values as an initial value
-    this->Array->GetTupleValue(0, xy);
+    this->Array->GetTypedTuple(0, xy);
     rangeX[0] = xy[0];
     rangeX[1] = xy[0];
     rangeY[0] = xy[1] - c * xy[2];
@@ -437,7 +510,7 @@ void vtkMRMLDoubleArrayNode::GetRange(double* rangeX, double* rangeY, int fInclu
     // Search the array
     for (int i = 1; i < nTuples; i ++)
       {
-      this->Array->GetTupleValue(i, xy);
+      this->Array->GetTypedTuple(i, xy);
 
       // X value
       if (xy[0] < rangeX[0])
@@ -486,14 +559,14 @@ void vtkMRMLDoubleArrayNode::GetXRange(double* range)
     {
 
     // Get the first values as an initial value
-    this->Array->GetTupleValue(0, xy);
+    this->Array->GetTypedTuple(0, xy);
     range[0] = xy[0];
     range[1] = xy[0];
 
     // Search the array
     for (int i = 1; i < nTuples; i ++)
       {
-      this->Array->GetTupleValue(i, xy);
+      this->Array->GetTypedTuple(i, xy);
       if (xy[0] < range[0])
         {
         range[0] = xy[0];
@@ -542,14 +615,14 @@ void vtkMRMLDoubleArrayNode::GetYRange(double* range, int fIncludeError)
     {
 
     // Get the first values as an initial value
-    this->Array->GetTupleValue(0, xy);
+    this->Array->GetTypedTuple(0, xy);
     range[0] = xy[1] - c * xy[2];
     range[1] = xy[1] + c * xy[2];
 
     // Search the array
     for (int i = 1; i < nTuples; i ++)
       {
-      this->Array->GetTupleValue(i, xy);
+      this->Array->GetTypedTuple(i, xy);
       double low  = xy[1] - c * xy[2];
       double high = xy[1] + c * xy[2];
 

@@ -43,8 +43,6 @@ void vtkMRMLLinearTransformNode::WriteXML(ostream& of, int nIndent)
 {
   Superclass::WriteXML(of, nIndent);
 
-  vtkIndent indent(nIndent);
-
   if (this->IsLinear())
     {
     // Only write the matrix to the scene if the object stores a linear transform
@@ -67,7 +65,7 @@ void vtkMRMLLinearTransformNode::WriteXML(ostream& of, int nIndent)
         ss << " ";
         }
       }
-    of << indent << " matrixTransformToParent=\"" << ss.str() << "\"";
+    of << " matrixTransformToParent=\"" << ss.str() << "\"";
     }
 }
 
@@ -76,7 +74,6 @@ void vtkMRMLLinearTransformNode::ReadXMLAttributes(const char** atts)
 {
   // Temporarily disable all Modified and TransformModified events to make sure that
   // the operations are performed without interruption.
-  int oldTransformModify=this->StartTransformModify();
   int disabledModify = this->StartModify();
 
   Superclass::ReadXMLAttributes(atts);
@@ -143,7 +140,6 @@ void vtkMRMLLinearTransformNode::ReadXMLAttributes(const char** atts)
 
     }
   this->EndModify(disabledModify);
-  this->EndTransformModify(oldTransformModify);
 }
 
 //----------------------------------------------------------------------------

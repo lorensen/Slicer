@@ -20,8 +20,6 @@
 //-----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlicerSceneViewsModuleLogic)
 
-const char SCENE_VIEW_TOP_LEVEL_SINGLETON_TAG[] = "SceneViewTopLevel";
-
 //-----------------------------------------------------------------------------
 // vtkSlicerSceneViewsModuleLogic methods
 //-----------------------------------------------------------------------------
@@ -285,7 +283,7 @@ vtkImageData* vtkSlicerSceneViewsModuleLogic::GetSceneViewScreenshot(const char*
 }
 
 //---------------------------------------------------------------------------
-void vtkSlicerSceneViewsModuleLogic::RestoreSceneView(const char* id)
+void vtkSlicerSceneViewsModuleLogic::RestoreSceneView(const char* id, bool removeNodes)
 {
   if (!this->GetMRMLScene())
     {
@@ -302,7 +300,8 @@ void vtkSlicerSceneViewsModuleLogic::RestoreSceneView(const char* id)
     }
 
   this->GetMRMLScene()->SaveStateForUndo();
-  viewNode->RestoreScene();
+
+  viewNode->RestoreScene(removeNodes);
 }
 
 //---------------------------------------------------------------------------

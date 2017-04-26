@@ -81,6 +81,9 @@ public:
   /// an other project.
   static bool isPluginInstalled(const QString& filePath, const QString& applicationHomeDir);
 
+  /// Return \a true if the plugin identified with its \a filePath is a built-in Slicer module.
+  static bool isPluginBuiltIn(const QString& filePath, const QString& applicationHomeDir);
+
   /// Return the path without the intermediate directory or return \a path if there is no
   /// expected "IntDir".
   /// \a subDirWithoutIntDir corresponds to N last compononent of the path excluding
@@ -171,6 +174,34 @@ public:
   static bool setPermissionsRecursively(const QString &path,
                                         QFile::Permissions directoryPermissions,
                                         QFile::Permissions filePermissions);
+
+  /// \brief Return \a true if \a version corresponds to a \a Release build.
+  ///
+  /// A given build could either be a \a Release or a \a Nightly one:
+  /// * \a Release build matches `<MAJOR_VERSION>.<MINOR_VERSION>.<PATCH_VERSION>[-rc{1|2|3...}][-<TWEAK_VERSION>]`
+  /// * \a Nightly build matches the same string as a \a Release build appended with `-<DATE>`
+  static bool isRelease(const QString& version);
+
+  /// \brief Return an updated \a text where Slicer wiki URL version is replaced
+  /// with the provided one.
+  ///
+  /// Any URL containing `Documentation/<VERSION>/` will be updated.
+  ///
+  /// More specifically, in an URL with http or https protocol that contains
+  /// "Documentation" path element, the following path element is replaced by
+  /// the provided \a version. If there are multiple
+  /// "Documentation" path elements then only the first one is considered.
+  ///
+  /// \note The "path element" term is defined in this rfc: http://tools.ietf.org/html/rfc3986
+  /// "A path consists of a sequence of path segments separated by a slash
+  /// ("/") character."
+  ///
+  /// Examples:
+  /// \snippet qSlicerUtilsTest1.cxx replaceWikiUrlVersion example1
+  /// \snippet qSlicerUtilsTest1.cxx replaceWikiUrlVersion example2
+  /// \snippet qSlicerUtilsTest1.cxx replaceWikiUrlVersion example3
+  /// \snippet qSlicerUtilsTest1.cxx replaceWikiUrlVersion example4
+  static QString replaceWikiUrlVersion(const QString& text, const QString& version);
 
 private:
   /// Not implemented

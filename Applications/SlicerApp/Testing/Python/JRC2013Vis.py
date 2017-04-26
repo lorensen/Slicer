@@ -1,6 +1,7 @@
 import os
 import unittest
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
+from DICOMLib import DICOMUtils
 
 #
 # JRC2013Vis
@@ -135,11 +136,7 @@ class JRC2013VisWidget:
       configFilePath = dicomFilesDirectory + '/Dcmtk-db/dcmqrscp.cfg'
       processCurrentPath = dicomFilesDirectory + '/Dcmtk-db/'
 
-      msgBox = qt.QMessageBox()
-      msgBox.setText('Do you want to choose local DCMTK database folder?')
-      msgBox.setStandardButtons(qt.QMessageBox.Yes | qt.QMessageBox.No)
-      val = msgBox.exec_()
-      if(val == qt.QMessageBox.Yes):
+      if slicer.util.confirmYesNoDisplay('Do you want to choose local DCMTK database folder?'):
         print 'Yes'
         dicomFilesDirectory = qt.QFileDialog.getExistingDirectory(None, 'Select DCMTK database folder')
         configFilePath = dicomFilesDirectory + '/dcmqrscp.cfg'
@@ -212,7 +209,7 @@ class JRC2013VisLogic:
     if not volumeNode:
       print('no volume node')
       return False
-    if volumeNode.GetImageData() == None:
+    if volumeNode.GetImageData() is None:
       print('no image data')
       return False
     return True
@@ -247,46 +244,6 @@ class JRC2013VisTest(unittest.TestCase):
     layoutManager = slicer.app.layoutManager()
     layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutConventionalView)
     slicer.mrmlScene.Clear(0)
-
-  def clickAndDrag(self,widget,button='Left',start=(10,10),end=(10,40),steps=20,modifiers=[]):
-    """Send synthetic mouse events to the specified widget (qMRMLSliceWidget or qMRMLThreeDView)
-    button : "Left", "Middle", "Right", or "None"
-    start, end : window coordinates for action
-    steps : number of steps to move in
-    modifiers : list containing zero or more of "Shift" or "Control"
-    """
-    style = widget.interactorStyle()
-    interator = style.GetInteractor()
-    if button == 'Left':
-      down = style.OnLeftButtonDown
-      up = style.OnLeftButtonUp
-    elif button == 'Right':
-      down = style.OnRightButtonDown
-      up = style.OnRightButtonUp
-    elif button == 'Middle':
-      down = style.OnMiddleButtonDown
-      up = style.OnMiddleButtonUp
-    elif button == 'None' or not button:
-      down = lambda : None
-      up = lambda : None
-    else:
-      raise Exception("Bad button - should be Left or Right, not %s" % button)
-    if 'Shift' in modifiers:
-      interator.SetShiftKey(1)
-    if 'Control' in modifiers:
-      interator.SetControlKey(1)
-    interator.SetEventPosition(*start)
-    down()
-    for step in xrange(steps):
-      frac = float(step)/steps
-      x = int(start[0] + frac*(end[0]-start[0]))
-      y = int(start[1] + frac*(end[1]-start[1]))
-      interator.SetEventPosition(x,y)
-      style.OnMouseMove()
-    up()
-    interator.SetShiftKey(0)
-    interator.SetControlKey(0)
-
 
   def runTest(self):
     """Run as few or as many tests as needed here.
@@ -329,16 +286,7 @@ class JRC2013VisTest(unittest.TestCase):
 
     try:
       self.delayDisplay("Switching to temp database directory")
-      tempDatabaseDirectory = slicer.app.temporaryPath + '/tempDICOMDatbase'
-      qt.QDir().mkpath(tempDatabaseDirectory)
-      if slicer.dicomDatabase:
-        originalDatabaseDirectory = os.path.split(slicer.dicomDatabase.databaseFilename)[0]
-      else:
-        originalDatabaseDirectory = None
-        settings = qt.QSettings()
-        settings.setValue('DatabaseDirectory', tempDatabaseDirectory)
-      dicomWidget = slicer.modules.dicom.widgetRepresentation().self()
-      dicomWidget.onDatabaseDirectoryChanged(tempDatabaseDirectory)
+      originalDatabaseDirectory = DICOMUtils.openTemporaryDatabase('tempDICOMDatbase')
 
       self.delayDisplay('Start Local DICOM Q/R SCP')
       import subprocess
@@ -391,20 +339,20 @@ class JRC2013VisTest(unittest.TestCase):
       self.delayDisplay('Change Level')
       layoutManager = slicer.app.layoutManager()
       redWidget = layoutManager.sliceWidget('Red')
-      self.clickAndDrag(redWidget,start=(10,10),end=(10,40))
+      slicer.util.clickAndDrag(redWidget,start=(10,10),end=(10,40))
 
       self.delayDisplay('Change Window')
-      self.clickAndDrag(redWidget,start=(10,10),end=(40,10))
+      slicer.util.clickAndDrag(redWidget,start=(10,10),end=(40,10))
 
       self.delayDisplay('Change Layout')
       layoutManager = slicer.app.layoutManager()
       layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutOneUpRedSliceView)
 
       self.delayDisplay('Zoom')
-      self.clickAndDrag(redWidget,button='Right',start=(10,10),end=(10,40))
+      slicer.util.clickAndDrag(redWidget,button='Right',start=(10,10),end=(10,40))
 
       self.delayDisplay('Pan')
-      self.clickAndDrag(redWidget,button='Middle',start=(10,10),end=(40,40))
+      slicer.util.clickAndDrag(redWidget,button='Middle',start=(10,10),end=(40,40))
 
       self.delayDisplay('Center')
       redWidget.sliceController().fitSliceToBackground()
@@ -422,7 +370,7 @@ class JRC2013VisTest(unittest.TestCase):
       layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpView)
 
       self.delayDisplay('Shift Mouse')
-      self.clickAndDrag(redWidget,button='None',start=(100,100),end=(140,140),modifiers=['Shift'])
+      slicer.util.clickAndDrag(redWidget,button='None',start=(100,100),end=(140,140),modifiers=['Shift'])
 
       self.delayDisplay('Conventional, Link, Slice Model')
       layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutConventionalView)
@@ -431,11 +379,11 @@ class JRC2013VisTest(unittest.TestCase):
 
       self.delayDisplay('Rotate')
       threeDView = layoutManager.threeDWidget(0).threeDView()
-      self.clickAndDrag(threeDView)
+      slicer.util.clickAndDrag(threeDView)
 
       self.delayDisplay('Zoom')
       threeDView = layoutManager.threeDWidget(0).threeDView()
-      self.clickAndDrag(threeDView,button='Right')
+      slicer.util.clickAndDrag(threeDView,button='Right')
 
       self.delayDisplay('Test passed!')
     except Exception, e:
@@ -444,8 +392,7 @@ class JRC2013VisTest(unittest.TestCase):
       self.delayDisplay('Test caused exception!\n' + str(e))
 
     self.delayDisplay("Restoring original database directory")
-    if originalDatabaseDirectory:
-      dicomWidget.onDatabaseDirectoryChanged(originalDatabaseDirectory)
+    DICOMUtils.closeTemporaryDatabase(originalDatabaseDirectory)
 
   def test_Part2Head(self):
     """ Test using the head atlas - may not be needed - Slicer4Minute is already tested
@@ -515,11 +462,11 @@ class JRC2013VisTest(unittest.TestCase):
       cameraNode.GetCamera().Elevation(20)
 
       self.delayDisplay('Rotate')
-      self.clickAndDrag(threeDView)
+      slicer.util.clickAndDrag(threeDView)
 
       self.delayDisplay('Zoom')
       threeDView = layoutManager.threeDWidget(0).threeDView()
-      self.clickAndDrag(threeDView,button='Right')
+      slicer.util.clickAndDrag(threeDView,button='Right')
 
       self.delayDisplay('Test passed!')
     except Exception, e:
@@ -567,7 +514,7 @@ class JRC2013VisTest(unittest.TestCase):
       mainWindow.moduleSelector().selectModule('Models')
       segmentII = slicer.util.getNode('LiverSegment_II')
       segmentII.GetDisplayNode().SetVisibility(0)
-      self.clickAndDrag(threeDView,start=(10,200),end=(10,10))
+      slicer.util.clickAndDrag(threeDView,start=(10,200),end=(10,10))
 
       self.delayDisplay('Segment II visible')
       segmentII.GetDisplayNode().SetVisibility(1)

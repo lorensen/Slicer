@@ -28,6 +28,8 @@ vtkMRMLNodeNewMacro(vtkMRMLVolumeRenderingScenarioNode);
 vtkMRMLVolumeRenderingScenarioNode::vtkMRMLVolumeRenderingScenarioNode()
 {
   this->ParametersNodeID = NULL;
+
+  this->SetHideFromEditors(1);
 }
 
 //----------------------------------------------------------------------------
@@ -64,7 +66,7 @@ void vtkMRMLVolumeRenderingScenarioNode::WriteXML(ostream& of, int nIndent)
 
   vtkIndent indent(nIndent);
 
-  of << indent << " parametersNodeID=\"" << (this->ParametersNodeID ? this->ParametersNodeID : "NULL") << "\"";
+  of << " parametersNodeID=\"" << (this->ParametersNodeID ? this->ParametersNodeID : "NULL") << "\"";
 
 }
 
@@ -86,15 +88,14 @@ void vtkMRMLVolumeRenderingScenarioNode::UpdateReferences()
 // Does NOT copy: ID, FilePrefix, Name, SliceID
 void vtkMRMLVolumeRenderingScenarioNode::Copy(vtkMRMLNode *anode)
 {
+  int disabledModify = this->StartModify(); 
+
   Superclass::Copy(anode);
   vtkMRMLVolumeRenderingScenarioNode *node = vtkMRMLVolumeRenderingScenarioNode::SafeDownCast(anode);
-  this->DisableModifiedEventOn();
 
   this->SetParametersNodeID(node->GetParametersNodeID());
 
-  this->DisableModifiedEventOff();
-  this->InvokePendingModifiedEvent();
-
+  this->EndModify(disabledModify);
 }
 
 //-----------------------------------------------------------

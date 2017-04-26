@@ -13,7 +13,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 
-  This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc.
+  This file was originally developed by Julien Finet, Kitware Inc.
   and was partially funded by NIH grant 3P41RR013218-12S1
 
 ==============================================================================*/
@@ -47,6 +47,9 @@ public:
 
   /// Layout manager
   Q_INVOKABLE qMRMLLayoutManager* layoutManager()const;
+  /// Set layout manager (useful for specifying a specialized layout manager class)
+  Q_INVOKABLE void setLayoutManager(qMRMLLayoutManager* layoutManager);
+
   /// Utility function that returns the mrml scene of the layout manager
   vtkMRMLScene* mrmlScene()const;
   /// Utility function that returns the current layout of the layout manager

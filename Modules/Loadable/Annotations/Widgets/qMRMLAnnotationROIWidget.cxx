@@ -26,6 +26,10 @@
 
 // MRML includes
 #include <vtkMRMLAnnotationROINode.h>
+#include <vtkMRMLDisplayNode.h>
+
+// STD includes
+#include <vector>
 
 // 0.001 because the sliders only handle 2 decimals
 #define SLIDERS_EPSILON 0.001
@@ -100,11 +104,17 @@ vtkMRMLAnnotationROINode* qMRMLAnnotationROIWidget::mrmlROINode()const
 void qMRMLAnnotationROIWidget::setMRMLAnnotationROINode(vtkMRMLAnnotationROINode* roiNode)
 {
   Q_D(qMRMLAnnotationROIWidget);
-  qvtkReconnect(d->ROINode, roiNode, vtkCommand::ModifiedEvent,
+
+  this->qvtkReconnect(d->ROINode, roiNode, vtkCommand::ModifiedEvent,
                 this, SLOT(onMRMLNodeModified()));
 
+  this->qvtkReconnect(d->ROINode, roiNode, vtkMRMLDisplayableNode::DisplayModifiedEvent,
+                      this, SLOT(onMRMLDisplayNodeModified()));
+
   d->ROINode = roiNode;
+
   this->onMRMLNodeModified();
+  this->onMRMLDisplayNodeModified();
   this->setEnabled(roiNode != 0);
 }
 
@@ -125,9 +135,6 @@ void qMRMLAnnotationROIWidget::onMRMLNodeModified()
     }
 
   d->IsProcessingOnMRMLNodeModified = true;
-
-  // Visibility
-  d->DisplayClippingBoxButton->setChecked(d->ROINode->GetDisplayVisibility());
 
   // Interactive Mode
   bool interactive = d->ROINode->GetInteractiveMode();
@@ -191,8 +198,21 @@ void qMRMLAnnotationROIWidget::setExtent(double minLR, double maxLR,
 void qMRMLAnnotationROIWidget::setDisplayClippingBox(bool visible)
 {
   Q_D(qMRMLAnnotationROIWidget);
+
+  int numberOfDisplayNodes = d->ROINode->GetNumberOfDisplayNodes();
+
+  std::vector<int> wasModifying(numberOfDisplayNodes);
+  for(int index = 0; index < numberOfDisplayNodes; index++)
+    {
+    wasModifying[index] = d->ROINode->GetNthDisplayNode(index)->StartModify();
+    }
+
   d->ROINode->SetDisplayVisibility(visible);
-  emit displayClippingBoxChanged(visible);
+
+  for(int index = 0; index < numberOfDisplayNodes; index++)
+    {
+    d->ROINode->GetNthDisplayNode(index)->EndModify(wasModifying[index]);
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -228,4 +248,18 @@ void qMRMLAnnotationROIWidget::updateROI()
                            0.5*(bounds[3]-bounds[2]),
                            0.5*(bounds[5]-bounds[4]));
   d->ROINode->EndModify(wasModifying);
+}
+
+// --------------------------------------------------------------------------
+void qMRMLAnnotationROIWidget::onMRMLDisplayNodeModified()
+{
+  Q_D(qMRMLAnnotationROIWidget);
+
+  if (!d->ROINode)
+    {
+    return;
+    }
+
+  // Visibility
+  d->DisplayClippingBoxButton->setChecked(d->ROINode->GetDisplayVisibility());
 }

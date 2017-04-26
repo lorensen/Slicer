@@ -112,11 +112,7 @@ int vtkITKLevelTracing3DImageFilter::RequestData(
 
   output->SetExtent(
     outInfo->Get(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT()));
-#if (VTK_MAJOR_VERSION <= 5)
-  output->AllocateScalars();
-#else
   output->AllocateScalars(outInfo);
-#endif
 
   vtkUnsignedCharArray *oScalars
     = vtkUnsignedCharArray::SafeDownCast(output->GetPointData()->GetScalars());
@@ -190,7 +186,7 @@ int vtkITKLevelTracing3DImageFilter::RequestData(
 
       out = static_cast<unsigned char>((2125.0 * in[0] +  7154.0 * in[1] +  0721.0 * in[2]) / 10000.0);
 
-      grayScalars->SetTupleValue(i, &out);
+      grayScalars->SetTypedTuple(i, &out);
       }
 
     vtkITKLevelTracing3DTrace(this,

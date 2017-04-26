@@ -35,7 +35,6 @@
 #include <vtkPointData.h>
 #include <vtkPolyData.h>
 #include <vtkStringArray.h>
-#include <vtkGeneralTransform.h>
 
 // STD includes
 #include <sstream>
@@ -65,10 +64,8 @@ void vtkMRMLMarkupsNode::WriteXML(ostream& of, int nIndent)
 {
   Superclass::WriteXML(of,nIndent);
 
-  vtkIndent indent(nIndent);
-
-  of << indent << " locked=\"" << this->Locked << "\"";
-  of << indent << " markupLabelFormat=\"" << this->MarkupLabelFormat.c_str() << "\"";
+  of << " locked=\"" << this->Locked << "\"";
+  of << " markupLabelFormat=\"" << this->MarkupLabelFormat.c_str() << "\"";
 
   int textLength = this->TextList->GetNumberOfValues();
 
@@ -125,6 +122,25 @@ void vtkMRMLMarkupsNode::Copy(vtkMRMLNode *anode)
   this->SetMarkupLabelFormat(node->GetMarkupLabelFormat());
   this->TextList->DeepCopy(node->TextList);
 
+  // BUG: When fiducial nodes appear in scene views as of Slicer 4.1 the per
+  // fiducial information (visibility, position etc) is saved to the file on
+  // disk and not read, so the scene view copy of a fiducial node doesn't have
+  // any fiducials in it. This work around prevents the main scene fiducial
+  // list from being cleared of points and then not repopulated.
+  // TBD: if scene view node reading xml triggers reading the data from
+  // storage nodes, this should no longer be necessary.
+  if (this->Scene &&
+      this->Scene->IsRestoring())
+    {
+    if (this->GetNumberOfMarkups() != 0 &&
+        node->GetNumberOfMarkups() == 0)
+      {
+      // just return for now
+      vtkWarningMacro("MarkupsNode Copy: Scene view is restoring and list to restore is empty, skipping copy of points");
+      return;
+      }
+    }
+
   this->Markups.clear();
   int numMarkups = node->GetNumberOfMarkups();
   for (int n = 0; n < numMarkups; n++)
@@ -171,11 +187,7 @@ void vtkMRMLMarkupsNode::PrintMarkup(ostream& os, vtkIndent indent, Markup *mark
   for (int p = 0; p < numPoints; p++)
     {
     vtkVector3d point = markup->points[p];
-#if (VTK_MAJOR_VERSION <= 5)
-    os << indent.GetNextIndent() << "p" << p << ": " << point.X() << ", " << point.Y() << ", " << point.Z() << "\n";
-#else
     os << indent.GetNextIndent() << "p" << p << ": " << point.GetX() << ", " << point.GetY() << ", " << point.GetZ() << "\n";
-#endif
     }
   os << indent.GetNextIndent() << "Orientation = "
      << markup->OrientationWXYZ[0] << ","
@@ -300,12 +312,12 @@ int  vtkMRMLMarkupsNode::DeleteText(int id)
   int n = this->GetNumberOfTexts();
   if (id < 0 || id >= n)
     {
-      return -1;
+    return -1;
     }
 
-  for (int i = id; id < n-1; i++ )
+  for (int i = id; i < n-1; i++ )
     {
-      this->TextList->SetValue(i,this->GetText(i+1));
+    this->TextList->SetValue(i, this->GetText(i+1));
     }
 
   this->TextList->Resize(n-1);
@@ -346,11 +358,7 @@ void vtkMRMLMarkupsNode::SetLocked(int locked)
   this->Locked = locked;
 
   this->Modified();
-  if (!this->GetDisableModifiedEvent())
-    {
-    // invoke a lock modified event
-    this->InvokeEvent(vtkMRMLMarkupsNode::LockModifiedEvent);
-    }
+  this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::LockModifiedEvent);
 //  this->ModifiedSinceReadOn();
 }
 
@@ -480,23 +488,12 @@ int vtkMRMLMarkupsNode::AddMarkup(Markup markup)
   int markupIndex = this->GetNumberOfMarkups() - 1;
 
   this->Modified();
-  if (!this->GetDisableModifiedEvent())
-    {
-    this->InvokeEvent(vtkMRMLMarkupsNode::MarkupAddedEvent, (void*)&markupIndex);
-    }
+  this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::MarkupAddedEvent, (void*)&markupIndex);
   return markupIndex;
 }
 
 //-----------------------------------------------------------
-#if (VTK_MAJOR_VERSION < 6)
-int vtkMRMLMarkupsNode::AddMarkupWithNPoints(int n)
-{
-  return this->AddMarkupWithNPoints(n, std::string());
-}
-#endif
-
-//-----------------------------------------------------------
-int vtkMRMLMarkupsNode::AddMarkupWithNPoints(int n, std::string label)
+int vtkMRMLMarkupsNode::AddMarkupWithNPoints(int n, std::string label /*=std::string()*/, vtkVector3d* point /*=NULL*/)
 {
   int markupIndex = -1;
   if (n < 0)
@@ -507,57 +504,29 @@ int vtkMRMLMarkupsNode::AddMarkupWithNPoints(int n, std::string label)
   Markup markup;
   markup.Label = label;
   this->InitMarkup(&markup);
-  for (int i = 0; i < n; i++)
+  if (point != NULL)
     {
-    vtkVector3d p;
-    p.SetX(0.0);
-    p.SetY(0.0);
-    p.SetZ(0.0);
-    markup.points.push_back(p);
+    markup.points = std::vector<vtkVector3d>(n,*point);
     }
-  this->Markups.push_back(markup);
-  this->MaximumNumberOfMarkups++;
-
-  markupIndex = this->GetNumberOfMarkups() - 1;
-
-  this->Modified();
-  if (!this->GetDisableModifiedEvent())
+  else
     {
-    this->InvokeEvent(vtkMRMLMarkupsNode::MarkupAddedEvent, (void*)&markupIndex);
+    markup.points = std::vector<vtkVector3d>(n,vtkVector3d(0,0,0));
     }
-
-  return markupIndex;
+  return this->AddMarkup(markup);
 }
 
 //-----------------------------------------------------------
-#if (VTK_MAJOR_VERSION < 6)
-int vtkMRMLMarkupsNode::AddPointToNewMarkup(vtkVector3d point)
+int vtkMRMLMarkupsNode::AddPointToNewMarkup(vtkVector3d point, std::string label /*=std::string()*/)
 {
-  return this->AddPointToNewMarkup(point, std::string());
+  return this->AddMarkupWithNPoints(1, label, &point);
 }
-#endif
 
 //-----------------------------------------------------------
-int vtkMRMLMarkupsNode::AddPointToNewMarkup(vtkVector3d point, std::string label)
+int vtkMRMLMarkupsNode::AddPointWorldToNewMarkup(vtkVector3d pointWorld, std::string label /*=std::string()*/)
 {
-  int markupIndex = 0;
-
-  Markup newmarkup;
-  newmarkup.Label = label;
-  this->InitMarkup(&newmarkup);
-  newmarkup.points.push_back(point);
-  this->Markups.push_back(newmarkup);
-  this->MaximumNumberOfMarkups++;
-
-  markupIndex = this->Markups.size() - 1;
-
-  this->Modified();
-  if (!this->GetDisableModifiedEvent())
-    {
-    this->InvokeEvent(vtkMRMLMarkupsNode::MarkupAddedEvent, (void*)&markupIndex);
-    }
-
-  return markupIndex;
+  vtkVector3d point;
+  this->TransformPointFromWorld(pointWorld, point);
+  return this->AddMarkupWithNPoints(1, label, &point);
 }
 
 //-----------------------------------------------------------
@@ -607,42 +576,12 @@ void vtkMRMLMarkupsNode::GetMarkupPointLPS(int markupIndex, int pointIndex, doub
 //-----------------------------------------------------------
 int vtkMRMLMarkupsNode::GetMarkupPointWorld(int markupIndex, int pointIndex, double worldxyz[4])
 {
-  vtkVector3d vectorPoint = this->GetMarkupPointVector(markupIndex, pointIndex);
-  double xyz[3];
-  xyz[0] = vectorPoint.GetX();
-  xyz[1] = vectorPoint.GetY();
-  xyz[2] = vectorPoint.GetZ();
-  // get the markup's transform node
-  vtkMRMLTransformNode* tnode = this->GetParentTransformNode();
-  vtkGeneralTransform *transformToWorld = vtkGeneralTransform::New();
-  transformToWorld->Identity();
-  if (tnode != 0 && !tnode->IsTransformToWorldLinear())
-    {
-    tnode->GetTransformToWorld(transformToWorld);
-    }
-  else if (tnode != NULL && tnode->IsTransformToWorldLinear())
-    {
-    vtkNew<vtkMatrix4x4> matrixTransformToWorld;
-    matrixTransformToWorld->Identity();
-    tnode->GetMatrixTransformToWorld(matrixTransformToWorld.GetPointer());
-    transformToWorld->Concatenate(matrixTransformToWorld.GetPointer());
-  }
-
-  // convert by the parent transform
-  double  xyzw[4];
-  xyzw[0] = xyz[0];
-  xyzw[1] = xyz[1];
-  xyzw[2] = xyz[2];
-  xyzw[3] = 1.0;
-
-  double *p = transformToWorld->TransformDoublePoint(xyzw);
-  worldxyz[0]=p[0];
-  worldxyz[1]=p[1];
-  worldxyz[2]=p[2];
-  worldxyz[3]=1;
-
-  transformToWorld->Delete();
-
+  vtkVector3d world;
+  this->TransformPointToWorld(this->GetMarkupPointVector(markupIndex, pointIndex), world);
+  worldxyz[0] = world[0];
+  worldxyz[1] = world[1];
+  worldxyz[2] = world[2];
+  worldxyz[3] = 1;
   return 1;
 }
 
@@ -655,10 +594,7 @@ void vtkMRMLMarkupsNode::RemoveMarkup(int m)
     this->Markups.erase(this->Markups.begin() + m);
 
     this->Modified();
-    if (!this->GetDisableModifiedEvent())
-      {
-      this->InvokeEvent(vtkMRMLMarkupsNode::MarkupRemovedEvent, (void*)&m);
-      }
+    this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::MarkupRemovedEvent, (void*)&m);
     }
 }
 
@@ -697,10 +633,7 @@ bool vtkMRMLMarkupsNode::InsertMarkup(Markup m, int targetIndex)
 
   // let observers know that a markup was added
   this->Modified();
-  if (!this->GetDisableModifiedEvent())
-    {
-    this->InvokeEvent(vtkMRMLMarkupsNode::MarkupAddedEvent, (void*)&targetIndex);
-    }
+  this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::MarkupAddedEvent, (void*)&targetIndex);
 
   return true;
 }
@@ -755,11 +688,8 @@ void vtkMRMLMarkupsNode::SwapMarkups(int m1, int m2)
 
   // and let listeners know that two markups have changed
   this->Modified();
-  if (!this->GetDisableModifiedEvent())
-    {
-    this->InvokeEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&m1);
-    this->InvokeEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&m2);
-    }
+  this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&m1);
+  this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&m2);
 }
 
 //-----------------------------------------------------------
@@ -802,10 +732,7 @@ void vtkMRMLMarkupsNode::SetMarkupPoint(const int markupIndex, const int pointIn
     }
   // throw an event to let listeners know the position has changed
   this->Modified();
-  if (!this->GetDisableModifiedEvent())
-    {
-    this->InvokeEvent(vtkMRMLMarkupsNode::PointModifiedEvent, (void*)&markupIndex);
-    }
+  this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::PointModifiedEvent, (void*)&markupIndex);
 }
 
 //-----------------------------------------------------------
@@ -827,28 +754,9 @@ void vtkMRMLMarkupsNode::SetMarkupPointWorld(const int markupIndex, const int po
     {
     return;
     }
-
-  vtkMRMLTransformNode* tnode = this->GetParentTransformNode();
-  vtkGeneralTransform *transformFromWorld = vtkGeneralTransform::New();
-  transformFromWorld->Identity();
-  if (tnode != 0 && !tnode->IsTransformToWorldLinear())
-    {
-    tnode->GetTransformFromWorld(transformFromWorld);
-    }
-  else if (tnode != NULL && tnode->IsTransformToWorldLinear())
-    {
-    vtkNew<vtkMatrix4x4> matrixTransformToWorld;
-    tnode->GetMatrixTransformToWorld(matrixTransformToWorld.GetPointer());
-    matrixTransformToWorld->Invert();
-    transformFromWorld->Concatenate(matrixTransformToWorld.GetPointer());
-  }
-
-  double *worldxyz = transformFromWorld->TransformDoublePoint(x,y,z);
-
-  tnode = NULL;
-
-  this->SetMarkupPoint(markupIndex, pointIndex, worldxyz[0], worldxyz[1], worldxyz[2]);
-  transformFromWorld->Delete();
+  vtkVector3d markupxyz;
+  TransformPointFromWorld(vtkVector3d(x,y,z), markupxyz);
+  this->SetMarkupPoint(markupIndex, pointIndex, markupxyz[0], markupxyz[1], markupxyz[2]);
 }
 
 //-----------------------------------------------------------
@@ -934,6 +842,9 @@ void vtkMRMLMarkupsNode::SetNthMarkupAssociatedNodeID(int n, std::string id)
       {
       vtkDebugMacro("Changing markup " << n << " associated node id from " << markup->AssociatedNodeID.c_str() << " to " << id.c_str());
       markup->AssociatedNodeID = std::string(id.c_str());
+      int markupIndex = n;
+      this->Modified();
+      this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&markupIndex);
       }
     }
   else
@@ -1051,10 +962,7 @@ void vtkMRMLMarkupsNode::SetNthMarkupSelected(int n, bool flag)
         markup->Selected = flag;
         int markupIndex = n;
         this->Modified();
-        if (!this->GetDisableModifiedEvent())
-          {
-          this->InvokeEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&markupIndex);
-          }
+        this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&markupIndex);
         }
       }
     }
@@ -1087,11 +995,7 @@ void vtkMRMLMarkupsNode::SetNthMarkupLocked(int n, bool flag)
         markup->Locked = flag;
         int markupIndex = n;
         this->Modified();
-        if (!this->GetDisableModifiedEvent())
-          {
-          this->InvokeEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent,
-                            (void*)&markupIndex);
-          }
+        this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&markupIndex);
         }
       }
     }
@@ -1124,10 +1028,7 @@ void vtkMRMLMarkupsNode::SetNthMarkupVisibility(int n, bool flag)
         markup->Visibility = flag;
         int markupIndex = n;
         this->Modified();
-        if (!this->GetDisableModifiedEvent())
-          {
-          this->InvokeEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&markupIndex);
-          }
+        this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&markupIndex);
         }
       }
     }
@@ -1160,10 +1061,7 @@ void vtkMRMLMarkupsNode::SetNthMarkupLabel(int n, std::string label)
         markup->Label = label;
         int markupIndex = n;
         this->Modified();
-        if (!this->GetDisableModifiedEvent())
-          {
-          this->InvokeEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&markupIndex);
-          }
+        this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&markupIndex);
         }
       }
     }
@@ -1196,129 +1094,16 @@ void vtkMRMLMarkupsNode::SetNthMarkupDescription(int n, std::string description)
         markup->Description = description;
         int markupIndex = n;
         this->Modified();
-        if (!this->GetDisableModifiedEvent())
-          {
-          this->InvokeEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&markupIndex);
-          }
+        this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::NthMarkupModifiedEvent, (void*)&markupIndex);
         }
       }
     }
 }
 
 //---------------------------------------------------------------------------
-std::string vtkMRMLMarkupsNode::GetNthMarkupLabelForStorage(int n)
-{
-  std::string label = this->GetNthMarkupLabel(n);
-  vtkMRMLMarkupsStorageNode *markupsStorageNode = NULL;
-  vtkMRMLStorageNode *mrmlNode = this->GetStorageNode();
-  if (mrmlNode)
-    {
-    markupsStorageNode = vtkMRMLMarkupsStorageNode::SafeDownCast(mrmlNode);
-    }
-  if (markupsStorageNode)
-    {
-    return markupsStorageNode->ConvertStringToStorageFormat(label);
-    }
-  else
-    {
-    vtkWarningMacro("GetNthMarkupLabelForStorage: no storage node to do the conversion!");
-    return label;
-    }
-}
-
-//---------------------------------------------------------------------------
-void vtkMRMLMarkupsNode::SetNthMarkupLabelFromStorage(int n, std::string label)
-{
-  std::string str;
-  vtkMRMLMarkupsStorageNode *markupsStorageNode = NULL;
-  vtkMRMLStorageNode *mrmlNode = this->GetStorageNode();
-  if (mrmlNode)
-    {
-    markupsStorageNode = vtkMRMLMarkupsStorageNode::SafeDownCast(mrmlNode);
-    }
-  if (markupsStorageNode)
-    {
-    str = markupsStorageNode->ConvertStringFromStorageFormat(label);
-    }
-  else
-    {
-    vtkWarningMacro("SetNthMarkupLabelFromStorage: no storage node to do the conversion!");
-    str = label;
-    }
-  this->SetNthMarkupLabel(n, str);
-}
-
-//---------------------------------------------------------------------------
-std::string vtkMRMLMarkupsNode::GetNthMarkupDescriptionForStorage(int n)
-{
-  std::string description = this->GetNthMarkupDescription(n);
-  vtkMRMLMarkupsStorageNode *markupsStorageNode = NULL;
-  vtkMRMLStorageNode *mrmlNode = this->GetStorageNode();
-  if (mrmlNode)
-    {
-    markupsStorageNode = vtkMRMLMarkupsStorageNode::SafeDownCast(mrmlNode);
-    }
-  if (markupsStorageNode)
-    {
-    return markupsStorageNode->ConvertStringToStorageFormat(description);
-    }
-  else
-    {
-    vtkWarningMacro("GetNthMarkupDescriptionForStorage: no storage node to do the conversion!");
-    return description;
-    }
-}
-
-//---------------------------------------------------------------------------
-void vtkMRMLMarkupsNode::SetNthMarkupDescriptionFromStorage(int n, std::string description)
-{
-  std::string str;
-  vtkMRMLMarkupsStorageNode *markupsStorageNode = NULL;
-  vtkMRMLStorageNode *mrmlNode = this->GetStorageNode();
-  if (mrmlNode)
-    {
-    markupsStorageNode = vtkMRMLMarkupsStorageNode::SafeDownCast(mrmlNode);
-    }
-  if (markupsStorageNode)
-    {
-    str = markupsStorageNode->ConvertStringFromStorageFormat(description);
-    }
-  else
-    {
-    vtkWarningMacro("SetNthMarkupDescriptionFromStorage: no storage node to do the conversion!");
-    str = description;
-    }
-  this->SetNthMarkupDescription(n, str);
-}
-
-//---------------------------------------------------------------------------
 bool vtkMRMLMarkupsNode::CanApplyNonLinearTransforms()const
 {
   return true;
-}
-
-//---------------------------------------------------------------------------
-void vtkMRMLMarkupsNode::ApplyTransformMatrix(vtkMatrix4x4* transformMatrix)
-{
-  int numMarkups = this->GetNumberOfMarkups();
-  double (*matrix)[4] = transformMatrix->Element;
-  double xyzIn[3];
-  double xyzOut[3];
-  for (int m = 0; m < numMarkups; m++)
-    {
-    int numPoints = this->GetNumberOfPointsInNthMarkup(m);
-    for (int n=0; n<numPoints; n++)
-      {
-      this->GetMarkupPoint(m, n, xyzIn);
-      xyzOut[0] = matrix[0][0]*xyzIn[0] + matrix[0][1]*xyzIn[1] + matrix[0][2]*xyzIn[2] + matrix[0][3];
-      xyzOut[1] = matrix[1][0]*xyzIn[0] + matrix[1][1]*xyzIn[1] + matrix[1][2]*xyzIn[2] + matrix[1][3];
-      xyzOut[2] = matrix[2][0]*xyzIn[0] + matrix[2][1]*xyzIn[1] + matrix[2][2]*xyzIn[2] + matrix[2][3];
-      this->SetMarkupPointFromArray(m, n, xyzOut);
-      }
-    }
-
-  this->StorableModifiedTime.Modified();
-  this->Modified();
 }
 
 //---------------------------------------------------------------------------
@@ -1471,11 +1256,7 @@ void vtkMRMLMarkupsNode::SetMarkupLabelFormat(std::string format)
   this->MarkupLabelFormat = format;
 
   this->Modified();
-  if (!this->GetDisableModifiedEvent())
-    {
-    // invoke a label format modified event
-    this->InvokeEvent(vtkMRMLMarkupsNode::LabelFormatModifiedEvent);
-    }
+  this->InvokeCustomModifiedEvent(vtkMRMLMarkupsNode::LabelFormatModifiedEvent);
 }
 
 //---------------------------------------------------------------------------

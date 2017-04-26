@@ -116,6 +116,8 @@ if(Slicer_USE_PYTHONQT)
   list(APPEND KIT_SRCS
     qSlicerScriptedFileWriter.cxx
     qSlicerScriptedFileWriter.h
+    qSlicerScriptedUtils.cxx
+    qSlicerScriptedUtils_p.h
     )
 endif()
 
@@ -192,17 +194,28 @@ set(KIT_resources
   Resources/qSlicerBaseQTCore.qrc
   )
 
+if(APPLE)
+  set(QT_CONF_FILEPATH "${CMAKE_CURRENT_BINARY_DIR}/Resources/qt.conf")
+  file(WRITE ${QT_CONF_FILEPATH}
+"[Paths]
+Plugins = ${Slicer_QtPlugins_DIR}
+")
+
+  configure_file(
+    Resources/qSlicerBaseQTCoreExtra.qrc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/Resources/qSlicerBaseQTCoreExtra.qrc
+    )
+
+  list(APPEND KIT_resources
+    ${CMAKE_CURRENT_BINARY_DIR}/Resources/qSlicerBaseQTCoreExtra.qrc
+    )
+endif()
+
 # Python wrap
 if(Slicer_USE_PYTHONQT)
-  if(${VTK_VERSION_MAJOR} GREATER 5)
-    set(VTK_COMMON_PYTHON_LIBRARY
-      vtkWrappingPythonCore # For vtkPythonUtil
-      )
-  else()
-    set(VTK_COMMON_PYTHON_LIBRARY
-      vtkCommonPythonD # For vtkPythonUtils
-      )
-  endif()
+  set(VTK_COMMON_PYTHON_LIBRARY
+    vtkWrappingPythonCore # For vtkPythonUtil
+    )
   list(APPEND KIT_target_libraries
     CTKScriptingPythonCore
     ${VTK_COMMON_PYTHON_LIBRARY} # For vtkPythonUtils
@@ -238,6 +251,18 @@ SlicerMacroBuildBaseQtLibrary(
   RESOURCES ${KIT_resources}
   WRAP_PYTHONQT
   )
+
+if(Slicer_USE_PYTHONQT_WITH_OPENSSL)
+  configure_file(
+    Resources/Certs/Slicer.crt
+    ${Slicer_BINARY_DIR}/${Slicer_SHARE_DIR}/Slicer.crt
+    COPYONLY
+    )
+  install(
+    FILES Resources/Certs/Slicer.crt
+    DESTINATION ${Slicer_INSTALL_SHARE_DIR} COMPONENT Runtime
+    )
+endif()
 
 # Plugins
 #add_subdirectory(Plugins)

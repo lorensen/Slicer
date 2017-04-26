@@ -22,6 +22,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
+#include <QRegExp>
 #include <QStringList>
 
 // SlicerQt includes
@@ -168,6 +169,12 @@ bool qSlicerUtils::isPluginInstalled(const QString& filePath, const QString& app
 }
 
 //-----------------------------------------------------------------------------
+bool qSlicerUtils::isPluginBuiltIn(const QString& filePath, const QString& applicationHomeDir)
+{
+  return vtkSlicerApplicationLogic::IsPluginBuiltIn(filePath.toStdString(), applicationHomeDir.toStdString());
+}
+
+//-----------------------------------------------------------------------------
 QString qSlicerUtils::pathWithoutIntDir(const QString& path, const QString& subDirWithoutIntDir)
 {
   QString tmp;
@@ -263,4 +270,29 @@ bool qSlicerUtils::setPermissionsRecursively(const QString &path,
       }
     }
   return true;
+}
+
+//-----------------------------------------------------------------------------
+bool qSlicerUtils::isRelease(const QString& version)
+{
+  return QRegExp("\\d+\\.\\d+\\.\\d+(-rc\\d+)?(-\\d+)?").exactMatch(version);
+}
+
+//-----------------------------------------------------------------------------
+QString qSlicerUtils::replaceWikiUrlVersion(const QString& text, const QString& version)
+{
+  QString updatedText = text;
+  QRegExp rx("http[s]?\\:\\/\\/[a-zA-Z0-9\\-\\._\\?\\,\\'\\/\\\\\\+&amp;%\\$#\\=~]*");
+  int pos = 0;
+  while ((pos = rx.indexIn(updatedText, pos)) != -1)
+    {
+    // Given an URL matching the regular expression reported above, this second
+    // expression will replace the first occurence of "Documentation/<StringWithLetterOrNumberOrDot>/"
+    // with "Documentation/<version>/"
+    QString updatedURL = rx.cap(0).replace(QRegExp("Documentation\\/[a-zA-Z0-9\\.]+"), "Documentation/" +version);
+    updatedText.replace(pos, rx.matchedLength(), updatedURL);
+    pos += updatedURL.length();
+    }
+
+  return updatedText;
 }

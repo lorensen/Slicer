@@ -13,7 +13,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 
-  This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc.
+  This file was originally developed by Julien Finet, Kitware Inc.
   and was partially funded by NIH grant 3P41RR013218-12S1
 
 ==============================================================================*/
@@ -36,9 +36,7 @@ qMRMLLayoutWidget::qMRMLLayoutWidget(QWidget* widget)
   : Superclass(widget)
   , d_ptr(new qMRMLLayoutWidgetPrivate)
 {
-  Q_D(qMRMLLayoutWidget);
-  d->LayoutManager = new qMRMLLayoutManager(this);
-  d->LayoutManager->setViewport(this);
+  this->setLayoutManager(new qMRMLLayoutManager);
 }
 
 // --------------------------------------------------------------------------
@@ -51,6 +49,15 @@ qMRMLLayoutManager* qMRMLLayoutWidget::layoutManager()const
 {
   Q_D(const qMRMLLayoutWidget);
   return d->LayoutManager;
+}
+
+//------------------------------------------------------------------------------
+void qMRMLLayoutWidget::setLayoutManager(qMRMLLayoutManager* layoutManager)
+{
+  Q_D(qMRMLLayoutWidget);
+  d->LayoutManager = layoutManager;
+  d->LayoutManager->setParent(this);
+  d->LayoutManager->setViewport(this);
 }
 
 //------------------------------------------------------------------------------

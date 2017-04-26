@@ -1,12 +1,17 @@
 import os
-from __main__ import vtk
-from __main__ import qt
-from __main__ import ctk
-from __main__ import slicer
-from EditOptions import EditOptions
-import EditUtil
+import vtk
+import qt
+import ctk
+import slicer
+from EditUtil import EditUtil
 import Effect
 
+__all__ = [
+  'LabelEffectOptions',
+  'LabelEffectTool',
+  'LabelEffectLogic',
+  'LabelEffect'
+  ]
 
 #########################################################
 #
@@ -266,11 +271,7 @@ class LabelEffectLogic(Effect.EffectLogic):
     if not labelNode: return
     labelImage = labelNode.GetImageData()
     if not labelImage: return
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      imageData.SetScalarType(labelImage.GetScalarType())
-      imageData.AllocateScalars()
-    else:
-      imageData.AllocateScalars(labelImage.GetScalarType(), 1)
+    imageData.AllocateScalars(labelImage.GetScalarType(), 1)
 
     #
     # move the points so the lower left corner of the
@@ -284,10 +285,7 @@ class LabelEffectLogic(Effect.EffectLogic):
     drawPoints.Modified()
 
     fill = slicer.vtkImageFillROI()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      fill.SetInput(imageData)
-    else:
-      fill.SetInputData(imageData)
+    fill.SetInputData(imageData)
     fill.SetValue(1)
     fill.SetPoints(drawPoints)
     fill.Update()
@@ -413,7 +411,7 @@ class LabelEffectLogic(Effect.EffectLogic):
     if not self.extractImage:
       self.extractImage = vtk.vtkImageData()
 
-    parameterNode = self.editUtil.getParameterNode()
+    parameterNode = EditUtil.getParameterNode()
     paintLabel = int(parameterNode.GetParameter("label"))
     paintOver = int(parameterNode.GetParameter("LabelEffect,paintOver"))
     paintThreshold = int(parameterNode.GetParameter("LabelEffect,paintThreshold"))
@@ -445,7 +443,7 @@ class LabelEffectLogic(Effect.EffectLogic):
 
     self.painter.Paint()
 
-    self.editUtil.markVolumeNodeAsModified(labelNode)
+    EditUtil.markVolumeNodeAsModified(labelNode)
 
   def sliceIJKPlane(self):
     """ Return a code indicating which plane of IJK

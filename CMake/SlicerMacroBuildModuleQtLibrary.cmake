@@ -67,11 +67,26 @@ macro(SlicerMacroBuildModuleQtLibrary)
   set(lib_name ${MODULEQTLIBRARY_NAME})
 
   # --------------------------------------------------------------------------
+  # Set <MODULEQTLIBRARY_NAME>_INCLUDE_DIRS
+  # --------------------------------------------------------------------------
+  set(_include_dirs
+    ${${MODULEQTLIBRARY_NAME}_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}
+    )
+  # Since module developer may have already set the variable to some
+  # specific values in the module CMakeLists.txt, we make sure to
+  # consider the already set variable and remove duplicates.
+  list(REMOVE_DUPLICATES _include_dirs)
+  set(${MODULEQTLIBRARY_NAME}_INCLUDE_DIRS
+    ${_include_dirs}
+    CACHE INTERNAL "${MODULEQTLIBRARY_NAME} include directories" FORCE)
+
+  # --------------------------------------------------------------------------
   # Include dirs
   # --------------------------------------------------------------------------
   include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_BINARY_DIR}
+    ${${MODULEQTLIBRARY_NAME}_INCLUDE_DIRS}
     ${MODULEQTLIBRARY_INCLUDE_DIRECTORIES}
     )
 

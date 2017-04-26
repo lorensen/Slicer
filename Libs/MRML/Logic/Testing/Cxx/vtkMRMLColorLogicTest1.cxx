@@ -65,8 +65,7 @@ namespace
 //----------------------------------------------------------------------------
 bool TestPerformance()
 {
-  // To load freesurfer files, SLICER_HOME is requested
-  //vtksys::SystemTools::PutEnv("SLICER_HOME=..." );
+  // To load freesurfer files, MRML_APPLICATION_HOME_DIR_ENV environment variable has to be set
   vtkNew<vtkMRMLScene> scene;
   vtkMRMLColorLogic* colorLogic = vtkMRMLColorLogic::New();
 
@@ -109,7 +108,8 @@ bool TestNodeIDs()
       vtkMRMLColorLogic::GetColorTableNodeID(colorNode->GetType());
     if (strcmp(colorNode->GetID(), nodeID) != 0)
       {
-      std::cout << "Failed to generate color table node ID for "
+      std::cerr << "Line " << __LINE__
+                << " - Failed to generate color table node ID for "
                 << colorNode->GetType() << std::endl;
       return false;
       }
@@ -123,7 +123,8 @@ bool TestNodeIDs()
       vtkMRMLColorLogic::GetPETColorNodeID(colorNode->GetType());
     if (strcmp(colorNode->GetID(), nodeID) != 0)
       {
-      std::cout << "Failed to generate color table node ID for "
+      std::cerr << "Line " << __LINE__
+                << " - Failed to generate color table node ID for "
                 << colorNode->GetType() << std::endl;
       return false;
       }
@@ -137,12 +138,13 @@ bool TestNodeIDs()
       vtkMRMLColorLogic::GetdGEMRICColorNodeID(colorNode->GetType());
     if (strcmp(colorNode->GetID(), nodeID) != 0)
       {
-      std::cout << "Failed to generate color table node ID for "
+      std::cerr << "Line " << __LINE__
+                << " - Failed to generate color table node ID for "
                 << colorNode->GetType() << std::endl;
       return false;
       }
     }
-  // To test free surfers, SLICER_HOME env variable needs to be set.
+  // To load freesurfer files, MRML_APPLICATION_HOME_DIR_ENV environment variable has to be set
   return true;
 }
 
@@ -154,37 +156,43 @@ bool TestDefaults()
   colorLogic->SetMRMLScene(scene.GetPointer());
   if (scene->GetNodeByID(colorLogic->GetDefaultVolumeColorNodeID()) == 0)
     {
-    std::cout << "Can't find default volume color node with ID: "
+    std::cerr << "Line " << __LINE__
+              << " - Can't find default volume color node with ID: "
               << colorLogic->GetDefaultVolumeColorNodeID() << std::endl;
     return false;
     }
   if (scene->GetNodeByID(colorLogic->GetDefaultLabelMapColorNodeID()) == 0)
     {
-    std::cout << "Can't find default labelmap color node with ID: "
+    std::cerr << "Line " << __LINE__
+              << " - Can't find default labelmap color node with ID: "
               << colorLogic->GetDefaultLabelMapColorNodeID() << std::endl;
     return false;
     }
   if (scene->GetNodeByID(colorLogic->GetDefaultEditorColorNodeID()) == 0)
     {
-    std::cout << "Can't find default editor color node with ID: "
+    std::cerr << "Line " << __LINE__
+              << " - Can't find default editor color node with ID: "
               << colorLogic->GetDefaultEditorColorNodeID() << std::endl;
     return false;
     }
   if (scene->GetNodeByID(colorLogic->GetDefaultModelColorNodeID()) == 0)
     {
-    std::cout << "Can't find default model color node with ID: "
+    std::cerr << "Line " << __LINE__
+              << " - Can't find default model color node with ID: "
               << colorLogic->GetDefaultModelColorNodeID() << std::endl;
     return false;
     }
   if (scene->GetNodeByID(colorLogic->GetDefaultChartColorNodeID()) == 0)
     {
-    std::cout << "Can't find default chart color node with ID: "
+    std::cerr << "Line " << __LINE__
+              << " - Can't find default chart color node with ID: "
               << colorLogic->GetDefaultChartColorNodeID() << std::endl;
     return false;
     }
   //if (scene->GetNodeByID(colorLogic->GetDefaultFreeSurferLabelMapColorNodeID()) == 0)
   //  {
-  //  std::cout << "Can't find default free surfer color node with ID: "
+  //  std::cerr << "Line " << __LINE__
+  //            << " - Can't find default free surfer color node with ID: "
   //            << colorLogic->GetDefaultFreeSurferLabelMapColorNodeID() << std::endl;
   //  return false;
   //  }
@@ -214,7 +222,8 @@ bool TestCopy()
   vtkMRMLColorTableNode *copiedNode = colorLogic->CopyNode(originalNode.GetPointer(), "Copied Generic");
   if (!copiedNode)
     {
-    std::cerr << "Failed to create a copy of the generic colors node" << std::endl;
+    std::cerr << "Line " << __LINE__
+              << " - Failed to create a copy of the generic colors node" << std::endl;
     return false;
     }
 
@@ -226,12 +235,14 @@ bool TestCopy()
     {
     if (!originalNode->GetColor(i, originalColor))
       {
-      std::cerr << "Failed to get color " << i << " from the origianl node." << std::endl;
+      std::cerr << "Line " << __LINE__
+                << " - Failed to get color " << i << " from the origianl node." << std::endl;
       return false;
       }
     if (!copiedNode->GetColor(i, copyColor))
       {
-      std::cerr << "Failed to get color " << i << " from the copied node." << std::endl;
+      std::cerr << "Line " << __LINE__
+                << " - Failed to get color " << i << " from the copied node." << std::endl;
       return false;
       }
     if (copyColor[0] != originalColor[0] ||
@@ -239,7 +250,8 @@ bool TestCopy()
         copyColor[2] != originalColor[2] ||
         copyColor[3] != originalColor[3])
       {
-      std::cerr << "Copy failed to copy color " << i << ", expected "
+      std::cerr << "Line " << __LINE__
+                << " - Copy failed to copy color " << i << ", expected "
                 << originalColor[0] << "," << originalColor[1] << "," << originalColor[2] << "," << originalColor[3]
                 << ", but got "
                 << copyColor[0] << "," << copyColor[1] << "," << copyColor[2] << "," << copyColor[3]
@@ -251,7 +263,8 @@ bool TestCopy()
     if (originalColorName != NULL && copyColorName != NULL &&
         strcmp(originalColorName, copyColorName) != 0)
       {
-      std::cerr << "Failed to copy color name for color number " << i
+      std::cerr << "Line " << __LINE__
+                << " - Failed to copy color name for color number " << i
                 << ", expected '" << originalColorName << "', but got '"
                 << copyColorName << "'" << std::endl;
       return false;
@@ -287,7 +300,8 @@ bool TestProceduralCopy()
   vtkMRMLProceduralColorNode *copiedNode = colorLogic->CopyProceduralNode(originalNode.GetPointer(), "Copied Proc");
   if (!copiedNode)
     {
-    std::cerr << "Failed to create a copy of a continuous colors node" << std::endl;
+    std::cerr << "Line " << __LINE__
+              << " - Failed to create a copy of a continuous colors node" << std::endl;
     return false;
     }
 
@@ -299,12 +313,14 @@ bool TestProceduralCopy()
     {
     if (!originalNode->GetColor(i, originalColor))
       {
-      std::cerr << "Failed to get color " << i << " from the original node." << std::endl;
+      std::cerr << "Line " << __LINE__
+                << " - Failed to get color " << i << " from the original node." << std::endl;
       return false;
       }
     if (!copiedNode->GetColor(i, copyColor))
       {
-      std::cerr << "Failed to get color " << i << " from the copied node." << std::endl;
+      std::cerr << "Line " << __LINE__
+                << " - Failed to get color " << i << " from the copied node." << std::endl;
       return false;
       }
     if (copyColor[0] != originalColor[0] ||
@@ -312,7 +328,8 @@ bool TestProceduralCopy()
         copyColor[2] != originalColor[2] ||
         copyColor[3] != originalColor[3])
       {
-      std::cerr << "Copy failed to copy color " << i << ", expected "
+      std::cerr << "Line " << __LINE__
+                << " - Copy failed to copy color " << i << ", expected "
                 << originalColor[0] << "," << originalColor[1] << "," << originalColor[2] << "," << originalColor[3]
                 << ", but got "
                 << copyColor[0] << "," << copyColor[1] << "," << copyColor[2] << "," << copyColor[3]
@@ -324,7 +341,8 @@ bool TestProceduralCopy()
     if (originalColorName != NULL && copyColorName != NULL &&
         strcmp(originalColorName, copyColorName) != 0)
       {
-      std::cerr << "Failed to copy color name for color number " << i << ", expected '" << originalColorName << "', but got '" << copyColorName << "'" << std::endl;
+      std::cerr << "Line " << __LINE__
+                << " - Failed to copy color name for color number " << i << ", expected '" << originalColorName << "', but got '" << copyColorName << "'" << std::endl;
       return false;
       }
     }

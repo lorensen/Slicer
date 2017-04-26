@@ -3,11 +3,15 @@ include(SlicerMacroBuildScriptedModule)
 
 set(modules
   DataProbe
+  DMRIInstall
   Editor
   EditorLib
   LabelStatistics
   PerformanceTests
   SampleData
+  ScreenCapture
+  SegmentEditor
+  SegmentStatistics
   SelfTests
   SurfaceToolbox
   VectorToScalarVolume
@@ -27,16 +31,7 @@ if(Slicer_BUILD_DICOM_SUPPORT)
     DICOM
     DICOMLib
     DICOMPlugins
-    )
-  if(Slicer_BUILD_DIFFUSION_SUPPORT)
-    list(APPEND modules
-      DICOM2FullBrainTractography
-      )
-  endif()
-endif()
-if(Slicer_BUILD_DIFFUSION_SUPPORT)
-  list(APPEND modules
-    FiberBundleToLabelMap
+    DICOMPatcher
     )
 endif()
 foreach(module ${modules})

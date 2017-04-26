@@ -51,8 +51,7 @@ if(_module_targets)
     set(Slicer_INCLUDE_MODULE_DIRS_CONFIG
 "${Slicer_INCLUDE_MODULE_DIRS_CONFIG}
 set(${target}_INCLUDE_DIRS
-  \"${${target}_SOURCE_DIR}\"
-  \"${${target}_BINARY_DIR}\")"
+  \"${${target}_INCLUDE_DIRS}\")"
 )
   endforeach()
 endif()
@@ -63,8 +62,7 @@ if(_module_logic_targets)
     set(Slicer_INCLUDE_MODULE_LOGIC_DIRS_CONFIG
 "${Slicer_INCLUDE_MODULE_LOGIC_DIRS_CONFIG}
 set(${target}_INCLUDE_DIRS
-  \"${${target}_SOURCE_DIR}\"
-  \"${${target}_BINARY_DIR}\")"
+  \"${${target}_INCLUDE_DIRS}\")"
 )
     list(APPEND Slicer_ModuleLogic_INCLUDE_DIRS_CONFIG "\${${target}_INCLUDE_DIRS}")
   endforeach()
@@ -76,8 +74,7 @@ if(_module_mrml_targets)
     set(Slicer_INCLUDE_MODULE_MRML_DIRS_CONFIG
 "${Slicer_INCLUDE_MODULE_MRML_DIRS_CONFIG}
 set(${target}_INCLUDE_DIRS
-  \"${${target}_SOURCE_DIR}\"
-  \"${${target}_BINARY_DIR}\")"
+  \"${${target}_INCLUDE_DIRS}\")"
 )
     list(APPEND Slicer_ModuleMRML_INCLUDE_DIRS_CONFIG "\${${target}_INCLUDE_DIRS}")
   endforeach()
@@ -89,8 +86,7 @@ if(_module_widget_targets)
     set(Slicer_INCLUDE_MODULE_WIDGET_DIRS_CONFIG
 "${Slicer_INCLUDE_MODULE_WIDGET_DIRS_CONFIG}
 set(${target}_INCLUDE_DIRS
-  \"${${target}_SOURCE_DIR}\"
-  \"${${target}_BINARY_DIR}\")"
+  \"${${target}_INCLUDE_DIRS}\")"
 )
     list(APPEND Slicer_ModuleWidgets_INCLUDE_DIRS_CONFIG "\${${target}_INCLUDE_DIRS}")
   endforeach()
@@ -107,6 +103,7 @@ set(MRMLCLI_INCLUDE_DIRS_CONFIG ${MRMLCLI_INCLUDE_DIRS})
 set(qMRMLWidgets_INCLUDE_DIRS_CONFIG ${qMRMLWidgets_INCLUDE_DIRS})
 set(RemoteIO_INCLUDE_DIRS_CONFIG ${RemoteIO_INCLUDE_DIRS})
 set(vtkTeem_INCLUDE_DIRS_CONFIG ${vtkTeem_INCLUDE_DIRS})
+set(vtkAddon_INCLUDE_DIRS_CONFIG ${vtkAddon_INCLUDE_DIRS})
 set(vtkITK_INCLUDE_DIRS_CONFIG ${vtkITK_INCLUDE_DIRS})
 
 # Note: For sake of simplification, the macro 'slicer_config_set_ep' is not invoked conditionally, if
@@ -129,8 +126,8 @@ set(Slicer_EP_COMPONENT_VARS_CONFIG
   "set(Slicer_VTK_COMPONENTS \"${Slicer_VTK_COMPONENTS}\")")
 
 # List all required external project
-set(Slicer_EXTERNAL_PROJECTS_CONFIG CTK ITK CURL Teem VTK)
-set(Slicer_EXTERNAL_PROJECTS_NO_USEFILE_CONFIG CURL)
+set(Slicer_EXTERNAL_PROJECTS_CONFIG CTK ITK CURL Teem VTK RapidJSON)
+set(Slicer_EXTERNAL_PROJECTS_NO_USEFILE_CONFIG CURL RapidJSON)
 if(Slicer_USE_QtTesting)
   list(APPEND Slicer_EXTERNAL_PROJECTS_CONFIG QtTesting)
   list(APPEND Slicer_EXTERNAL_PROJECTS_NO_USEFILE_CONFIG QtTesting)
@@ -152,6 +149,15 @@ if(Slicer_USE_PYTHONQT)
   list(APPEND Slicer_EXTERNAL_PROJECTS_CONFIG PythonLibs PythonInterp)
   list(APPEND Slicer_EXTERNAL_PROJECTS_NO_USEFILE_CONFIG PythonLibs PythonInterp)
 endif()
+
+# Configure Slicer_USE_SYSTEM_* variables
+set(Slicer_EP_USE_SYSTEM_VARS_CONFIG "")
+foreach(varname ${Slicer_EP_LABEL_USE_SYSTEM})
+  set(Slicer_EP_USE_SYSTEM_VARS_CONFIG
+    "${Slicer_EP_USE_SYSTEM_VARS_CONFIG}
+set(Slicer_USE_SYSTEM_${varname} \"${Slicer_USE_SYSTEM_${varname}}\")"
+    )
+endforeach()
 
 if(Slicer_BUILD_CLI_SUPPORT)
   set(SlicerExecutionModel_CLI_LIBRARY_WRAPPER_CXX_CONFIG ${SlicerExecutionModel_CLI_LIBRARY_WRAPPER_CXX})

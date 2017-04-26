@@ -12,8 +12,8 @@
      PURPOSE.  See the above copyright notices for more information.
 
 =========================================================================*/
-#ifndef __itkDifferenceDiffusionTensor3DImageFilter_h
-#define __itkDifferenceDiffusionTensor3DImageFilter_h
+#ifndef itkDifferenceDiffusionTensor3DImageFilter_h
+#define itkDifferenceDiffusionTensor3DImageFilter_h
 
 #include "itkImageToImageFilter.h"
 #include "itkDiffusionTensor3D.h"
@@ -103,7 +103,7 @@ protected:
   {
   }
 
-  void PrintSelf(std::ostream& os, Indent indent) const;
+  void PrintSelf(std::ostream& os, Indent indent) const ITK_OVERRIDE;
 
   /** DifferenceImageFilter can be implemented as a multithreaded
    * filter.  Therefore, this implementation provides a
@@ -116,11 +116,11 @@ protected:
    *
    * \sa ImageToImageFilter::ThreadedGenerateData(),
    *     ImageToImageFilter::GenerateData()  */
-  void ThreadedGenerateData(const OutputImageRegionType& threadRegion, ThreadIdType threadId);
+  void ThreadedGenerateData(const OutputImageRegionType& threadRegion, ThreadIdType threadId) ITK_OVERRIDE;
 
-  void BeforeThreadedGenerateData();
+  void BeforeThreadedGenerateData() ITK_OVERRIDE;
 
-  void AfterThreadedGenerateData();
+  void AfterThreadedGenerateData() ITK_OVERRIDE;
 
   InputPixelType ApplyMeasurementFrameToTensor( InputPixelType tensor, const MatrixType & measurementFrame );
 
@@ -132,8 +132,8 @@ protected:
 
   Array<AccumulateType> m_ThreadDifferenceSum;
   Array<unsigned long>  m_ThreadNumberOfPixels;
-  MatrixType            measurementFrameValid;
-  MatrixType            measurementFrameTest;
+  MatrixType            m_MeasurementFrameValid;
+  MatrixType            m_MeasurementFrameTest;
 private:
   DifferenceDiffusionTensor3DImageFilter(const Self &); // purposely not implemented
   void operator=(const Self &);                         // purposely not implemented

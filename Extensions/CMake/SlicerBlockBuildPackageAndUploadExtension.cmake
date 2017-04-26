@@ -39,6 +39,7 @@ set(expected_defined_vars
   )
 if(RUN_CTEST_UPLOAD)
   list(APPEND expected_defined_vars
+    CTEST_DROP_SITE
     EXTENSION_ARCHITECTURE
     EXTENSION_BITNESS
     EXTENSION_OPERATING_SYSTEM
@@ -61,8 +62,6 @@ set(CMAKE_MODULE_PATH
   )
 
 include(CMakeParseArguments)
-include(CTestPackage)
-include(MIDASAPIUploadExtension)
 include(MIDASCTestUploadURL)
 include(UseSlicerMacros) # for slicer_setting_variable_message
 
@@ -97,23 +96,27 @@ setIfNotDefined(CTEST_PARALLEL_LEVEL 8)
 setIfNotDefined(CTEST_MODEL "Experimental")
 
 set(label ${EXTENSION_NAME})
-set_property(GLOBAL PROPERTY SubProject ${label})
+#set_property(GLOBAL PROPERTY SubProject ${label})
 set_property(GLOBAL PROPERTY Label ${label})
 
 # If no CTestConfig.cmake file is found in ${ctestconfig_dest_dir},
 # one will be generated.
-set(ctestconfig_dest_dir ${EXTENSION_SUPERBUILD_BINARY_DIR}/${EXTENSION_BUILD_SUBDIRECTORY})
-if(NOT EXISTS ${ctestconfig_dest_dir}/CTestConfig.cmake)
-  message(STATUS "CTestConfig.cmake has been written to: ${ctestconfig_dest_dir}")
-  file(WRITE ${ctestconfig_dest_dir}/CTestConfig.cmake
+foreach(ctestconfig_dest_dir
+  ${EXTENSION_SUPERBUILD_BINARY_DIR}
+  ${EXTENSION_SUPERBUILD_BINARY_DIR}/${EXTENSION_BUILD_SUBDIRECTORY}
+  )
+  if(NOT EXISTS ${ctestconfig_dest_dir}/CTestConfig.cmake)
+    message(STATUS "CTestConfig.cmake has been written to: ${ctestconfig_dest_dir}")
+    file(WRITE ${ctestconfig_dest_dir}/CTestConfig.cmake
 "set(CTEST_PROJECT_NAME \"${EXTENSION_NAME}\")
 set(CTEST_NIGHTLY_START_TIME \"3:00:00 UTC\")
 
 set(CTEST_DROP_METHOD \"http\")
-set(CTEST_DROP_SITE \"slicer.cdash.org\")
+set(CTEST_DROP_SITE \"${CTEST_DROP_SITE}\")
 set(CTEST_DROP_LOCATION \"/submit.php?project=Slicer4\")
 set(CTEST_DROP_SITE_CDASH TRUE)")
-endif()
+  endif()
+endforeach()
 
 set(track_qualifier_cleaned "${Slicer_EXTENSIONS_TRACK_QUALIFIER}-")
 # Track associated with 'master' should default to either 'Continuous', 'Nightly' or 'Experimental'
@@ -132,6 +135,7 @@ CMAKE_GENERATOR:STRING=${CTEST_CMAKE_GENERATOR}
 CMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}
 CMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}
 CMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}
+CTEST_MODEL:STRING=${CTEST_MODEL}
 GIT_EXECUTABLE:FILEPATH=${GIT_EXECUTABLE}
 Subversion_SVN_EXECUTABLE:FILEPATH=${Subversion_SVN_EXECUTABLE}
 Slicer_DIR:PATH=${Slicer_DIR}
@@ -150,7 +154,10 @@ CMAKE_OSX_SYSROOT:PATH=${CMAKE_OSX_SYSROOT}")
 endif()
 
 foreach(dep ${EXTENSION_DEPENDS})
-  set(cmakecache_content "${cmakecache_content}\n${dep}_DIR:PATH=${CMAKE_CURRENT_BINARY_DIR}/../${dep}-build")
+  set(cmakecache_content "${cmakecache_content}
+${dep}_BINARY_DIR:PATH=${${dep}_BINARY_DIR}
+${dep}_BUILD_SUBDIRECTORY:STRING=${${dep}_BUILD_SUBDIRECTORY}
+${dep}_DIR:PATH=${${dep}_BINARY_DIR}/${${dep}_BUILD_SUBDIRECTORY}")
 endforeach()
 
 #-----------------------------------------------------------------------------
@@ -159,8 +166,9 @@ set(cmakecache_current "")
 if(EXISTS ${EXTENSION_SUPERBUILD_BINARY_DIR}/CMakeCache.txt)
   file(READ ${EXTENSION_SUPERBUILD_BINARY_DIR}/CMakeCache.txt cmakecache_current)
 endif()
-if(NOT ${cmakecache_content} STREQUAL "${cmakecache_current}")
-  file(WRITE ${EXTENSION_SUPERBUILD_BINARY_DIR}/CMakeCache.txt ${cmakecache_content})
+if(NOT "${cmakecache_content}" STREQUAL "${cmakecache_current}")
+  message(STATUS "Writting ${EXTENSION_SUPERBUILD_BINARY_DIR}/CMakeCache.txt")
+  file(WRITE ${EXTENSION_SUPERBUILD_BINARY_DIR}/CMakeCache.txt "${cmakecache_content}")
 endif()
 
 # Explicitly set CTEST_BINARY_DIRECTORY so that ctest_submit find
@@ -174,9 +182,13 @@ if(RUN_CTEST_CONFIGURE)
   ctest_configure(
     BUILD ${EXTENSION_SUPERBUILD_BINARY_DIR}
     SOURCE ${EXTENSION_SOURCE_DIR}
+    RETURN_VALUE res
     )
   if(RUN_CTEST_SUBMIT)
     ctest_submit(PARTS Configure)
+  endif()
+  if(NOT res EQUAL 0)
+    message(FATAL_ERROR "Failed to configure extension ${EXTENSION_NAME}")
   endif()
 endif()
 
@@ -217,62 +229,29 @@ endif()
 if(build_errors GREATER "0")
   message(WARNING "Skip extension packaging: ${build_errors} build error(s) occured !")
 else()
-  #message("----------- [ Packaging extension ${EXTENSION_NAME} ] -----------")
-  message("Packaging extension ${EXTENSION_NAME} ...")
-  set(extension_packages)
+  message("Packaging and uploading extension ${EXTENSION_NAME} to midas ...")
+  set(package_list)
   if(RUN_CTEST_PACKAGES)
-    ctest_package(
-      BINARY_DIR ${EXTENSION_SUPERBUILD_BINARY_DIR}/${EXTENSION_BUILD_SUBDIRECTORY}
-      CONFIG ${CTEST_BUILD_CONFIGURATION}
-      RETURN_VAR extension_packages)
-  else()
-    set(extension_packages "${CPACK_PACKAGE_FILE_NAME}.tar.gz")
+    ctest_build(
+      TARGET packageupload
+      BUILD ${EXTENSION_SUPERBUILD_BINARY_DIR}/${EXTENSION_BUILD_SUBDIRECTORY}
+      APPEND
+      )
+    ctest_submit(PARTS Build)
   endif()
 
-  if(RUN_CTEST_UPLOAD AND COMMAND ctest_upload)
-    message("Uploading extension ${EXTENSION_NAME} ...")
+  if(RUN_CTEST_UPLOAD)
+    message("Uploading package URL for extension ${EXTENSION_NAME} ...")
 
-    foreach(p ${extension_packages})
+    file(STRINGS ${EXTENSION_SUPERBUILD_BINARY_DIR}/${EXTENSION_BUILD_SUBDIRECTORY}/PACKAGES.txt package_list)
+
+    foreach(p ${package_list})
       get_filename_component(package_name "${p}" NAME)
-      message("Uploading [${package_name}] on [${MIDAS_PACKAGE_URL}]")
-      midas_api_upload_extension(
-        SERVER_URL ${MIDAS_PACKAGE_URL}
-        SERVER_EMAIL ${MIDAS_PACKAGE_EMAIL}
-        SERVER_APIKEY ${MIDAS_PACKAGE_API_KEY}
-        TMP_DIR ${EXTENSION_SUPERBUILD_BINARY_DIR}/${EXTENSION_BUILD_SUBDIRECTORY}
-        SUBMISSION_TYPE ${CTEST_MODEL}
-        SLICER_REVISION ${Slicer_WC_REVISION}
-        EXTENSION_NAME ${EXTENSION_NAME}
-        EXTENSION_CATEGORY ${EXTENSION_CATEGORY}
-        EXTENSION_ICONURL ${EXTENSION_ICONURL}
-        EXTENSION_CONTRIBUTORS ${EXTENSION_CONTRIBUTORS}
-        EXTENSION_DESCRIPTION ${EXTENSION_DESCRIPTION}
-        EXTENSION_HOMEPAGE ${EXTENSION_HOMEPAGE}
-        EXTENSION_SCREENSHOTURLS ${EXTENSION_SCREENSHOTURLS}
-        EXTENSION_REPOSITORY_TYPE ${EXTENSION_WC_TYPE}
-        EXTENSION_REPOSITORY_URL ${EXTENSION_WC_URL}
-        EXTENSION_SOURCE_REVISION ${EXTENSION_WC_REVISION}
-        EXTENSION_ENABLED ${EXTENSION_ENABLED}
-        OPERATING_SYSTEM ${EXTENSION_OPERATING_SYSTEM}
-        ARCHITECTURE ${EXTENSION_ARCHITECTURE}
-        PACKAGE_FILEPATH ${p}
-        PACKAGE_TYPE "archive"
-        RELEASE ${release}
-        RESULT_VARNAME slicer_midas_upload_status
+      message("Uploading URL to [${package_name}] on CDash")
+      midas_ctest_upload_url(
+        API_URL ${MIDAS_PACKAGE_URL}
+        FILEPATH ${p}
         )
-      if(NOT slicer_midas_upload_status STREQUAL "ok")
-        message(FATAL_ERROR
-"Upload of [${package_name}] failed !
-Check that:
-  (1) you have been granted permission to upload
-  (2) your email and api key are correct")
-      else()
-        message("Uploading URL on CDash")  # On success, upload a link to CDash
-        midas_ctest_upload_url(
-          API_URL ${MIDAS_PACKAGE_URL}
-          FILEPATH ${p}
-          )
-      endif()
       if(RUN_CTEST_SUBMIT)
         ctest_submit(PARTS Upload)
       endif()

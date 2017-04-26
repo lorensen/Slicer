@@ -1,15 +1,20 @@
 import os
-from __main__ import vtk, qt, ctk, slicer
-import EditorLib
-from EditorLib.EditOptions import HelpButton
-from EditorLib.EditOptions import EditOptions
-from EditorLib import EditUtil
-from EditorLib import Effect
+import vtk, qt, ctk, slicer
+from EditOptions import HelpButton
+from EditUtil import EditUtil
+import Effect
+
+__all__ = [
+  'FastMarchingEffectOptions',
+  'FastMarchingEffectTool',
+  'FastMarchingEffectLogic',
+  'FastMarchingEffect'
+  ]
 
 #
 # The Editor Extension itself.
 #
-# This needs to define the hooks to be come an editor effect.
+# This needs to define the hooks to become an editor effect.
 #
 
 #
@@ -30,7 +35,7 @@ class FastMarchingEffectOptions(Effect.EffectOptions):
     # self.attributes = ('MouseTool')
     self.displayName = 'FastMarchingEffect Effect'
 
-    self.logic = FastMarchingEffectLogic(self.editUtil.getSliceLogic())
+    self.logic = FastMarchingEffectLogic(EditUtil.getSliceLogic())
 
   def __del__(self):
     super(FastMarchingEffectOptions,self).__del__()
@@ -90,7 +95,7 @@ class FastMarchingEffectOptions(Effect.EffectOptions):
   # in each leaf subclass so that "self" in the observer
   # is of the correct type
   def updateParameterNode(self, caller, event):
-    node = EditUtil.EditUtil().getParameterNode()
+    node = EditUtil.getParameterNode()
     if node != self.parameterNode:
       if self.parameterNode:
         node.RemoveObserver(self.parameterNodeTag)
@@ -128,17 +133,13 @@ class FastMarchingEffectOptions(Effect.EffectOptions):
 
   def percentMaxChanged(self, val):
     labelNode = self.logic.getLabelNode()
-    labelImage = self.editUtil.getLabelImage()
+    labelImage = EditUtil.getLabelImage()
     spacing = labelNode.GetSpacing()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      dim = labelImage.GetDimensions()
-      totalVolume = spacing[0]*(dim[1]+1)+spacing[1]*(dim[3]+1)+spacing[2]*(dim[5]+1)
-    else:
-      dim = labelImage.GetDimensions()
-      print dim
-      totalVolume = spacing[0]*dim[0]+spacing[1]*dim[1]+spacing[2]*dim[2]
+    dim = labelImage.GetDimensions()
+    print dim
+    totalVolume = spacing[0]*dim[0]+spacing[1]*dim[1]+spacing[2]*dim[2]
 
-      percentVolumeStr = "%.5f" % (totalVolume*val/100.)
+    percentVolumeStr = "%.5f" % (totalVolume*val/100.)
     self.percentVolume.text = '(maximum total volume: '+percentVolumeStr+' mL)'
 
   def updateMRMLFromGUI(self):
@@ -203,15 +204,12 @@ class FastMarchingEffectLogic(Effect.EffectLogic):
 
     self.fm = None
     # allocate a new filter each time March is hit
-    bgImage = self.editUtil.getBackgroundImage()
-    labelImage = self.editUtil.getLabelImage()
+    bgImage = EditUtil.getBackgroundImage()
+    labelImage = EditUtil.getLabelImage()
 
     # collect seeds
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      dim = bgImage.GetWholeExtent()
-    else:
-      dim = bgImage.GetDimensions()
-      print dim
+    dim = bgImage.GetDimensions()
+    print dim
     # initialize the filter
     self.fm = slicer.vtkPichonFastMarching()
     scalarRange = bgImage.GetScalarRange()
@@ -229,10 +227,7 @@ class FastMarchingEffectLogic(Effect.EffectLogic):
 
     if scaleValue or shiftValue:
       rescale = vtk.vtkImageShiftScale()
-      if vtk.VTK_MAJOR_VERSION <= 5:
-        rescale.SetInput(bgImage)
-      else:
-        rescale.SetInputData(bgImage)
+      rescale.SetInputData(bgImage)
       rescale.SetScale(scaleValue)
       rescale.SetShift(shiftValue)
       rescale.Update()
@@ -241,31 +236,20 @@ class FastMarchingEffectLogic(Effect.EffectLogic):
       depth = scalarRange[1]-scalarRange[0]
 
     print('Input scalar range: '+str(depth))
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      self.fm.init(dim[1]+1, dim[3]+1, dim[5]+1, depth, 1, 1, 1)
-    else:
-      self.fm.init(dim[0], dim[1], dim[2], depth, 1, 1, 1)
+    self.fm.init(dim[0], dim[1], dim[2], depth, 1, 1, 1)
 
     caster = vtk.vtkImageCast()
     caster.SetOutputScalarTypeToShort()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      caster.SetInput(bgImage)
-      caster.Update()
-      self.fm.SetInput(caster.GetOutput())
-    else:
-      caster.SetInputData(bgImage)
-      self.fm.SetInputConnection(caster.GetOutputPort())
+    caster.SetInputData(bgImage)
+    self.fm.SetInputConnection(caster.GetOutputPort())
 
     # self.fm.SetOutput(labelImage)
 
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      npoints = int((dim[1]+1)*(dim[3]+1)*(dim[5]+1)*percentMax/100.)
-    else:
-      npoints = int(dim[0]*dim[1]*dim[2]*percentMax/100.)
+    npoints = int(dim[0]*dim[1]*dim[2]*percentMax/100.)
 
     self.fm.setNPointsEvolution(npoints)
-    print('Setting active label to '+str(self.editUtil.getLabel()))
-    self.fm.setActiveLabel(self.editUtil.getLabel())
+    print('Setting active label to '+str(EditUtil.getLabel()))
+    self.fm.setActiveLabel(EditUtil.getLabel())
 
     nSeeds = self.fm.addSeedsFromImage(labelImage)
     if nSeeds == 0:
@@ -285,8 +269,8 @@ class FastMarchingEffectLogic(Effect.EffectLogic):
 
     self.undoRedo.saveState()
 
-    self.editUtil.getLabelImage().DeepCopy(self.fm.GetOutput())
-    self.editUtil.markVolumeNodeAsModified(self.sliceLogic.GetLabelLayer().GetVolumeNode())
+    EditUtil.getLabelImage().DeepCopy(self.fm.GetOutput())
+    EditUtil.markVolumeNodeAsModified(self.sliceLogic.GetLabelLayer().GetVolumeNode())
     # print('FastMarching output image: '+str(output))
     print('FastMarching march update completed')
 
@@ -299,10 +283,10 @@ class FastMarchingEffectLogic(Effect.EffectLogic):
     self.fm.Modified()
     self.fm.Update()
 
-    self.editUtil.getLabelImage().DeepCopy(self.fm.GetOutput())
-    self.editUtil.getLabelImage().Modified()
+    EditUtil.getLabelImage().DeepCopy(self.fm.GetOutput())
+    EditUtil.getLabelImage().Modified()
 
-    self.editUtil.markVolumeNodeAsModified(self.sliceLogic.GetLabelLayer().GetVolumeNode())
+    EditUtil.markVolumeNodeAsModified(self.sliceLogic.GetLabelLayer().GetVolumeNode())
 
   def getLabelNode(self):
     return self.sliceLogic.GetLabelLayer().GetVolumeNode()

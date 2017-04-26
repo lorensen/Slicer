@@ -10,6 +10,7 @@
 #include <vtkVersion.h>
 
 class AttributeMapType: public std::map<std::string, std::string> {};
+class AxisInfoMapType : public std::map<unsigned int, std::string> {};
 
 vtkStandardNewMacro(vtkNRRDWriter);
 
@@ -26,36 +27,24 @@ vtkNRRDWriter::vtkNRRDWriter()
   this->FileType = VTK_BINARY;
   this->WriteErrorOff();
   this->Attributes = new AttributeMapType;
+  this->AxisLabels = new AxisInfoMapType;
+  this->AxisUnits = new AxisInfoMapType;
 }
 
 //----------------------------------------------------------------------------
 vtkNRRDWriter::~vtkNRRDWriter()
 {
-  if ( this->FileName )
-    {
-    delete [] this->FileName;
-    }
-
-  if (this->DiffusionGradients)
-    {
-    this->DiffusionGradients->Delete();
-    }
-  if (this->BValues)
-    {
-    this->BValues->Delete();
-    }
-  if (this->IJKToRASMatrix)
-    {
-    this->IJKToRASMatrix->Delete();
-    }
-  if (this->MeasurementFrameMatrix)
-    {
-    this->MeasurementFrameMatrix->Delete();
-    }
-  if (this->Attributes)
-    {
-    delete this->Attributes;
-    }
+  this->SetFileName(NULL);
+  this->SetDiffusionGradients(NULL);
+  this->SetBValues(NULL);
+  this->SetIJKToRASMatrix(NULL);
+  this->SetMeasurementFrameMatrix(NULL);
+  delete this->Attributes;
+  this->Attributes = NULL;
+  delete this->AxisLabels;
+  this->AxisLabels = NULL;
+  delete this->AxisUnits;
+  this->AxisUnits = NULL;
 }
 
 //----------------------------------------------------------------------------
@@ -208,10 +197,6 @@ void vtkNRRDWriter::WriteData()
   int vtkType;
 
     // Fill in image information.
-#if (VTK_MAJOR_VERSION <= 5)
-  this->GetInput()->UpdateInformation();
-#else
-#endif
 
   //vtkImageData *input = this->GetInput();
 
@@ -266,6 +251,32 @@ void vtkNRRDWriter::WriteData()
   nrrdAxisInfoSet_nva(nrrd, nrrdAxisInfoSpaceDirection, spaceDir);
   nrrd->space = nrrdSpaceRightAnteriorSuperior;
 
+  if (!this->AxisLabels->empty())
+    {
+    const char* labels[NRRD_DIM_MAX] = { 0 };
+    for (unsigned int axi = 0; axi < NRRD_DIM_MAX; axi++)
+      {
+      if (this->AxisLabels->find(axi) != this->AxisLabels->end())
+        {
+        labels[axi] = (*this->AxisLabels)[axi].c_str();
+        }
+      }
+    nrrdAxisInfoSet_nva(nrrd, nrrdAxisInfoLabel, labels);
+    }
+
+  if (!this->AxisUnits->empty())
+    {
+    const char* units[NRRD_DIM_MAX] = { 0 };
+    for (unsigned int axi = 0; axi < NRRD_DIM_MAX; axi++)
+      {
+      if (this->AxisUnits->find(axi) != this->AxisUnits->end())
+        {
+        units[axi] = (*this->AxisUnits)[axi].c_str();
+        }
+      }
+    nrrdAxisInfoSet_nva(nrrd, nrrdAxisInfoUnits, units);
+    }
+
   // Write out attributes, diffusion information and the measurement frame.
   //
 
@@ -319,7 +330,10 @@ void vtkNRRDWriter::WriteData()
         {
         grad=this->DiffusionGradients->GetTuple3(ig);
         bVal = this->BValues->GetValue(ig);
-        factor = bVal/maxbVal;
+        // for multiple b-values, scale factor is `sqrt(b/b_max)`
+        // per NA-MIC DWI convention. so we take `norm^2 * b_max`
+        // to get back the original b-values.
+        factor = sqrt(bVal/maxbVal);
         sprintf(key,"%s%04d","DWMRI_gradient_",ig);
         sprintf(value,"%f %f %f",grad[0]*factor, grad[1]*factor, grad[2]*factor);
         nrrdKeyValueAdd(nrrd,key, value);
@@ -383,4 +397,36 @@ void vtkNRRDWriter::SetAttribute(const std::string& name, const std::string& val
     }
 
   (*this->Attributes)[name] = value;
+}
+
+void vtkNRRDWriter::SetAxisLabel(unsigned int axis, const char* label)
+{
+  if (!this->AxisLabels)
+    {
+    return;
+    }
+  if (label)
+    {
+    (*this->AxisLabels)[axis] = label;
+    }
+  else
+    {
+    this->AxisLabels->erase(axis);
+    }
+}
+
+void vtkNRRDWriter::SetAxisUnit(unsigned int axis, const char* unit)
+{
+  if (!this->AxisUnits)
+    {
+    return;
+    }
+  if (unit)
+    {
+    (*this->AxisUnits)[axis] = unit;
+    }
+  else
+    {
+    this->AxisLabels->erase(axis);
+    }
 }

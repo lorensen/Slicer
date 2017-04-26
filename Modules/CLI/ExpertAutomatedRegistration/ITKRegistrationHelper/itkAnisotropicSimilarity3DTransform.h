@@ -15,8 +15,8 @@
 
 =========================================================================*/
 
-#ifndef __itkAnisotropicSimilarity3DTransform_h
-#define __itkAnisotropicSimilarity3DTransform_h
+#ifndef itkAnisotropicSimilarity3DTransform_h
+#define itkAnisotropicSimilarity3DTransform_h
 
 #include <iostream>
 #include "itkVersorRigid3DTransform.h"
@@ -24,7 +24,8 @@
 namespace itk
 {
 
-/** \brief AnisotropicSimilarity3DTransform of a vector space (e.g. space
+/** \class AnisotropicSimilarity3DTransform
+ * \brief AnisotropicSimilarity3DTransform of a vector space (e.g. space
  * coordinates)
  *
  * This transform applies a rotation, translation and anisotropic scaling
@@ -81,10 +82,12 @@ public:
   typedef typename Superclass::OutputVectorType    OutputVectorType;
   typedef typename Superclass::InputVnlVectorType  InputVnlVectorType;
   typedef typename Superclass::OutputVnlVectorType OutputVnlVectorType;
+
   typedef typename Superclass::InputCovariantVectorType
   InputCovariantVectorType;
   typedef typename Superclass::OutputCovariantVectorType
   OutputCovariantVectorType;
+
   typedef typename Superclass::MatrixType        MatrixType;
   typedef typename Superclass::InverseMatrixType InverseMatrixType;
   typedef typename Superclass::CenterType        CenterType;
@@ -104,15 +107,15 @@ public:
    *
    * \sa MatrixOffsetTransformBase::SetMatrix() */
   using itk::Rigid3DTransform<TScalarType>::SetMatrix;
-  virtual void SetMatrix(const MatrixType & matrix);
+  virtual void SetMatrix(const MatrixType & matrix) ITK_OVERRIDE;
 
   /** Set the transformation from a container of parameters This is typically
    * used by optimizers.  There are 7 parameters. The first three represent the
    * versor, the next three represent the translation and the last one
    * represents the scaling factor. */
-  void SetParameters( const ParametersType & parameters );
+  void SetParameters( const ParametersType & parameters ) ITK_OVERRIDE;
 
-  virtual const ParametersType & GetParameters(void) const;
+  virtual const ParametersType & GetParameters(void) const ITK_OVERRIDE;
 
   /** Set/Get the value of the isotropic scaling factor */
   void SetScale( ScaleType scale );
@@ -125,9 +128,7 @@ public:
    * given point or vector, returning the transformed point or
    * vector. The rank of the Jacobian will also indicate if the
    * transform is invertible at this point. */
-  virtual const JacobianType & GetJacobian(const InputPointType  & point ) const;
-
-  virtual void ComputeJacobianWithRespectToParameters(const InputPointType & p, JacobianType & jacobian) const;
+  virtual void ComputeJacobianWithRespectToParameters(const InputPointType & p, JacobianType & jacobian) const ITK_OVERRIDE;
 
 protected:
   AnisotropicSimilarity3DTransform(const MatrixType & matrix, const OutputVectorType & offset);
@@ -137,21 +138,20 @@ protected:
   {
   };
 
-  void PrintSelf(std::ostream & os, Indent indent) const;
+  void PrintSelf(std::ostream & os, Indent indent) const ITK_OVERRIDE;
 
   /** Recomputes the matrix by calling the Superclass::ComputeMatrix() and then
    * applying the scale factor. */
-  void ComputeMatrix();
+  void ComputeMatrix() ITK_OVERRIDE;
 
   /** Computes the parameters from an input matrix. */
-  void ComputeMatrixParameters();
+  void ComputeMatrixParameters() ITK_OVERRIDE;
 
 private:
   AnisotropicSimilarity3DTransform(const Self &); // purposely not implemented
   void operator=(const Self &);                   // purposely not implemented
 
   VectorType           m_Scale;
-  mutable JacobianType m_NonThreadsafeSharedJacobian;
 
 }; // class AnisotropicSimilarity3DTransform
 
@@ -161,4 +161,4 @@ private:
 #include "itkAnisotropicSimilarity3DTransform.txx"
 #endif
 
-#endif /* __itkAnisotropicSimilarity3DTransform_h */
+#endif /* itkAnisotropicSimilarity3DTransform_h */

@@ -1,12 +1,16 @@
 import os
-from __main__ import vtk
-from __main__ import qt
-from __main__ import ctk
-from __main__ import slicer
-from EditOptions import EditOptions
-import EditUtil
+import vtk
+import qt
+import ctk
+import slicer
 import Effect
 
+__all__ = [
+  'IslandEffectOptions',
+  'IslandEffectTool',
+  'IslandEffectLogic',
+  'IslandEffect'
+  ]
 
 #########################################################
 #

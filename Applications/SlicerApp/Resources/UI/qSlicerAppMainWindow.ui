@@ -72,9 +72,11 @@
      <addaction name="ViewLayoutConventionalQuantitativeAction"/>
      <addaction name="ViewLayoutFourUpAction"/>
      <addaction name="ViewLayoutFourUpQuantitativeAction"/>
+     <addaction name="ViewLayoutFourUpTableAction"/>
      <addaction name="ViewLayoutDual3DAction"/>
      <addaction name="ViewLayoutTriple3DAction"/>
      <addaction name="ViewLayoutOneUp3DAction"/>
+     <addaction name="ViewLayout3DTableAction"/>
      <addaction name="ViewLayoutOneUpQuantitativeAction"/>
      <addaction name="ViewLayoutOneUpRedSliceAction"/>
      <addaction name="ViewLayoutOneUpYellowSliceAction"/>
@@ -97,13 +99,12 @@
      <property name="title">
       <string>&amp;Toolbars</string>
      </property>
-     <addaction name="WindowToolbarsResetToDefaultAction"/>
     </widget>
-    <addaction name="WindowPythonInteractorAction"/>
     <addaction name="ViewExtensionsManagerAction"/>
     <addaction name="separator"/>
     <addaction name="WindowToolBarsMenu"/>
     <addaction name="LayoutMenu"/>
+    <addaction name="WindowToolbarsResetToDefaultAction"/>
     <addaction name="separator"/>
     <addaction name="WindowErrorLogAction"/>
     <addaction name="separator"/>
@@ -164,7 +165,7 @@
      <item>
       <widget class="QLabel" name="LogoLabel">
        <property name="pixmap">
-        <pixmap resource="../../../../Resources/qSlicer.qrc">:/Logos/Slicer3.png</pixmap>
+        <pixmap resource="../SlicerApp.qrc">:/ModulePanelLogo.png</pixmap>
        </property>
        <property name="alignment">
         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
@@ -253,9 +254,11 @@
    <addaction name="ViewLayoutConventionalQuantitativeAction"/>
    <addaction name="ViewLayoutFourUpAction"/>
    <addaction name="ViewLayoutFourUpQuantitativeAction"/>
+   <addaction name="ViewLayoutFourUpTableAction"/>
    <addaction name="ViewLayoutDual3DAction"/>
    <addaction name="ViewLayoutTriple3DAction"/>
    <addaction name="ViewLayoutOneUp3DAction"/>
+   <addaction name="ViewLayout3DTableAction"/>
    <addaction name="ViewLayoutOneUpQuantitativeAction"/>
    <addaction name="ViewLayoutOneUpRedSliceAction"/>
    <addaction name="ViewLayoutOneUpYellowSliceAction"/>
@@ -324,7 +327,6 @@
     <bool>false</bool>
    </attribute>
    <addaction name="ViewExtensionsManagerAction"/>
-   <addaction name="WindowPythonInteractorAction"/>
   </widget>
   <action name="FileLoadSceneAction">
    <property name="icon">
@@ -649,27 +651,12 @@
     <string>Ctrl+0</string>
    </property>
   </action>
-  <action name="WindowPythonInteractorAction">
-   <property name="icon">
-    <iconset>
-     <normaloff>:/python-icon.png</normaloff>:/python-icon.png</iconset>
-   </property>
-   <property name="text">
-    <string>Python Interactor</string>
-   </property>
-   <property name="toolTip">
-    <string>Raise the Python Interactor for controlling the application's data, gui and internals.</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+3</string>
-   </property>
-  </action>
   <action name="WindowToolbarsResetToDefaultAction">
    <property name="text">
     <string>Reset to default</string>
    </property>
    <property name="toolTip">
-    <string>Restore the toolbars to their default state</string>
+    <string>Restore all windows and toolbars to their default positions and states</string>
    </property>
   </action>
   <action name="HelpKeyboardShortcutsAction">
@@ -794,6 +781,18 @@
     <bool>true</bool>
    </property>
   </action>
+  <action name="ViewLayoutFourUpTableAction">
+   <property name="icon">
+    <iconset resource="../../../../Libs/MRML/Widgets/Resources/qMRMLWidgets.qrc">
+     <normaloff>:/Icons/LayoutFourUpTableView.png</normaloff>:/Icons/LayoutFourUpTableView.png</iconset>
+   </property>
+   <property name="text">
+    <string>Four-Up Table</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
+  </action>
   <action name="ViewLayoutDual3DAction">
    <property name="icon">
     <iconset resource="../../../../Libs/MRML/Widgets/Resources/qMRMLWidgets.qrc">
@@ -813,6 +812,18 @@
    </property>
    <property name="text">
     <string>3D only</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="ViewLayout3DTableAction">
+   <property name="icon">
+    <iconset resource="../../../../Libs/MRML/Widgets/Resources/qMRMLWidgets.qrc">
+     <normaloff>:/Icons/Layout3DTableView.png</normaloff>:/Icons/Layout3DTableView.png</iconset>
+   </property>
+   <property name="text">
+    <string>3D Table</string>
    </property>
    <property name="iconVisibleInMenu">
     <bool>true</bool>
@@ -1273,7 +1284,6 @@
   <include location="../SlicerApp.qrc"/>
   <include location="../../../../Base/QTGUI/Resources/qSlicerBaseQTGUI.qrc"/>
   <include location="../../../../Libs/MRML/Widgets/Resources/qMRMLWidgets.qrc"/>
-  <include location="../../../../Resources/qSlicer.qrc"/>
  </resources>
  <connections/>
 </ui>

@@ -29,12 +29,12 @@ protected:
   };
 public:
 
-  void Execute(itk::Object *caller, const itk::EventObject & event)
+  void Execute(itk::Object *caller, const itk::EventObject & event) ITK_OVERRIDE
   {
     Execute( (const itk::Object *) caller, event);
   }
 
-  void Execute(const itk::Object * object, const itk::EventObject & event)
+  void Execute(const itk::Object * object, const itk::EventObject & event) ITK_OVERRIDE
   {
     const TFilter * filter =
       dynamic_cast<const TFilter *>( object );
@@ -169,8 +169,6 @@ int main(int argc, char* * argv)
     inputImage->GetLargestPossibleRegion().GetIndex();
   ImageType::SizeType inputImageSize =
     inputImage->GetLargestPossibleRegion().GetSize();
-  ImageType::IndexType maskImageIndex =
-    maskImage->GetLargestPossibleRegion().GetIndex();
 
   ImageType::PointType newOrigin = inputImage->GetOrigin();
 
@@ -189,7 +187,7 @@ int main(int argc, char* * argv)
       {
       float domain = static_cast<RealType>( inputImage->
                                             GetLargestPossibleRegion().GetSize()[d] - 1 ) * inputImage->GetSpacing()[d];
-      unsigned int  numberOfSpans = static_cast<unsigned int>( vcl_ceil( domain / splineDistance ) );
+      unsigned int  numberOfSpans = static_cast<unsigned int>( std::ceil( domain / splineDistance ) );
       itk::SizeValueType extraPadding =
           static_cast<itk::SizeValueType>( ( numberOfSpans
                                              * splineDistance

@@ -16,13 +16,20 @@
 #include "vtkSliceViewInteractorStyle.h"
 
 // MRML includes
+#include "vtkMRMLCrosshairDisplayableManager.h"
+#include "vtkMRMLCrosshairNode.h"
+#include "vtkMRMLInteractionNode.h"
 #include "vtkMRMLScene.h"
+#include "vtkMRMLSegmentationDisplayNode.h"
+#include "vtkMRMLSliceLayerLogic.h"
 #include "vtkMRMLSliceLogic.h"
 #include "vtkMRMLSliceNode.h"
 #include "vtkMRMLSliceCompositeNode.h"
 #include "vtkMRMLVolumeNode.h"
 
 // VTK includes
+#include "vtkGeneralTransform.h"
+#include "vtkImageData.h"
 #include "vtkRenderWindowInteractor.h"
 #include "vtkRenderWindow.h"
 #include "vtkRenderer.h"
@@ -44,30 +51,21 @@ vtkSliceViewInteractorStyle::vtkSliceViewInteractorStyle()
 {
   this->ActionState = vtkSliceViewInteractorStyle::None;
 
-  this->ActionStartRAS[0] = 0.;
-  this->ActionStartRAS[1] = 0.;
-  this->ActionStartRAS[2] = 0.;
-  this->ActionStartFOV[0] = 0.;
-  this->ActionStartFOV[1] = 0.;
-  this->ActionStartFOV[2] = 0.;
-  this->ActionStartWindow[0] = 0;
-  this->ActionStartWindow[1] = 0;
-  this->LastActionWindow[0] = 0;
-  this->LastActionWindow[1] = 0;
+  this->StartActionEventPosition[0] = 0;
+  this->StartActionEventPosition[1] = 0;
+  this->StartActionFOV[0] = 0.;
+  this->StartActionFOV[1] = 0.;
+  this->StartActionFOV[2] = 0.;
+  this->VolumeScalarRange[0] = 0;
+  this->VolumeScalarRange[1] = 0;
+  this->StartActionSegmentationDisplayNode = 0;
 
-  this->ActionStartForegroundOpacity = 0;
-  this->ActionStartLabelOpacity = 0;
-  this->ActionStartVolumeWindow = 0;
-  this->ActionStartVolumeLevel = 0;
-  this->ActionStartVolumeRangeLow = 0;
-  this->ActionStartVolumeRangeHigh = 0;
-
-  this->ActionStartSliceToRAS = vtkMatrix4x4::New();
-  this->ActionStartXYToRAS = vtkMatrix4x4::New();
-  this->ScratchMatrix = vtkMatrix4x4::New();
-
-  this->LastLabelOpacity = 0.;
   this->LastForegroundOpacity = 0.;
+  this->LastLabelOpacity = 0.;
+  this->LastEventPosition[0] = 0;
+  this->LastEventPosition[1] = 0;
+  this->LastVolumeWindowLevel[0] = 0;
+  this->LastVolumeWindowLevel[1] = 0;
 
   this->SliceLogic = 0;
 }
@@ -75,10 +73,6 @@ vtkSliceViewInteractorStyle::vtkSliceViewInteractorStyle()
 //----------------------------------------------------------------------------
 vtkSliceViewInteractorStyle::~vtkSliceViewInteractorStyle()
 {
-  this->ActionStartSliceToRAS->Delete();
-  this->ActionStartXYToRAS->Delete();
-  this->ScratchMatrix ->Delete();
-
   this->SetSliceLogic(0);
 }
 
@@ -155,15 +149,16 @@ void vtkSliceViewInteractorStyle::OnChar()
     }
   else if ( !strcmp(key, "g") )
     {
-    double opacity = sliceCompositeNode->GetLabelOpacity();
+    this->StartActionSegmentationDisplayNode = NULL;
+    double opacity = this->GetLabelOpacity();
     if ( opacity != 0.0 )
       {
-      this->SetActionStartLabelOpacity(opacity);
-      sliceCompositeNode->SetLabelOpacity(0.0);
+      this->LastLabelOpacity = opacity;
+      this->SetLabelOpacity(0.0);
       }
     else
       {
-      sliceCompositeNode->SetLabelOpacity(this->GetActionStartLabelOpacity());
+      this->SetLabelOpacity(this->LastLabelOpacity);
       }
     }
   else if ( !strcmp(key, "t") )
@@ -171,12 +166,12 @@ void vtkSliceViewInteractorStyle::OnChar()
     double opacity = sliceCompositeNode->GetForegroundOpacity();
     if ( opacity != 0.0 )
       {
-      this->SetActionStartForegroundOpacity(opacity);
+      this->LastForegroundOpacity = opacity;
       sliceCompositeNode->SetForegroundOpacity(0.0);
       }
     else
       {
-      sliceCompositeNode->SetForegroundOpacity(this->GetActionStartForegroundOpacity());
+      sliceCompositeNode->SetForegroundOpacity(this->LastForegroundOpacity);
       }
     }
   else if ( !strcmp(key, "s") )
@@ -221,15 +216,80 @@ void vtkSliceViewInteractorStyle::OnChar()
 }
 
 //----------------------------------------------------------------------------
+vtkMRMLSegmentationDisplayNode* vtkSliceViewInteractorStyle::GetVisibleSegmentationDisplayNode()
+{
+  vtkMRMLSliceNode *sliceNode = this->SliceLogic->GetSliceNode();
+  vtkMRMLScene* scene = this->SliceLogic->GetMRMLScene();
+  std::vector<vtkMRMLNode*> displayNodes;
+  int nnodes = scene ? scene->GetNodesByClass("vtkMRMLSegmentationDisplayNode", displayNodes) : 0;
+  for (int i = 0; i < nnodes; i++)
+    {
+    vtkMRMLSegmentationDisplayNode* displayNode = vtkMRMLSegmentationDisplayNode::SafeDownCast(displayNodes[i]);
+    if (displayNode
+      && displayNode->GetVisibility(sliceNode->GetID())
+      && (displayNode->GetVisibility2DOutline() || displayNode->GetVisibility2DFill()))
+      {
+      return displayNode;
+      }
+    }
+  return NULL;
+}
+
+//----------------------------------------------------------------------------
+void vtkSliceViewInteractorStyle::SetLabelOpacity(double opacity)
+{
+  // If a labelmap node is selected then adjust opacity of that
+  vtkMRMLSliceCompositeNode *sliceCompositeNode = this->SliceLogic->GetSliceCompositeNode();
+  if (sliceCompositeNode->GetLabelVolumeID())
+    {
+    sliceCompositeNode->SetLabelOpacity(opacity);
+    return;
+    }
+  // No labelmap node is selected, adjust segmentation node instead
+  vtkMRMLSegmentationDisplayNode* displayNode = this->StartActionSegmentationDisplayNode;
+  if (!displayNode)
+    {
+    displayNode = this->GetVisibleSegmentationDisplayNode();
+    }
+  if (!displayNode)
+    {
+    return;
+    }
+  displayNode->SetOpacity(opacity);
+}
+
+//----------------------------------------------------------------------------
+double vtkSliceViewInteractorStyle::GetLabelOpacity()
+{
+  // If a labelmap node is selected then get opacity of that
+  vtkMRMLSliceCompositeNode *sliceCompositeNode = this->SliceLogic->GetSliceCompositeNode();
+  if (sliceCompositeNode->GetLabelVolumeID())
+    {
+    return sliceCompositeNode->GetLabelOpacity();
+    }
+  // No labelmap node is selected, use segmentation node instead
+  vtkMRMLSegmentationDisplayNode* displayNode = this->StartActionSegmentationDisplayNode;
+  if (!displayNode)
+    {
+    displayNode = this->GetVisibleSegmentationDisplayNode();
+    }
+  if (!displayNode)
+    {
+    return 0;
+    }
+  return displayNode->GetOpacity();
+}
+
+//----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::OnRightButtonDown()
 {
   this->SliceLogic->GetMRMLScene()->SaveStateForUndo(this->SliceLogic->GetSliceNode());
   this->SetActionState(vtkSliceViewInteractorStyle::Zoom);
   this->SliceLogic->StartSliceNodeInteraction(vtkMRMLSliceNode::FieldOfViewFlag);
   vtkMRMLSliceNode *sliceNode = this->SliceLogic->GetSliceNode();
-  this->SetActionStartFOV(sliceNode->GetFieldOfView());
-  this->SetActionStartWindow(this->GetInteractor()->GetEventPosition());
-  this->SetLastActionWindow(this->GetInteractor()->GetEventPosition());
+  sliceNode->GetFieldOfView(this->StartActionFOV);
+  this->GetInteractor()->GetEventPosition(this->StartActionEventPosition);
+  this->GetInteractor()->GetEventPosition(this->LastEventPosition);
 }
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::OnRightButtonUp()
@@ -242,13 +302,34 @@ void vtkSliceViewInteractorStyle::OnRightButtonUp()
 void vtkSliceViewInteractorStyle::OnMiddleButtonDown()
 {
   this->StartTranslate();
-  this->SetActionStartWindow(this->GetInteractor()->GetEventPosition());
-  this->SetLastActionWindow(this->GetInteractor()->GetEventPosition());
+  this->GetInteractor()->GetEventPosition(this->StartActionEventPosition);
+  this->GetInteractor()->GetEventPosition(this->LastEventPosition);
 }
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::OnMiddleButtonUp()
 {
   this->EndTranslate();
+}
+
+//----------------------------------------------------------------------------
+int vtkSliceViewInteractorStyle::GetMouseInteractionMode()
+{
+  if ( this->SliceLogic == 0 ||
+       this->SliceLogic->GetMRMLScene() == 0 )
+    {
+    vtkErrorMacro("vtkSliceViewInteractorStyle::GetMouseInteractionMode: failed to get scene");
+    return vtkMRMLInteractionNode::ViewTransform;
+    }
+  vtkMRMLScene* scene = this->SliceLogic->GetMRMLScene();
+
+  vtkMRMLInteractionNode *interactionNode = vtkMRMLInteractionNode::SafeDownCast(scene->GetNodeByID("vtkMRMLInteractionNodeSingleton"));
+  if (interactionNode == 0)
+    {
+    vtkErrorMacro("vtkSliceViewInteractorStyle::GetMouseInteractionMode: failed to get interaction node");
+    return vtkMRMLInteractionNode::ViewTransform;
+    }
+
+  return interactionNode->GetCurrentInteractionMode();
 }
 
 //----------------------------------------------------------------------------
@@ -264,10 +345,17 @@ void vtkSliceViewInteractorStyle::OnLeftButtonDown()
     }
   else
     {
-    this->StartAdjustWindowLevel();
+    // Only adjust window/level in the default mouse mode.
+    // Without this window/level could be changed accidentally while in place mode
+    // and accidentally dragging the mouse while placing a new markup.
+    // (in the future it may make sense to add a special mouse mode for window/level)
+    if (this->GetMouseInteractionMode() == vtkMRMLInteractionNode::ViewTransform)
+      {
+      this->StartAdjustWindowLevel();
+      }
     }
-  this->SetActionStartWindow(this->GetInteractor()->GetEventPosition());
-  this->SetLastActionWindow(this->GetInteractor()->GetEventPosition());
+  this->GetInteractor()->GetEventPosition(this->StartActionEventPosition);
+  this->GetInteractor()->GetEventPosition(this->LastEventPosition);
   this->Superclass::OnLeftButtonDown();
 }
 //----------------------------------------------------------------------------
@@ -289,15 +377,55 @@ void vtkSliceViewInteractorStyle::OnLeftButtonUp()
 }
 
 //----------------------------------------------------------------------------
+void vtkSliceViewInteractorStyle::ScaleZoom(double zoomScaleFactor)
+{
+  // the factor operation is so 'z' isn't changed and the
+  // slider can still move through the full range
+  if (zoomScaleFactor <= 0)
+    {
+    vtkWarningMacro("vtkSliceViewInteractorStyle::ScaleZoom: invalid zoom scale factor (" << zoomScaleFactor);
+    return;
+    }
+  vtkMRMLSliceNode *sliceNode = this->SliceLogic->GetSliceNode();
+
+  // Get distance of event position from slice center
+  int eventPosition[2] = { 0 };
+  this->GetInteractor()->GetEventPosition(eventPosition[0], eventPosition[1]);
+  int* windowSize = this->GetInteractor()->GetRenderWindow()->GetSize();
+  vtkMatrix4x4* xyToSlice = sliceNode->GetXYToSlice();
+  double evenPositionDistanceFromOrigin[2] =
+    {
+    (eventPosition[0] - windowSize[0] / 2) * xyToSlice->GetElement(0, 0),
+    (eventPosition[1] - windowSize[1] / 2) * xyToSlice->GetElement(1, 1)
+    };
+
+  // Adjust field of view
+  double fov[3] = { 1.0 };
+  sliceNode->GetFieldOfView(fov);
+  fov[0] *= zoomScaleFactor;
+  fov[1] *= zoomScaleFactor;
+  sliceNode->SetFieldOfView(fov[0], fov[1], fov[2]);
+
+  // Keep the mouse position at the same place on screen
+  double sliceOrigin[3] = { 0 };
+  sliceNode->GetXYZOrigin(sliceOrigin);
+  sliceNode->SetSliceOrigin(
+    sliceOrigin[0] + evenPositionDistanceFromOrigin[0] * (1.0 - zoomScaleFactor),
+    sliceOrigin[1] + evenPositionDistanceFromOrigin[1] * (1.0 - zoomScaleFactor),
+    sliceOrigin[2]);
+
+  sliceNode->UpdateMatrices();
+}
+
+//----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::OnMouseMove()
 {
   vtkMRMLSliceNode *sliceNode = this->SliceLogic->GetSliceNode();
   vtkMRMLSliceCompositeNode *sliceCompositeNode = this->SliceLogic->GetSliceCompositeNode();
-  int windowX, windowY;
-  this->GetInteractor()->GetEventPosition(windowX, windowY);
-  int windowW = this->GetInteractor()->GetRenderWindow()->GetSize()[0];
-  int windowH = this->GetInteractor()->GetRenderWindow()->GetSize()[1];
-  int windowMinSize = std::min(windowW, windowH);
+  int eventPosition[2] = { 0 };
+  this->GetInteractor()->GetEventPosition(eventPosition[0], eventPosition[1]);
+  int* windowSize = this->GetInteractor()->GetRenderWindow()->GetSize();
+  double windowMinSize = std::min(windowSize[0], windowSize[1]);
 
   switch (this->GetActionState())
     {
@@ -307,25 +435,25 @@ void vtkSliceViewInteractorStyle::OnMouseMove()
       sliceNode->GetXYZOrigin(xyz);
 
       // account for zoom using XYToSlice matrix
-      this->ScratchMatrix->DeepCopy(sliceNode->GetXYToSlice());
-      double deltaX = this->ScratchMatrix->GetElement(0,0)*(this->LastActionWindow[0] - windowX);
-      double deltaY = this->ScratchMatrix->GetElement(1,1)*(this->LastActionWindow[1] - windowY);
+      vtkMatrix4x4* xyToSlice = sliceNode->GetXYToSlice();
+      double deltaX = xyToSlice->GetElement(0, 0)*(this->LastEventPosition[0] - eventPosition[0]);
+      double deltaY = xyToSlice->GetElement(1, 1)*(this->LastEventPosition[1] - eventPosition[1]);
 
       sliceNode->SetSliceOrigin(xyz[0] + deltaX, xyz[1] + deltaY, 0);
       }
       break;
     case vtkSliceViewInteractorStyle::Zoom:
       {
-      int deltaY = windowY - this->GetActionStartWindow()[1];
-      double percent = (windowH + deltaY) / (1.0 * windowH);
+      int deltaY = eventPosition[1] - this->StartActionEventPosition[1];
+      double percent = (windowSize[1] + deltaY) / (1.0 * windowSize[1]);
 
       // the factor operation is so 'z' isn't changed and the
       // slider can still move through the full range
       if ( percent > 0. )
         {
-        double newFOVx = this->GetActionStartFOV()[0] * percent;
-        double newFOVy = this->GetActionStartFOV()[1] * percent;
-        double newFOVz = this->GetActionStartFOV()[2];
+        double newFOVx = this->StartActionFOV[0] * percent;
+        double newFOVy = this->StartActionFOV[1] * percent;
+        double newFOVz = this->StartActionFOV[2];
         sliceNode->SetFieldOfView( newFOVx, newFOVy, newFOVz );
         sliceNode->UpdateMatrices();
         }
@@ -333,70 +461,123 @@ void vtkSliceViewInteractorStyle::OnMouseMove()
       break;
     case vtkSliceViewInteractorStyle::Blend:
       {
-      int deltaY = windowY - this->GetActionStartWindow()[1];
+      int deltaY = eventPosition[1] - this->LastEventPosition[1];
       double offsetY =  (2.0 * deltaY) / windowMinSize;
       double newForegroundOpacity =
-        this->GetActionStartForegroundOpacity() + offsetY;
+        this->LastForegroundOpacity + offsetY;
       newForegroundOpacity = std::min(std::max(newForegroundOpacity, 0.), 1.);
       if (sliceCompositeNode->GetForegroundVolumeID() != 0)
         {
         sliceCompositeNode->SetForegroundOpacity(newForegroundOpacity);
+        this->LastForegroundOpacity = newForegroundOpacity;
         }
-      int deltaX = windowX - this->GetActionStartWindow()[0];
+      int deltaX = eventPosition[0] - this->LastEventPosition[0];
       double offsetX =  (2.0 * deltaX) / windowMinSize;
-      double newLabelOpacity = this->GetActionStartLabelOpacity() + offsetX;
+      double newLabelOpacity = this->LastLabelOpacity + offsetX;
       newLabelOpacity = std::min(std::max(newLabelOpacity, 0.), 1.);
-      if (sliceCompositeNode->GetLabelVolumeID() != 0)
+      if (sliceCompositeNode->GetLabelVolumeID() != 0 || this->StartActionSegmentationDisplayNode != 0)
         {
-        sliceCompositeNode->SetLabelOpacity(newLabelOpacity);
+        this->SetLabelOpacity(newLabelOpacity);
+        this->LastLabelOpacity = newLabelOpacity;
         }
       }
       break;
-    case vtkSliceViewInteractorStyle::AdjustWindowLevel:
+    case vtkSliceViewInteractorStyle::AdjustWindowLevelBackground:
+    case vtkSliceViewInteractorStyle::AdjustWindowLevelForeground:
       {
-      int startX = this->GetActionStartWindow()[0];
-      int startY = this->GetActionStartWindow()[1];
-      int deltaX = windowX - startX;
-      int deltaY = windowY - startY;
+      int deltaX = eventPosition[0] - this->LastEventPosition[0];
+      int deltaY = eventPosition[1] - this->LastEventPosition[1];
 
-      double rangeLow = this->GetActionStartVolumeRangeLow();
-      double rangeHigh = this->GetActionStartVolumeRangeHigh();
-      double gain = (rangeHigh - rangeLow) / 500.0;
-      double newWindow = this->GetActionStartVolumeWindow() + (gain * deltaX);
-      if (newWindow < 0) newWindow = 0;
-      double newLevel = this->GetActionStartVolumeLevel() + (gain * deltaY);
-      this->SliceLogic->SetBackgroundWindowLevel(newWindow, newLevel);
+      double rangeLow = this->VolumeScalarRange[0];
+      double rangeHigh = this->VolumeScalarRange[1];
+
+      double gain = (rangeHigh - rangeLow) / windowMinSize;
+      double newWindow = this->LastVolumeWindowLevel[0] + (gain * deltaX);
+      if (newWindow < 0)
+        {
+        newWindow = 0;
+        }
+      double newLevel = this->LastVolumeWindowLevel[1] + (gain * deltaY);
+      if (newLevel < rangeLow - newWindow / 2)
+        {
+        newLevel = rangeLow - newWindow / 2;
+        }
+      if (newLevel > rangeHigh + newWindow / 2)
+        {
+        newLevel = rangeHigh + newWindow / 2;
+        }
+      if (this->GetActionState() == vtkSliceViewInteractorStyle::AdjustWindowLevelBackground)
+        {
+        this->SliceLogic->SetBackgroundWindowLevel(newWindow, newLevel);
+        }
+      else
+        {
+        this->SliceLogic->SetForegroundWindowLevel(newWindow, newLevel);
+        }
+      this->LastVolumeWindowLevel[0] = newWindow;
+      this->LastVolumeWindowLevel[1] = newLevel;
       }
       break;
     default:
       {
-      if (this->Interactor->GetShiftKey())
+      bool performDefaultAction = true;
+      vtkMRMLScene *scene = this->SliceLogic->GetMRMLScene();
+      vtkMRMLCrosshairNode* crosshairNode = vtkMRMLCrosshairDisplayableManager::FindCrosshairNode(scene);
+      if (crosshairNode)
         {
-        double eventRAS[4];
-        this->GetEventRAS(eventRAS);
-        sliceNode->JumpAllSlices(eventRAS[0],eventRAS[1],eventRAS[2]);
+        int *pos = this->GetInteractor()->GetEventPosition();
+        double xyz[3];
+        vtkMRMLAbstractSliceViewDisplayableManager::ConvertDeviceToXYZ(this->GetInteractor(), sliceNode, pos[0], pos[1], xyz);
+        crosshairNode->SetCursorPositionXYZ(xyz, sliceNode);
+        if (this->Interactor->GetShiftKey())
+          {
+          performDefaultAction = false;
+          double cursorPositionRAS[3];
+          if (crosshairNode->GetCursorPositionRAS(cursorPositionRAS))
+            {
+            crosshairNode->SetCrosshairRAS(cursorPositionRAS);
+            if (crosshairNode->GetCrosshairBehavior() == vtkMRMLCrosshairNode::JumpSlice)
+              {
+              sliceNode->JumpAllSlices(cursorPositionRAS[0], cursorPositionRAS[1], cursorPositionRAS[2]);
+              }
+            }
+          }
         }
-      else
+      if (performDefaultAction)
         {
         this->Superclass::OnMouseMove();
         }
       }
     }
-  this->LastActionWindow[0] = windowX;
-  this->LastActionWindow[1] = windowY;
+  this->LastEventPosition[0] = eventPosition[0];
+  this->LastEventPosition[1] = eventPosition[1];
 }
 
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::OnMouseWheelForward()
 {
-  this->IncrementSlice();
+  if (this->Interactor->GetControlKey())
+    {
+    this->ScaleZoom(0.8);
+    }
+  else// if (!this->Interactor->GetShiftKey())
+    {
+    this->IncrementSlice();
+    }
   this->Superclass::OnMouseWheelForward();
 }
 
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::OnMouseWheelBackward()
 {
-  this->DecrementSlice();
+  if (this->Interactor->GetControlKey())
+    {
+    this->ScaleZoom(1.2);
+    }
+  else// if (!this->Interactor->GetShiftKey())
+    {
+    this->DecrementSlice();
+    }
   this->Superclass::OnMouseWheelBackward();
 }
 
@@ -421,6 +602,12 @@ void vtkSliceViewInteractorStyle::OnEnter()
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::OnLeave()
 {
+  vtkMRMLScene *scene = this->SliceLogic->GetMRMLScene();
+  vtkMRMLCrosshairNode* crosshairNode = vtkMRMLCrosshairDisplayableManager::FindCrosshairNode(scene);
+  if (crosshairNode)
+    {
+    crosshairNode->SetCursorPositionInvalid();
+    }
   this->Superclass::OnLeave();
 }
 
@@ -475,11 +662,6 @@ void vtkSliceViewInteractorStyle::StartTranslate()
   this->SliceLogic->StartSliceNodeInteraction(vtkMRMLSliceNode::XYZOriginFlag);
 
   this->SetActionState(this->Translate);
-  this->GetActionStartSliceToRAS()->DeepCopy(sliceNode->GetSliceToRAS());
-  this->GetActionStartXYToRAS()->DeepCopy(sliceNode->GetXYToRAS());
-  double eventRAS[4];
-  this->GetEventRAS(eventRAS);
-  this->SetActionStartRAS(eventRAS);
 }
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::EndTranslate()
@@ -493,95 +675,113 @@ void vtkSliceViewInteractorStyle::StartBlend()
 {
   this->SetActionState(this->Blend);
   vtkMRMLSliceCompositeNode *sliceCompositeNode = this->SliceLogic->GetSliceCompositeNode();
-  this->SetActionStartForegroundOpacity(sliceCompositeNode->GetForegroundOpacity());
-  this->SetActionStartLabelOpacity(sliceCompositeNode->GetLabelOpacity());
+  this->LastForegroundOpacity = sliceCompositeNode->GetForegroundOpacity();
+  this->LastLabelOpacity = this->GetLabelOpacity();
+  this->StartActionSegmentationDisplayNode = this->GetVisibleSegmentationDisplayNode();
 }
 
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::EndBlend()
 {
   this->SetActionState(this->None);
-  vtkMRMLSliceCompositeNode *sliceCompositeNode = this->SliceLogic->GetSliceCompositeNode();
-  this->SetActionStartForegroundOpacity(sliceCompositeNode->GetForegroundOpacity());
-  this->SetActionStartLabelOpacity(sliceCompositeNode->GetLabelOpacity());
+}
+
+//----------------------------------------------------------------------------
+bool vtkSliceViewInteractorStyle::IsMouseInsideVolume(bool background)
+{
+  vtkMRMLSliceNode *sliceNode = this->SliceLogic->GetSliceNode();
+  if (!sliceNode)
+    {
+    return false;
+    }
+  vtkMRMLSliceLayerLogic* layerLogic = background ?
+    this->SliceLogic->GetBackgroundLayer() : this->SliceLogic->GetForegroundLayer();
+  if (!layerLogic)
+    {
+    return false;
+    }
+  vtkMRMLVolumeNode* volumeNode = layerLogic->GetVolumeNode();
+  if (!volumeNode || !volumeNode->GetImageData())
+    {
+    return false;
+    }
+  int *pos = this->GetInteractor()->GetEventPosition();
+  double xyz[3] = { 0 };
+  vtkMRMLAbstractSliceViewDisplayableManager::ConvertDeviceToXYZ(this->GetInteractor(), sliceNode, pos[0], pos[1], xyz);
+  vtkGeneralTransform* xyToBackgroundIJK = layerLogic->GetXYToIJKTransform();
+  double mousePositionIJK[3] = { 0 };
+  xyToBackgroundIJK->TransformPoint(xyz, mousePositionIJK);
+  int volumeExtent[6] = { 0 };
+  volumeNode->GetImageData()->GetExtent(volumeExtent);
+  for (int i = 0; i < 3; i++)
+    {
+    if (mousePositionIJK[i]<volumeExtent[i * 2] || mousePositionIJK[i]>volumeExtent[i * 2 + 1])
+      {
+      return false;
+      }
+    }
+  return true;
 }
 
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::StartAdjustWindowLevel()
 {
-  this->SetActionState(this->AdjustWindowLevel);
-  double window = 0.0;
-  double level = 0.0;
-  double rangeLow = 0.0;
-  double rangeHigh = 0.0;
-  this->SliceLogic->GetBackgroundWindowLevelAndRange(window, level,
-                                                     rangeLow, rangeHigh);
-  this->SetActionStartVolumeWindow(window);
-  this->SetActionStartVolumeLevel(level);
-  this->SetActionStartVolumeRangeLow(rangeLow);
-  this->SetActionStartVolumeRangeHigh(rangeHigh);
+  vtkMRMLSliceNode *sliceNode = this->SliceLogic->GetSliceNode();
+  if (!sliceNode)
+    {
+    return;
+    }
+  vtkMRMLSliceCompositeNode *sliceCompositeNode = this->SliceLogic->GetSliceCompositeNode();
+  if (!sliceCompositeNode)
+    {
+    return;
+    }
+
+  // By default adjust background volume, if available
+  bool adjustForeground = (sliceCompositeNode->GetBackgroundVolumeID() == NULL);
+  // If both foreground and background volumes are visible then choose adjustment of
+  // foreground volume, if foreground volume is visible in current mouse position
+  if (sliceCompositeNode->GetBackgroundVolumeID() && sliceCompositeNode->GetForegroundVolumeID())
+    {
+    adjustForeground = (sliceCompositeNode->GetForegroundOpacity() > 0.0)
+      && this->IsMouseInsideVolume(true)   // inside background (used as mask for displaying foreground)
+      && this->IsMouseInsideVolume(false); // inside foreground
+    }
+
+  if (adjustForeground)
+    {
+    this->SetActionState(this->AdjustWindowLevelForeground);
+    this->SliceLogic->GetForegroundWindowLevelAndRange(
+      this->LastVolumeWindowLevel[0], this->LastVolumeWindowLevel[1],
+      this->VolumeScalarRange[0], this->VolumeScalarRange[1]);
+    }
+  else
+    {
+    this->SetActionState(this->AdjustWindowLevelBackground);
+    this->SliceLogic->GetBackgroundWindowLevelAndRange(
+      this->LastVolumeWindowLevel[0], this->LastVolumeWindowLevel[1],
+      this->VolumeScalarRange[0], this->VolumeScalarRange[1]);
+    }
 }
 
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::EndAdjustWindowLevel()
 {
   this->SetActionState(this->None);
-  this->SetActionStartVolumeWindow(0);
-  this->SetActionStartVolumeLevel(0);
-}
-
-
-//----------------------------------------------------------------------------
-void vtkSliceViewInteractorStyle::GetEventRAS(double ras[4])
-{
-  int windowX, windowY;
-
-  vtkMRMLSliceNode *sliceNode = this->SliceLogic->GetSliceNode();
-  this->GetInteractor()->GetEventPosition(windowX, windowY);
-  vtkRenderer *pokedRenderer = this->GetInteractor()->FindPokedRenderer(windowX, windowY);
-
-  double localXY[4];
-  localXY[0] = windowX - pokedRenderer->GetOrigin()[0];
-  localXY[1] = windowY - pokedRenderer->GetOrigin()[1];
-  localXY[2] = 0.;
-  localXY[3] = 1.;
-  // map the current point from XY to RAS space
-  sliceNode->GetXYToRAS()->MultiplyPoint(localXY, ras);
-}
-
-//----------------------------------------------------------------------------
-void vtkSliceViewInteractorStyle::GetEventRASWithRespectToEventStart(double ras[4])
-{
-  int windowX, windowY;
-
-  this->GetInteractor()->GetEventPosition(windowX, windowY);
-  vtkRenderer *pokedRenderer = this->GetInteractor()->FindPokedRenderer(windowX, windowY);
-
-  double localXY[4];
-  localXY[0] = windowX - pokedRenderer->GetOrigin()[0];
-  localXY[1] = windowY - pokedRenderer->GetOrigin()[1];
-  localXY[2] = 0.;
-  localXY[3] = 1.;
-  // map the current point from XY to RAS space
-  this->GetActionStartXYToRAS()->MultiplyPoint(localXY, ras);
 }
 
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::GetEventXYZ(double xyz[4])
 {
-  int windowX, windowY;
-  int windowW, windowH;
-  this->GetInteractor()->GetEventPosition(windowX, windowY);
+  int eventPosition[2] = { 0 };
+  this->GetInteractor()->GetEventPosition(eventPosition);
+  int *windowSize = this->GetInteractor()->GetRenderWindow()->GetSize();
 
   vtkMRMLSliceNode *sliceNode = this->SliceLogic->GetSliceNode();
-
-  int *size = this->GetInteractor()->GetRenderWindow()->GetSize();
-  windowW = size[0];
-  windowH = size[1];
   int numRows = sliceNode->GetLayoutGridRows();
   int numCols = sliceNode->GetLayoutGridColumns();
 
-  if ( windowW == 0 || windowH == 0 )
+  if ( windowSize[0] == 0 || windowSize[1] == 0 )
     {
     // degenerate case, return gracefully
     xyz[0] = xyz[1] = xyz[2] = 0.;
@@ -589,18 +789,17 @@ void vtkSliceViewInteractorStyle::GetEventXYZ(double xyz[4])
     return;
     }
 
-  vtkRenderer *pokedRenderer = this->GetInteractor()->FindPokedRenderer(windowX, windowY);
+  vtkRenderer *pokedRenderer = this->GetInteractor()->FindPokedRenderer(eventPosition[0], eventPosition[1]);
   int *origin = pokedRenderer->GetOrigin();
-  xyz[0] = windowX - origin[0];
-  xyz[1] = windowY - origin[1];
+  xyz[0] = eventPosition[0] - origin[0];
+  xyz[1] = eventPosition[1] - origin[1];
 
-  double tx = windowX / (1. * windowW);
-  double ty = (windowH - windowY) / (1. * windowH);
+  double tx = eventPosition[0] / (1. * windowSize[0]);
+  double ty = (windowSize[1] - eventPosition[1]) / (1. * windowSize[1]);
   xyz[2] = (floor(ty*numRows)*numCols + floor(tx*numCols));
 
   xyz[3] = 1.;
 }
-
 
 //----------------------------------------------------------------------------
 void vtkSliceViewInteractorStyle::CycleVolumeLayer(int layer, int direction)

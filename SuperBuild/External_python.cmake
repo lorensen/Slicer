@@ -17,6 +17,18 @@ if(PYTHON_ENABLE_SSL)
   list(APPEND ${proj}_DEPENDENCIES OpenSSL)
 endif()
 
+# Python stdlib and site-packages directories
+# Note: These variables are set before the call to "ExternalProject_Include_Dependencies"
+#       to ensure they are defined during the first time this file is included
+#       by ExternalProjectDependency module.
+#       That way, the variable are available in External_tcl.cmake despite the fact
+#       the "tcl" project does NOT directly depend on "python".
+set(PYTHON_STDLIB_SUBDIR lib/python2.7)
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+  set(PYTHON_STDLIB_SUBDIR Lib)
+endif()
+set(PYTHON_SITE_PACKAGES_SUBDIR ${PYTHON_STDLIB_SUBDIR}/site-packages)
+
 # Include dependent projects if any
 ExternalProject_Include_Dependencies(${proj} PROJECT_VAR proj DEPENDS_VAR ${proj}_DEPENDENCIES)
 
@@ -35,23 +47,13 @@ if((NOT DEFINED PYTHON_INCLUDE_DIR
    OR NOT DEFINED PYTHON_LIBRARY
    OR NOT DEFINED PYTHON_EXECUTABLE) AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
 
-  set(python_SOURCE_DIR "${CMAKE_BINARY_DIR}/Python-2.7.3")
-
-  set(EXTERNAL_PROJECT_OPTIONAL_ARGS)
-  if(MSVC)
-    list(APPEND EXTERNAL_PROJECT_OPTIONAL_ARGS
-      PATCH_COMMAND ${CMAKE_COMMAND}
-        -DPYTHON_SRC_DIR:PATH=${python_SOURCE_DIR}
-        -P ${CMAKE_CURRENT_LIST_DIR}/${proj}_patch.cmake
-      )
-  endif()
+  set(python_SOURCE_DIR "${CMAKE_BINARY_DIR}/Python-2.7.13")
 
   ExternalProject_Add(python-source
-    URL "https://www.python.org/ftp/python/2.7.3/Python-2.7.3.tgz"
-    URL_MD5 "2cf641732ac23b18d139be077bd906cd"
+    URL "https://www.python.org/ftp/python/2.7.13/Python-2.7.13.tgz"
+    URL_MD5 "17add4bf0ad0ec2f08e0cae6d205c700"
     DOWNLOAD_DIR ${CMAKE_CURRENT_BINARY_DIR}
     SOURCE_DIR ${python_SOURCE_DIR}
-    ${EXTERNAL_PROJECT_OPTIONAL_ARGS}
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     INSTALL_COMMAND ""
@@ -86,6 +88,17 @@ if((NOT DEFINED PYTHON_INCLUDE_DIR
       )
   endif()
 
+  # Force modules that statically link to zlib to not be built-in.  Otherwise,
+  # when building in Debug configuration, the Python library--which we force to
+  # build in Release configuration--would mix Debug and Release C runtime
+  # libraries.
+  if(WIN32)
+    list(APPEND EXTERNAL_PROJECT_OPTIONAL_CMAKE_ARGS
+        -DBUILTIN_BINASCII:BOOL=OFF
+        -DBUILTIN_ZLIB:BOOL=OFF
+      )
+  endif()
+
   set(EXTERNAL_PROJECT_OPTIONAL_CMAKE_CACHE_ARGS)
 
   # Force Python build to "Release".
@@ -97,10 +110,22 @@ if((NOT DEFINED PYTHON_INCLUDE_DIR
       -DCMAKE_BUILD_TYPE:STRING=Release)
   endif()
 
+  ExternalProject_SetIfNotDefined(
+    ${CMAKE_PROJECT_NAME}_${proj}_GIT_REPOSITORY
+    "${git_protocol}://github.com/python-cmake-buildsystem/python-cmake-buildsystem.git"
+    QUIET
+    )
+
+  ExternalProject_SetIfNotDefined(
+    ${CMAKE_PROJECT_NAME}_${proj}_GIT_TAG
+    "30b0d561e84900a4b400d2ce967ce8d5dcee8f25"
+    QUIET
+    )
+
   ExternalProject_Add(${proj}
     ${${proj}_EP_ARGS}
-    GIT_REPOSITORY "${git_protocol}://github.com/davidsansome/python-cmake-buildsystem.git"
-    GIT_TAG "0838470ec2a0d20909571793ebb4ccc8a3292ac5"
+    GIT_REPOSITORY "${${CMAKE_PROJECT_NAME}_${proj}_GIT_REPOSITORY}"
+    GIT_TAG "${${CMAKE_PROJECT_NAME}_${proj}_GIT_TAG}"
     SOURCE_DIR ${CMAKE_BINARY_DIR}/${proj}
     BINARY_DIR ${proj}-build
     CMAKE_CACHE_ARGS
@@ -110,9 +135,11 @@ if((NOT DEFINED PYTHON_INCLUDE_DIR
       -DCMAKE_C_FLAGS:STRING=${ep_common_c_flags}
       -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/${proj}-install
       #-DBUILD_TESTING:BOOL=OFF
-      -DBUILD_SHARED:BOOL=ON
-      -DBUILD_STATIC:BOOL=OFF
+      -DBUILD_LIBPYTHON_SHARED:BOOL=ON
       -DUSE_SYSTEM_LIBRARIES:BOOL=OFF
+      -DSRC_DIR:PATH=${python_SOURCE_DIR}
+      -DDOWNLOAD_SOURCES:BOOL=OFF
+      -DINSTALL_WINDOWS_TRADITIONAL:BOOL=OFF
       -DZLIB_INCLUDE_DIR:PATH=${ZLIB_INCLUDE_DIR}
       -DZLIB_LIBRARY:FILEPATH=${ZLIB_LIBRARY}
       -DENABLE_TKINTER:BOOL=${Slicer_USE_PYTHONQT_WITH_TCL}
@@ -191,17 +218,10 @@ if((NOT DEFINED PYTHON_INCLUDE_DIR
     LABELS "PATHS_LAUNCHER_BUILD"
     )
 
-  # pythonpath
-  set(_pythonhome ${CMAKE_BINARY_DIR}/python-install)
-  set(pythonpath_subdir lib/python2.7)
-  if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(pythonpath_subdir Lib)
-  endif()
-
   set(${proj}_PYTHONPATH_LAUNCHER_BUILD
-    ${_pythonhome}/${pythonpath_subdir}
-    ${_pythonhome}/${pythonpath_subdir}/lib-dynload
-    ${_pythonhome}/${pythonpath_subdir}/site-packages
+    ${python_DIR}/${PYTHON_STDLIB_SUBDIR}
+    ${python_DIR}/${PYTHON_STDLIB_SUBDIR}/lib-dynload
+    ${python_DIR}/${PYTHON_SITE_PACKAGES_SUBDIR}
     )
   mark_as_superbuild(
     VARS ${proj}_PYTHONPATH_LAUNCHER_BUILD
@@ -209,7 +229,10 @@ if((NOT DEFINED PYTHON_INCLUDE_DIR
     )
 
   # environment variables
-  set(${proj}_ENVVARS_LAUNCHER_BUILD "PYTHONHOME=${python_DIR}")
+  set(${proj}_ENVVARS_LAUNCHER_BUILD
+    "PYTHONHOME=${python_DIR}"
+    "PYTHONNOUSERSITE=1"
+    )
   mark_as_superbuild(
     VARS ${proj}_ENVVARS_LAUNCHER_BUILD
     LABELS "ENVVARS_LAUNCHER_BUILD"
@@ -230,9 +253,9 @@ if((NOT DEFINED PYTHON_INCLUDE_DIR
 
   # pythonpath
   set(${proj}_PYTHONPATH_LAUNCHER_INSTALLED
-    <APPLAUNCHER_DIR>/lib/Python/${pythonpath_subdir}
-    <APPLAUNCHER_DIR>/lib/Python/${pythonpath_subdir}/lib-dynload
-    <APPLAUNCHER_DIR>/lib/Python/${pythonpath_subdir}/site-packages
+    <APPLAUNCHER_DIR>/lib/Python/${PYTHON_STDLIB_SUBDIR}
+    <APPLAUNCHER_DIR>/lib/Python/${PYTHON_STDLIB_SUBDIR}/lib-dynload
+    <APPLAUNCHER_DIR>/lib/Python/${PYTHON_SITE_PACKAGES_SUBDIR}
     )
   mark_as_superbuild(
     VARS ${proj}_PYTHONPATH_LAUNCHER_INSTALLED
@@ -240,7 +263,10 @@ if((NOT DEFINED PYTHON_INCLUDE_DIR
     )
 
   # environment variables
-  set(${proj}_ENVVARS_LAUNCHER_INSTALLED "PYTHONHOME=<APPLAUNCHER_DIR>/lib/Python")
+  set(${proj}_ENVVARS_LAUNCHER_INSTALLED
+    "PYTHONHOME=<APPLAUNCHER_DIR>/lib/Python"
+    "PYTHONNOUSERSITE=1"
+    )
   mark_as_superbuild(
     VARS ${proj}_ENVVARS_LAUNCHER_INSTALLED
     LABELS "ENVVARS_LAUNCHER_INSTALLED"
@@ -249,6 +275,17 @@ if((NOT DEFINED PYTHON_INCLUDE_DIR
 else()
   ExternalProject_Add_Empty(${proj} DEPENDS ${${proj}_DEPENDENCIES})
 endif()
+
+mark_as_superbuild(
+  VARS
+    PYTHON_STDLIB_SUBDIR:STRING
+    PYTHON_SITE_PACKAGES_SUBDIR:STRING
+  )
+
+mark_as_superbuild(
+  VARS ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj}
+  LABELS "USE_SYSTEM"
+  )
 
 mark_as_superbuild(
   VARS

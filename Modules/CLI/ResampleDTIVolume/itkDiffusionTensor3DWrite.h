@@ -11,8 +11,8 @@
   See License.txt or http://www.slicer.org/copyright/copyright.txt for details.
 
 ==========================================================================*/
-#ifndef __itkDiffusionTensor3DWrite_h
-#define __itkDiffusionTensor3DWrite_h
+#ifndef itkDiffusionTensor3DWrite_h
+#define itkDiffusionTensor3DWrite_h
 
 #include <itkObject.h>
 #include <itkMetaDataObject.h>
@@ -45,6 +45,10 @@ public:
   typedef std::vector<std::vector<double> >   DoubleVectorType;
   typedef MetaDataObject<DoubleVectorType>    MetaDataDoubleVectorType;
   typedef MetaDataObject<std::string>         MetaDataIntType;
+
+  /** Run-time type information (and related methods). */
+  itkTypeMacro(DiffusionTensor3DWrite, Object);
+
   itkNewMacro( Self );
   // /Set input tensor image
   itkSetObjectMacro( Input, DiffusionImageType );
@@ -82,7 +86,9 @@ public:
 
 private:
   DiffusionTensor3DWrite();
+
   typename DiffusionImageType::Pointer m_Input;
+
   unsigned int   m_NumberOfThreads;
   DictionaryType m_MetaDataDictionary;
 };

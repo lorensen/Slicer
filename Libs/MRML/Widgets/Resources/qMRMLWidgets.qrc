@@ -10,6 +10,7 @@
     <file>Icons/HotLinkOn.png</file>
     <file>Icons/PushPinIn.png</file>
     <file>Icons/PushPinOut.png</file>
+    <file>Icons/Layout3DTableView.png</file>
     <file>Icons/LayoutChooseView.png</file>
     <file>Icons/LayoutCompareView.png</file>
     <file>Icons/LayoutConventionalView.png</file>
@@ -17,6 +18,7 @@
     <file>Icons/LayoutDual3DView.png</file>
     <file>Icons/LayoutFourUpView.png</file>
     <file>Icons/LayoutFourUpQuantitativeView.png</file>
+    <file>Icons/LayoutFourUpTableView.png</file>
     <file>Icons/LayoutLightboxView.png</file>
     <file>Icons/LayoutOneUp3DView.png</file>
     <file>Icons/LayoutOneUpGreenSliceView.png</file>
@@ -35,10 +37,13 @@
     <file>Icons/LayoutFourByTwoSliceView.png</file>
     <file>Icons/LayoutFiveByTwoSliceView.png</file>
     <file>Icons/LayoutThreeByThreeSliceView.png</file>
+    <file>Icons/OrientationMarker.png</file>
+    <file>Icons/Ruler.png</file>
     <file>Icons/SliceMoreOptions.png</file>
     <file>Icons/SliceViewerBG.png</file>
     <file>Icons/SliceViewerFG.png</file>
     <file>Icons/SliceViewerLB.png</file>
+    <file>Icons/SliceViewerSEG.png</file>
     <file>Icons/SliceViewerOR.png</file>
     <file>Icons/SliceInterpolationOn.png</file>
     <file>Icons/SliceInterpolationOff.png</file>
@@ -52,8 +57,10 @@
     <file>Icons/SlicesFeaturesVisible.png</file>
     <file>Icons/SlicesFieldOfView.png</file>
     <file>Icons/SlicesFitToWindow.png</file>
+    <file>Icons/SlicesLabelFill.png</file>
     <file>Icons/SlicesLabelNoOutline.png</file>
     <file>Icons/SlicesLabelOutline.png</file>
+    <file>Icons/SlicesLabelOutlineAndFill.png</file>
     <file>Icons/SlicesLabelOpacity.png</file>
     <file>Icons/SlicerRotateToPixelSpace.png</file>
     <file>Icons/SlicesSpatialUnit.png</file>
@@ -88,6 +95,12 @@
     <file>Icons/YellowSpaceNegative.png</file>
     <file>Icons/GreenSpacePositive.png</file>
     <file>Icons/GreenSpaceNegative.png</file>
+    <file>Icons/column_add.png</file>
+    <file>Icons/column_delete.png</file>
+    <file>Icons/column_header_lock.png</file>
+    <file>Icons/row_add.png</file>
+    <file>Icons/row_delete.png</file>
+    <file>Icons/row_header_lock.png</file>
     <file alias="AbdomenColors">Icons/LUTs/AbdomenColors.png</file>
     <file alias="blankLUT">Icons/LUTs/blankLUT.png</file>
     <file alias="dGEMRIC-3T">Icons/LUTs/cartilegeMIdGEMRIC-3T.png</file>

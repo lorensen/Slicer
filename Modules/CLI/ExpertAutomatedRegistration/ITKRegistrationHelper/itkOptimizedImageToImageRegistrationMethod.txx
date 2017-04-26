@@ -15,8 +15,8 @@
 
 =========================================================================*/
 
-#ifndef __OptimizedImageToImageRegistrationMethod_txx
-#define __OptimizedImageToImageRegistrationMethod_txx
+#ifndef itkOptimizedImageToImageRegistrationMethod_txx
+#define itkOptimizedImageToImageRegistrationMethod_txx
 
 #include "itkOptimizedImageToImageRegistrationMethod.h"
 
@@ -68,12 +68,12 @@ public:
   itkSetMacro(DontShowParameters, bool);
   itkSetMacro(UpdateInterval, int);
 
-  void Execute( Object * caller, const EventObject & event )
+  void Execute( Object * caller, const EventObject & event ) ITK_OVERRIDE
   {
     Execute( (const Object *)caller, event );
   }
 
-  void Execute( const Object * object, const EventObject & event )
+  void Execute( const Object * object, const EventObject & event ) ITK_OVERRIDE
   {
     if( typeid( event ) != typeid( IterationEvent ) || object == NULL )
       {
@@ -125,10 +125,10 @@ protected:
     m_Iteration = 0;
     m_UpdateInterval = 1;
     m_DontShowParameters = false;
-  };
+  }
   ~ImageRegistrationViewer()
   {
-  };
+  }
 
 };
 
@@ -713,6 +713,6 @@ OptimizedImageToImageRegistrationMethod<TImage>
     }
 }
 
-};
+}
 
 #endif

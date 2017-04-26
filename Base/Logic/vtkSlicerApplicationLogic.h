@@ -26,7 +26,6 @@
 
 // VTK includes
 #include <vtkCollection.h>
-#include <vtkSmartPointer.h>
 
 // ITK includes
 #include <itkMultiThreader.h>
@@ -34,6 +33,8 @@
 
 class vtkMRMLSelectionNode;
 class vtkMRMLInteractionNode;
+class vtkMRMLRemoteIOLogic;
+class vtkDataIOManagerLogic;
 class vtkSlicerTask;
 class ModifiedQueue;
 class ProcessingTaskQueue;
@@ -51,6 +52,18 @@ class VTK_SLICER_BASE_LOGIC_EXPORT vtkSlicerApplicationLogic
   static vtkSlicerApplicationLogic *New();
   vtkTypeMacro(vtkSlicerApplicationLogic, vtkMRMLApplicationLogic);
   void PrintSelf(ostream& os, vtkIndent indent);
+
+  /// Update the data IO, local and remote, with the new scene
+  /// For stand alone applications, follow the set up steps in
+  /// qSlicerCoreApplicationPrivate::initDataIO() to set up the
+  /// remote IO logic and data manager logic and then call this
+  /// method to hook them into the scene.
+  /// \sa qSlicerCoreApplicationPrivate::initDataIO()
+  /// \sa vtkMRMLRemoteIOLogic::AddDataIOToScene()
+  void SetMRMLSceneDataIO(vtkMRMLScene *scene,
+                          vtkMRMLRemoteIOLogic *remoteIOLogic,
+                          vtkDataIOManagerLogic *dataIOManagerLogic);
+
 
   /// Perform the default behaviour related to selecting a fiducial list
   /// (display it in the Fiducials GUI)
@@ -167,6 +180,9 @@ class VTK_SLICER_BASE_LOGIC_EXPORT vtkSlicerApplicationLogic
   /// return an incorrect result if the plugin is installed in the build tree of
   /// an other project.
   static bool IsPluginInstalled(const std::string& filePath, const std::string& applicationHomeDir);
+
+  /// Return \a true if the plugin identified with its \a filePath is a built-in Slicer module.
+  static bool IsPluginBuiltIn(const std::string& filePath, const std::string& applicationHomeDir);
 
   /// Get share directory associated with \a moduleName located in \a filePath
   static std::string GetModuleShareDirectory(const std::string& moduleName, const std::string& filePath);

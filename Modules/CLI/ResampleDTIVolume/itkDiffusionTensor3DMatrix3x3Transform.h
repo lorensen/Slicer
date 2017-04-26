@@ -11,8 +11,8 @@
   See License.txt or http://www.slicer.org/copyright/copyright.txt for details.
 
 ==========================================================================*/
-#ifndef __itkDiffusionTensor3DMatrix3x3Transform_h
-#define __itkDiffusionTensor3DMatrix3x3Transform_h
+#ifndef itkDiffusionTensor3DMatrix3x3Transform_h
+#define itkDiffusionTensor3DMatrix3x3Transform_h
 
 #include "itkDiffusionTensor3DTransform.h"
 #include <itkVector.h>
@@ -47,6 +47,9 @@ public:
   typedef Vector<TransformType, 3>                         VectorType;
   typedef SmartPointer<Self>                               Pointer;
   typedef SmartPointer<const Self>                         ConstPointer;
+
+  /** Run-time type information (and related methods). */
+  itkTypeMacro(DiffusionTensor3DMatrix3x3Transform, DiffusionTensor3DTransform);
 
   // /Set the translation vector
   void SetTranslation( VectorType translation );
@@ -89,7 +92,7 @@ protected:
   InternalMatrixTransformType m_TransformMatrix;
   InternalMatrixTransformType m_Transform;
   InternalMatrixTransformType m_TransformT;
-  unsigned long               latestTime;
+  unsigned long               m_LatestTime;
   VectorType                  m_Translation;
   VectorType                  m_Offset;
   PointType                   m_Center;

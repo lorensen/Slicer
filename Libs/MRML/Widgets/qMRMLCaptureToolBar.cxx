@@ -19,9 +19,14 @@
 ==============================================================================*/
 
 // Qt includes
+#include <QDebug>
 #include <QMenu>
 #include <QInputDialog>
+#include <QTimer>
 #include <QToolButton>
+
+// CTK includes
+#include <ctkMessageBox.h>
 
 // qMRML includes
 #include "qMRMLCaptureToolBar.h"
@@ -44,6 +49,7 @@ class qMRMLCaptureToolBarPrivate
   Q_DECLARE_PUBLIC(qMRMLCaptureToolBar);
 protected:
   qMRMLCaptureToolBar* const q_ptr;
+  bool timeOutFlag;
 public:
   qMRMLCaptureToolBarPrivate(qMRMLCaptureToolBar& object);
   void init();
@@ -73,6 +79,7 @@ qMRMLCaptureToolBarPrivate::qMRMLCaptureToolBarPrivate(qMRMLCaptureToolBar& obje
   this->ScreenshotAction = 0;
   this->SceneViewAction = 0;
   this->SceneViewMenu = 0;
+  this->timeOutFlag = false;
 }
 
 // --------------------------------------------------------------------------
@@ -138,6 +145,7 @@ void qMRMLCaptureToolBarPrivate::setMRMLScene(vtkMRMLScene* newScene)
                       this, SLOT(OnMRMLSceneEndBatchProcessing()));
 
 */
+
   this->MRMLScene = newScene;
 
   this->SceneViewMenu->setMRMLScene(newScene);
@@ -223,4 +231,20 @@ void qMRMLCaptureToolBar::setActiveMRMLThreeDViewNode(
   Q_D(qMRMLCaptureToolBar);
   d->ActiveMRMLThreeDViewNode = newActiveMRMLThreeDViewNode;
   d->updateWidgetFromMRML();
+}
+
+// --------------------------------------------------------------------------
+bool qMRMLCaptureToolBar::popupsTimeOut() const
+{
+  Q_D(const qMRMLCaptureToolBar);
+
+  return d->timeOutFlag;
+}
+
+// --------------------------------------------------------------------------
+void qMRMLCaptureToolBar::setPopupsTimeOut(bool flag)
+{
+  Q_D(qMRMLCaptureToolBar);
+
+  d->timeOutFlag = flag;
 }

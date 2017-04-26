@@ -5,20 +5,20 @@ set(qtmodules
   AtlasCreator
   Cameras
   Units
+  Terminologies
   Colors
   SubjectHierarchy
-  Transforms
   Annotations
+  Markups
+  Transforms
   Data
   DoubleArrays
-  Markups
   #Measurements
   Models
-  ModelMirror
-  ModelTransform
-  #FiberBundles
   SceneViews
+  Segmentations
   SlicerWelcome
+  Tables
   Reformat
   ViewControllers
   Volumes
@@ -27,12 +27,6 @@ set(qtmodules
 if(Slicer_BUILD_CLI_SUPPORT)
   list(APPEND qtmodules
     CropVolume
-    )
-endif()
-if(Slicer_BUILD_DIFFUSION_SUPPORT)
-  list(APPEND qtmodules
-    TractographyDisplay
-    TractographyInteractiveSeeding # tractography depends of Volumes
     )
 endif()
 

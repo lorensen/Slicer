@@ -24,7 +24,7 @@
 #include <vtkMath.h>
 #include <vtkMatrix4x4.h>
 #include <vtkNew.h>
-//#include <vtkPolyData.h>
+#include <vtkTestingOutputWindow.h>
 
 // STL includes
 #include <sstream>
@@ -32,8 +32,7 @@
 int vtkMRMLMarkupsNodeTest1(int , char * [] )
 {
   vtkNew<vtkMRMLMarkupsNode> node1;
-
-  EXERCISE_BASIC_DISPLAYABLE_MRML_METHODS( vtkMRMLMarkupsNode, node1 );
+  EXERCISE_ALL_BASIC_MRML_METHODS(node1.GetPointer());
 
   TEST_SET_GET_BOOLEAN(node1, Locked);
 
@@ -82,6 +81,21 @@ int vtkMRMLMarkupsNodeTest1(int , char * [] )
     return EXIT_FAILURE;
     }
 
+  node1->SetText(0, "string a");
+  node1->SetText(1, "string b");
+  node1->SetText(2, "string c");
+
+  int expectedNumberOfTexts = 3;
+  CHECK_INT(node1->GetNumberOfTexts(), expectedNumberOfTexts);
+
+  node1->DeleteText(0);
+
+  expectedNumberOfTexts = 2;
+  CHECK_INT(node1->GetNumberOfTexts(), expectedNumberOfTexts);
+
+  CHECK_STD_STRING(node1->GetText(0), "string b");
+  CHECK_STD_STRING(node1->GetText(1), "string c");
+
   std::cout << "Removing all markups" << std::endl;
   node1->RemoveAllMarkups();
 
@@ -93,6 +107,7 @@ int vtkMRMLMarkupsNodeTest1(int , char * [] )
   std::cout << "Checking if markup exists in empty markups node" << std::endl;
   for (int m = -1; m < 3; m++)
     {
+    TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
     if (node1->MarkupExists(m))
       {
       std::cerr << "Says that markup " << m << " exists, it shouldn't" << std::endl;
@@ -102,6 +117,7 @@ int vtkMRMLMarkupsNodeTest1(int , char * [] )
       {
       std::cout << "\t" << m << " doesn't exist, good!" << std::endl;
       }
+    TESTING_OUTPUT_ASSERT_ERRORS_END();
     }
 
   // Get Number of Markups
@@ -117,6 +133,7 @@ int vtkMRMLMarkupsNodeTest1(int , char * [] )
     {
     for (int m = -1; m < 3; m++)
       {
+      TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
       if (node1->PointExistsInMarkup(p, m))
         {
         std::cerr << "Says that point " << p << " in markup " <<  m << " exists, it shouldn't" << std::endl;
@@ -126,11 +143,14 @@ int vtkMRMLMarkupsNodeTest1(int , char * [] )
         {
         std::cout << "Points exists in markup: success on point " << p << " in markup " <<  m << std::endl;
         }
+      TESTING_OUTPUT_ASSERT_ERRORS_END();
       }
     }
 
   // Get Number Of Points in Markup
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   int numPoints = node1->GetNumberOfPointsInNthMarkup(0);
+  TESTING_OUTPUT_ASSERT_ERRORS_END();
   if (numPoints != 0)
     {
     std::cerr << "For empty markup 0, got " << numPoints << " instead of 0" << std::endl;
@@ -142,7 +162,9 @@ int vtkMRMLMarkupsNodeTest1(int , char * [] )
   Markup *markup;
   for (int n = -1; n < 3; n++)
     {
+    TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
     markup = node1->GetNthMarkup(n);
+    TESTING_OUTPUT_ASSERT_ERRORS_END();
     if (markup)
       {
       if (markup->points.size() != 0)
@@ -156,7 +178,9 @@ int vtkMRMLMarkupsNodeTest1(int , char * [] )
     }
 
   // AddMarkupWithNPoints
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   node1->AddMarkupWithNPoints(-1);
+  TESTING_OUTPUT_ASSERT_ERRORS_END();
   numMarkups = node1->GetNumberOfMarkups();
   if (numMarkups != 0)
     {
@@ -175,7 +199,9 @@ int vtkMRMLMarkupsNodeTest1(int , char * [] )
   else { std::cout << "pass add markup with 0 points" << std::endl; }
 
   // RemoveMarkup
+  TESTING_OUTPUT_ASSERT_ERRORS_BEGIN();
   node1->RemoveMarkup(-1);
+  TESTING_OUTPUT_ASSERT_ERRORS_END();
   std::cout << "Removed markup -1" << std::endl;
   node1->RemoveMarkup(0);
   std::cout << "Removed markup 0" << std::endl;

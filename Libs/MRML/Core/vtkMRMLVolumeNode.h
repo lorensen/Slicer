@@ -137,8 +137,24 @@ public:
   void SetIJKToRASMatrix(vtkMatrix4x4* mat);
   void SetRASToIJKMatrix(vtkMatrix4x4* mat);
 
-  /// Get bounding box in global RAS the form (xmin,xmax, ymin,ymax, zmin,zmax).
+  ///
+  /// Get bounding box in global RAS form (xmin,xmax, ymin,ymax, zmin,zmax).
+  /// This method returns the bounds of the object with any transforms that may
+  /// be applied to it.
+  /// \sa GetSliceBounds(), GetIJKToRASMatrix(), vtkMRMLSliceLogic::GetVolumeSliceBounds()
+  /// \sa GetNodeBounds()
   virtual void GetRASBounds(double bounds[6]);
+
+  /// Get bounding box in global RAS form (xmin,xmax, ymin,ymax, zmin,zmax).
+  /// This method always returns the bounds of the untransformed object.
+  /// \sa GetRASBounds()
+  virtual void GetBounds(double bounds[6]);
+
+  ///
+  /// Get bounding box in slice form (xmin,xmax, ymin,ymax, zmin,zmax).
+  /// If not rasToSlice is passed, then it returns the bounds in global RAS form.
+  /// \sa GetRASBounds()
+  void GetSliceBounds(double bounds[6], vtkMatrix4x4* rasToSlice);
 
   ///
   /// Associated display MRML node
@@ -155,9 +171,6 @@ public:
   /// vtkMRMLVolumeNode::Spacing, and vtkMRMLVolumeNode::IJKToRASDirections).
   /// \sa GetImageData(), SetImageDataConnection()
   void SetAndObserveImageData(vtkImageData *ImageData);
-#if (VTK_MAJOR_VERSION <= 5)
-  vtkGetObjectMacro(ImageData, vtkImageData);
-#else
   virtual vtkImageData* GetImageData();
   /// Set and observe image data pipeline.
   /// It is propagated to the display nodes.
@@ -165,7 +178,12 @@ public:
   virtual void SetImageDataConnection(vtkAlgorithmOutput *inputPort);
   /// Return the input image data pipeline.
   vtkGetObjectMacro(ImageDataConnection, vtkAlgorithmOutput);
-#endif
+
+  ///
+  /// Make sure image data of a volume node has extents that start at zero.
+  /// This needs to be done for compatibility reasons, as many components assume the extent has a form of
+  /// (0,dim[0],0,dim[1],0,dim[2]), which is not the case many times for segmentation merged labelmaps.
+  void ShiftImageDataExtentToZeroStart();
 
   ///
   /// alternative method to propagate events generated in Display nodes
@@ -173,7 +191,6 @@ public:
                                    unsigned long /*event*/,
                                    void * /*callData*/ );
 
-  /// DisplayModifiedEvent is generated when display node parameters is changed
   /// ImageDataModifiedEvent is generated when image data is changed
   enum
     {
@@ -216,6 +233,11 @@ protected:
   /// Called when a node reference ID is modified.
   virtual void OnNodeReferenceModified(vtkMRMLNodeReference *reference);
 
+  ///
+  /// Return the bounds of the node transformed or not depending on
+  /// the useTransform parameter and the rasToSlice transform
+  virtual void GetBoundsInternal(double bounds[6], vtkMatrix4x4* rasToSlice, bool useTransform);
+
   /// these are unit length direction cosines
   double IJKToRASDirections[3][3];
 
@@ -223,13 +245,8 @@ protected:
   double Spacing[3];
   double Origin[3];
 
-#if (VTK_MAJOR_VERSION <= 5)
-  virtual void SetImageData(vtkImageData* img);
-  vtkImageData* ImageData;
-#else
   vtkAlgorithmOutput* ImageDataConnection;
   vtkEventForwarderCommand* DataEventForwarder;
-#endif
 
   itk::MetaDataDictionary Dictionary;
 };

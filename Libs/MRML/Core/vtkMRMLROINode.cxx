@@ -73,29 +73,26 @@ void vtkMRMLROINode::WriteXML(ostream& of, int nIndent)
   // Write all attributes not equal to their defaults
   Superclass::WriteXML(of, nIndent);
 
-  vtkIndent indent(nIndent);
-
   if (this->VolumeNodeID != NULL)
     {
-    of << indent << " volumeNodeID=\"" << this->VolumeNodeID << "\"";
+    of << " volumeNodeID=\"" << this->VolumeNodeID << "\"";
     }
   if (this->LabelText != NULL)
     {
-    of << indent << " labelText=\"" << this->LabelText << "\"";
+    of << " labelText=\"" << this->LabelText << "\"";
     }
 
-  of << indent << " xyz=\""
+  of << " xyz=\""
     << this->XYZ[0] << " " << this->XYZ[1] << " " << this->XYZ[2] << "\"";
 
-  of << indent << " radiusXYZ=\""
+  of << " radiusXYZ=\""
     << this->RadiusXYZ[0] << " " << this->RadiusXYZ[1] << " " << this->RadiusXYZ[2] << "\"";
 
-  of << indent << " insideOut=\"" << (this->InsideOut ? "true" : "false") << "\"";
+  of << " insideOut=\"" << (this->InsideOut ? "true" : "false") << "\"";
 
-  of << indent << " visibility=\"" << (this->Visibility ? "true" : "false") << "\"";
+  of << " visibility=\"" << (this->Visibility ? "true" : "false") << "\"";
 
-  of << indent << " interactiveMode=\"" << (this->InteractiveMode ? "true" : "false") << "\"";
-
+  of << " interactiveMode=\"" << (this->InteractiveMode ? "true" : "false") << "\"";
 
   return;
 }
@@ -378,21 +375,6 @@ void vtkMRMLROINode::SetRadiusIJK(double* radiusIJK)
 bool vtkMRMLROINode::CanApplyNonLinearTransforms()const
 {
   return true;
-}
-
-//---------------------------------------------------------------------------
-void vtkMRMLROINode::ApplyTransformMatrix(vtkMatrix4x4* transformMatrix)
-{
-  double (*matrix)[4] = transformMatrix->Element;
-  double *xyzIn  = this->GetXYZ();
-  double xyzOut[3];
-
-  xyzOut[0] = matrix[0][0]*xyzIn[0] + matrix[0][1]*xyzIn[1] + matrix[0][2]*xyzIn[2] + matrix[0][3];
-  xyzOut[1] = matrix[1][0]*xyzIn[0] + matrix[1][1]*xyzIn[1] + matrix[1][2]*xyzIn[2] + matrix[1][3];
-  xyzOut[2] = matrix[2][0]*xyzIn[0] + matrix[2][1]*xyzIn[1] + matrix[2][2]*xyzIn[2] + matrix[2][3];
-
-  this->SetXYZ(xyzOut);
-
 }
 
 //---------------------------------------------------------------------------

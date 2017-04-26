@@ -1,6 +1,6 @@
 import os
 import unittest
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 
 #
@@ -39,7 +39,6 @@ class SubjectHierarchyCorePluginsSelfTest(ScriptedLoadableModule):
 
 class SubjectHierarchyCorePluginsSelfTestWidget(ScriptedLoadableModuleWidget):
   def setup(self):
-    self.developerMode = True
     ScriptedLoadableModuleWidget.setup(self)
 
 #
@@ -86,32 +85,29 @@ class SubjectHierarchyCorePluginsSelfTestTest(ScriptedLoadableModuleTest):
     # Check for SubjectHierarchy module
     self.assertTrue( slicer.modules.subjecthierarchy )
 
-    # TODO: Uncomment when #598 is fixed
-    # slicer.util.selectModule('SubjectHierarchy')
+    # Switch to subject hierarchy module so that the changes can be seen as the test goes
+    slicer.util.selectModule('SubjectHierarchy')
 
     self.section_SetupPathsAndNames()
     self.section_MarkupRole()
     self.section_ChartRole()
     self.section_CloneNode()
-    self.section_PluginAutoSearch()
 
   # ------------------------------------------------------------------------------
   def section_SetupPathsAndNames(self):
-    # Make sure subject hierarchy auto-creation is on for this test
-    subjectHierarchyWidget = slicer.modules.subjecthierarchy.widgetRepresentation()
-    subjectHierarchyPluginLogic = subjectHierarchyWidget.pluginLogic()
-    self.assertTrue( subjectHierarchyWidget != None )
-    self.assertTrue( subjectHierarchyPluginLogic != None )
-    subjectHierarchyPluginLogic.autoCreateSubjectHierarchy = True
-
     # Set constants
+    self.invalidItemID = slicer.vtkMRMLSubjectHierarchyNode.GetInvalidItemID()
     self.sampleMarkupName = 'SampleMarkup'
     self.sampleChartName = 'SampleChart'
-    self.studyName = 'Study'
+    self.studyItemID = self.invalidItemID
+    self.cloneNodeNamePostfix = slicer.qSlicerSubjectHierarchyCloneNodePlugin().getCloneNodeNamePostfix()
 
   # ------------------------------------------------------------------------------
   def section_MarkupRole(self):
     self.delayDisplay("Markup role",self.delayMs)
+
+    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+    self.assertIsNotNone( shNode )
 
     # Create sample markups node
     markupsNode = slicer.vtkMRMLMarkupsFiducialNode()
@@ -119,47 +115,53 @@ class SubjectHierarchyCorePluginsSelfTestTest(ScriptedLoadableModuleTest):
     markupsNode.SetName(self.sampleMarkupName)
     fiducialPosition = [100.0, 0.0, 0.0]
     markupsNode.AddFiducialFromArray(fiducialPosition)
+    markupsShItemID = shNode.GetItemByDataNode(markupsNode)
+    self.assertIsNotNone( markupsShItemID )
+    self.assertEqual( shNode.GetItemOwnerPluginName(markupsShItemID), 'Markups' )
 
-    # Add markups to subject hierarchy
-    from vtkSlicerSubjectHierarchyModuleMRML import vtkMRMLSubjectHierarchyNode
+    # Create patient and study
+    patientItemID = shNode.CreateSubjectItem(shNode.GetSceneItemID(), 'Patient')
+    self.studyItemID = shNode.CreateStudyItem(patientItemID, 'Study')
 
-    patientNode = vtkMRMLSubjectHierarchyNode.CreateSubjectHierarchyNode(slicer.mrmlScene, None, slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMLevelPatient(), 'Patient')
-    studyNode = vtkMRMLSubjectHierarchyNode.CreateSubjectHierarchyNode(slicer.mrmlScene, patientNode, self.studyName, slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMLevelStudy())
-    markupsShNode = vtkMRMLSubjectHierarchyNode.CreateSubjectHierarchyNode(slicer.mrmlScene, studyNode, slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMLevelSeries(), self.sampleMarkupName, markupsNode)
-
-    self.assertTrue( markupsShNode != None )
-    self.assertTrue( markupsShNode.GetParentNode() == studyNode )
-    self.assertTrue( markupsShNode.GetOwnerPluginName() == 'Markups' )
+    # Add markups under study
+    markupsShItemID2 = shNode.CreateItem(self.studyItemID, markupsNode)
+    self.assertEqual( markupsShItemID, markupsShItemID2 )
+    self.assertEqual( shNode.GetItemParent(markupsShItemID), self.studyItemID )
+    self.assertEqual( shNode.GetItemOwnerPluginName(markupsShItemID), 'Markups' )
 
   # ------------------------------------------------------------------------------
   def section_ChartRole(self):
     self.delayDisplay("Chart role",self.delayMs)
 
+    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+    self.assertIsNotNone( shNode )
+
     # Create sample chart node
     chartNode = slicer.vtkMRMLChartNode()
     slicer.mrmlScene.AddNode(chartNode)
     chartNode.SetName(self.sampleChartName)
+    chartShItemID = shNode.GetItemByDataNode(chartNode)
+    self.assertIsNotNone( chartShItemID )
+    self.assertEqual( shNode.GetItemOwnerPluginName(chartShItemID), 'Charts' )
 
-    # Add markups to subject hierarchy
-    from vtkSlicerSubjectHierarchyModuleMRML import vtkMRMLSubjectHierarchyNode
-
-    studyNode = slicer.util.getNode(self.studyName + slicer.vtkMRMLSubjectHierarchyConstants.GetSubjectHierarchyNodeNamePostfix())
-    self.assertTrue( studyNode != None )
-
-    chartShNode = vtkMRMLSubjectHierarchyNode.CreateSubjectHierarchyNode(slicer.mrmlScene, studyNode, slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMLevelSeries(), self.sampleChartName, chartNode)
-
-    self.assertTrue( chartShNode != None )
-    self.assertTrue( chartShNode.GetParentNode() == studyNode )
-    self.assertTrue( chartShNode.GetOwnerPluginName() == 'Charts' )
+    # Add chart under study
+    chartShItemID2 = shNode.CreateItem(self.studyItemID, chartNode)
+    self.assertEqual( chartShItemID, chartShItemID2 )
+    self.assertEqual( shNode.GetItemParent(chartShItemID), self.studyItemID )
+    self.assertEqual( shNode.GetItemOwnerPluginName(chartShItemID), 'Charts' )
 
   # ------------------------------------------------------------------------------
   def section_CloneNode(self):
     self.delayDisplay("Clone node",self.delayMs)
 
-    markupsShNode = slicer.util.getNode(self.sampleMarkupName + slicer.vtkMRMLSubjectHierarchyConstants.GetSubjectHierarchyNodeNamePostfix())
-    self.assertTrue( markupsShNode != None )
-    markupsNode = markupsShNode.GetAssociatedNode()
-    self.assertTrue( markupsNode != None )
+    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+    self.assertIsNotNone( shNode )
+
+    markupsNode = slicer.util.getNode(self.sampleMarkupName)
+    markupsShItemID = shNode.GetItemByDataNode(markupsNode)
+
+    self.assertIsNotNone( markupsShItemID )
+    self.assertIsNotNone( shNode.GetItemDataNode(markupsShItemID) )
 
     # Add storage node for markups node to test cloning those
     markupsStorageNode = slicer.vtkMRMLMarkupsFiducialStorageNode()
@@ -167,54 +169,30 @@ class SubjectHierarchyCorePluginsSelfTestTest(ScriptedLoadableModuleTest):
     markupsNode.SetAndObserveStorageNodeID(markupsStorageNode.GetID())
 
     # Get clone node plugin
-    import qSlicerSubjectHierarchyModuleWidgetsPythonQt
-    subjectHierarchyWidget = slicer.modules.subjecthierarchy.widgetRepresentation()
-    self.assertTrue( subjectHierarchyWidget != None )
-    subjectHierarchyPluginLogic = subjectHierarchyWidget.pluginLogic()
-    self.assertTrue( subjectHierarchyPluginLogic != None )
+    pluginHandler = slicer.qSlicerSubjectHierarchyPluginHandler().instance()
+    self.assertIsNotNone( pluginHandler )
 
-    cloneNodePlugin = subjectHierarchyPluginLogic.subjectHierarchyPluginByName('CloneNode')
-    self.assertTrue( cloneNodePlugin != None )
+    cloneNodePlugin = pluginHandler.pluginByName('CloneNode')
+    self.assertIsNotNone( cloneNodePlugin )
 
     # Set markup node as current (i.e. selected in the tree) for clone
-    subjectHierarchyPluginLogic.setCurrentSubjectHierarchyNode(markupsShNode)
+    pluginHandler.setCurrentItem(markupsShItemID)
 
     # Get clone node context menu action and trigger
-    cloneNodePlugin.nodeContextMenuActions()[0].activate(qt.QAction.Trigger)
+    cloneNodePlugin.itemContextMenuActions()[0].activate(qt.QAction.Trigger)
 
-    self.assertTrue( slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLMarkupsFiducialNode') == 2 )
-    self.assertTrue( slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLMarkupsDisplayNode') == 2 )
-    self.assertTrue( slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLMarkupsFiducialStorageNode') == 2 )
+    self.assertEqual( slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLMarkupsFiducialNode'), 2 )
+    self.assertEqual( slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLMarkupsDisplayNode'), 2 )
+    self.assertEqual( slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLMarkupsFiducialStorageNode'), 2 )
 
-    clonedMarkupShNode = slicer.util.getNode(self.sampleMarkupName + ' Copy' + slicer.vtkMRMLSubjectHierarchyConstants.GetSubjectHierarchyNodeNamePostfix())
-    self.assertTrue( clonedMarkupShNode != None )
-    clonedMarkupNode = clonedMarkupShNode.GetAssociatedNode()
-    self.assertTrue( clonedMarkupNode != None )
-    self.assertTrue( clonedMarkupNode.GetName != self.sampleMarkupName + ' Copy' )
-    self.assertTrue( clonedMarkupNode.GetDisplayNode() != None )
-    self.assertTrue( clonedMarkupNode.GetStorageNode() != None )
+    clonedMarkupsName = self.sampleMarkupName + self.cloneNodeNamePostfix
+    clonedMarkupsNode = slicer.util.getNode(clonedMarkupsName)
+    self.assertIsNotNone( clonedMarkupsNode )
+    clonedMarkupsShItemID = shNode.GetItemChildWithName(self.studyItemID, clonedMarkupsName)
+    self.assertIsNotNone( clonedMarkupsShItemID )
+    self.assertIsNotNone( clonedMarkupsNode.GetDisplayNode() )
+    self.assertIsNotNone( clonedMarkupsNode.GetStorageNode() )
 
-    from vtkSlicerSubjectHierarchyModuleLogic import vtkSlicerSubjectHierarchyModuleLogic
-    inSameStudy = vtkSlicerSubjectHierarchyModuleLogic.AreNodesInSameBranch(markupsShNode, clonedMarkupShNode, slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMLevelStudy())
+    inSameStudy = slicer.vtkSlicerSubjectHierarchyModuleLogic.AreItemsInSameBranch(
+      shNode, markupsShItemID, clonedMarkupsShItemID, slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMLevelStudy())
     self.assertTrue( inSameStudy )
-
-  # ------------------------------------------------------------------------------
-  def section_PluginAutoSearch(self):
-    self.delayDisplay("Plugin auto search",self.delayMs)
-
-    # Disable subject hierarchy auto-creation to be able to test plugin auto search
-    subjectHierarchyWidget = slicer.modules.subjecthierarchy.widgetRepresentation()
-    subjectHierarchyPluginLogic = subjectHierarchyWidget.pluginLogic()
-    self.assertTrue( subjectHierarchyWidget != None )
-    self.assertTrue( subjectHierarchyPluginLogic != None )
-    subjectHierarchyPluginLogic.autoCreateSubjectHierarchy = False
-    
-    # Test whether the owner plugin is automatically searched when the associated data node changes
-    chartNode2 = slicer.vtkMRMLChartNode()
-    chartNode2.SetName(self.sampleChartName + '2')
-    slicer.mrmlScene.AddNode(chartNode2)
-
-    clonedMarkupShNode = slicer.util.getNode(self.sampleMarkupName + ' Copy' + slicer.vtkMRMLSubjectHierarchyConstants.GetSubjectHierarchyNodeNamePostfix())
-    clonedMarkupShNode.SetAssociatedNodeID(chartNode2.GetID())
-
-    self.assertTrue( clonedMarkupShNode.GetOwnerPluginName() == 'Charts' )

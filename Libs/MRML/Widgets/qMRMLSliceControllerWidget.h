@@ -79,11 +79,7 @@ public:
   /// Background, Foreground or LabelMap.
   /// Or if the only volume assigned doesn't have have
   /// a display node or its display node image data is 0.
-#if (VTK_MAJOR_VERSION <= 5)
-  vtkImageData* imageData()const;
-#else
   vtkAlgorithmOutput* imageDataConnection()const;
-#endif
 
   /// Get \a sliceNode
   /// \sa setMRMLSliceCompositeNode();
@@ -151,11 +147,7 @@ public slots:
   void setMRMLSliceNode(vtkMRMLSliceNode* newSliceNode);
 
   /// Set a new imageData.
-#if (VTK_MAJOR_VERSION <= 5)
-  void setImageData(vtkImageData* newImageData);
-#else
   void setImageDataConnection(vtkAlgorithmOutput* newImageDataConnection);
-#endif
 
   /// \sa fitSliceToBackground();
   void setSliceViewSize(const QSize& newSize);
@@ -185,7 +177,6 @@ public slots:
   /// slices after the interaction completes.
   void setHotLinked(bool hot);
 
-
   // Advanced options
   /// Set the visibility of the MoreButton which allows to show the advanced
   /// controls.
@@ -194,20 +185,30 @@ public slots:
   /// controls.
   bool isMoreButtonVisible() const;
 
+  /// Place background volume combobox in the popup or the bar depending on the
+  /// state of the More button
   void moveBackgroundComboBox(bool move);
+  /// Show/hide segmentation controls based on More button state and whether
+  /// there is a segmentation node in the scene
+  void updateSegmentationControlsVisibility();
 
   /// Rotate to volume plane
   void rotateSliceToBackground();
 
+  void setSegmentationHidden(bool hide);
   void setLabelMapHidden(bool hide);
   void setForegroundHidden(bool hide);
   void setBackgroundHidden(bool hide);
 
+  /// Segmentation opacity
+  void setSegmentationOpacity(double opacity);
   /// Label opacity
   void setLabelMapOpacity(double opacity);
   void setForegroundOpacity(double opacity);
   void setBackgroundOpacity(double opacity);
 
+  /// Segmentation outline/fill
+  void toggleSegmentationOutlineFill();
   /// Label outline
   void showLabelOutline(bool show);
   /// Reformat widget
@@ -244,6 +245,13 @@ public slots:
   void setSliceModelDimensionX(int dim);
   void setSliceModelDimensionY(int dim);
 
+  // Orientation marker
+  void setOrientationMarkerType(int type);
+  void setOrientationMarkerSize(int size);
+
+  // Ruler
+  void setRulerType(int type);
+
   // Lightbox
   void setLightbox(int rows, int columns);
   void setLightboxTo1x1();
@@ -260,14 +268,22 @@ public slots:
   void setBackgroundInterpolation(bool nearestNeighbor);
 
 signals:
-
   /// This signal is emitted when the given \a imageData is modified.
-#if (VTK_MAJOR_VERSION <= 5)
-  void imageDataChanged(vtkImageData * imageData);
-#else
   void imageDataConnectionChanged(vtkAlgorithmOutput * imageDataConnection);
-#endif
+
   void renderRequested();
+
+  /// Signal emitted when editing of a node is requested from within the controller
+  void nodeAboutToBeEdited(vtkMRMLNode* node);
+
+protected:
+  /// Constructor allowing derived class to specify a specialized pimpl.
+  ///
+  /// \note You are responsible to call init() in the constructor of
+  /// derived class. Doing so ensures the derived class is fully
+  /// instantiated in case virtual method are called within init() itself.
+  qMRMLSliceControllerWidget(qMRMLSliceControllerWidgetPrivate* obj,
+                             QWidget* parent);
 
 private:
   Q_DECLARE_PRIVATE(qMRMLSliceControllerWidget);

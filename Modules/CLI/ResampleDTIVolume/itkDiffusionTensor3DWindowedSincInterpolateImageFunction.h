@@ -11,8 +11,8 @@
   See License.txt or http://www.slicer.org/copyright/copyright.txt for details.
 
 ==========================================================================*/
-#ifndef __itkDiffusionTensor3DWindowedSincInterpolateImageFunction_h
-#define __itkDiffusionTensor3DWindowedSincInterpolateImageFunction_h
+#ifndef itkDiffusionTensor3DWindowedSincInterpolateImageFunction_h
+#define itkDiffusionTensor3DWindowedSincInterpolateImageFunction_h
 
 #include "itkDiffusionTensor3DInterpolateImageFunctionReimplementation.h"
 #include <itkWindowedSincInterpolateImageFunction.h>
@@ -46,9 +46,12 @@ public:
                                                VRadius, TWindowFunction,
                                                TBoundaryCondition, TCoordRep> WindowedSincInterpolateImageFunctionType;
 
+  /** Run-time type information (and related methods). */
+  itkTypeMacro(DiffusionTensor3DWindowedSincInterpolateImageFunction, DiffusionTensor3DInterpolateImageFunctionReimplementation);
+
   itkNewMacro(Self);
 protected:
-  void AllocateInterpolator();
+  void AllocateInterpolator() ITK_OVERRIDE;
 
   typename WindowedSincInterpolateImageFunctionType::Pointer windowedSincInterpolator[6];
 };

@@ -24,6 +24,7 @@
 // Qt includes
 #include <QApplication>
 #include <QMetaType>
+#include <QStringList>
 #include <QVariant>
 
 // CTK includes
@@ -43,12 +44,15 @@ class qSlicerCoreApplicationPrivate;
 class qSlicerModuleManager;
 #ifdef Slicer_USE_PYTHONQT
 class qSlicerCorePythonManager;
+class ctkPythonConsole;
 #endif
 #ifdef Slicer_BUILD_EXTENSIONMANAGER_SUPPORT
 class qSlicerExtensionsManagerModel;
 #endif
+class vtkDataIOManagerLogic;
 class vtkSlicerApplicationLogic;
 class vtkMRMLApplicationLogic;
+class vtkMRMLRemoteIOLogic;
 class vtkMRMLScene;
 
 class Q_SLICER_BASE_QTCORE_EXPORT qSlicerCoreApplication : public QApplication
@@ -62,15 +66,18 @@ class Q_SLICER_BASE_QTCORE_EXPORT qSlicerCoreApplication : public QApplication
   /// "C:\Program Files (x86)\Slicer 4.4.0\".
   /// \sa slicerHome(), temporaryPath, isInstalled
   Q_PROPERTY(QString slicerHome READ slicerHome CONSTANT)
+  Q_PROPERTY(QString defaultScenePath READ defaultScenePath WRITE setDefaultScenePath)
   Q_PROPERTY(QString slicerSharePath READ slicerSharePath CONSTANT)
   Q_PROPERTY(QString temporaryPath READ temporaryPath WRITE setTemporaryPath)
   Q_PROPERTY(QString launcherExecutableFilePath READ launcherExecutableFilePath CONSTANT)
   Q_PROPERTY(QString launcherSettingsFilePath READ launcherSettingsFilePath CONSTANT)
+  Q_PROPERTY(QString slicerDefaultSettingsFilePath READ slicerDefaultSettingsFilePath CONSTANT)
   Q_PROPERTY(QString slicerUserSettingsFilePath READ slicerUserSettingsFilePath CONSTANT)
   Q_PROPERTY(QString slicerRevisionUserSettingsFilePath READ slicerRevisionUserSettingsFilePath CONSTANT)
   Q_PROPERTY(QString extensionsInstallPath READ extensionsInstallPath WRITE setExtensionsInstallPath)
   Q_PROPERTY(QString intDir READ intDir CONSTANT)
   Q_PROPERTY(bool isInstalled READ isInstalled CONSTANT)
+  Q_PROPERTY(bool isRelease READ isRelease CONSTANT)
   Q_PROPERTY(QString repositoryUrl READ repositoryUrl CONSTANT)
   Q_PROPERTY(QString repositoryBranch READ repositoryBranch CONSTANT)
   Q_PROPERTY(QString repositoryRevision READ repositoryRevision CONSTANT)
@@ -144,6 +151,15 @@ public:
   /// \sa slicerHome
   QString slicerHome() const;
 
+  /// Get default scene directory
+  ///
+  /// This returns the full path where scenes are saved to by default
+  ///
+  QString defaultScenePath() const;
+
+  /// Set default slicer scene directory
+  void setDefaultScenePath(const QString& path);
+
   /// Get slicer share directory
   ///
   /// This returns the partial path where slicer resources are located, which
@@ -174,6 +190,10 @@ public:
   /// If any, return slicer user settings file path specific to a given revision of Slicer.
   QString launcherRevisionSpecificUserSettingsFilePath()const;
 
+  /// If any, return slicer default settings file path.
+  /// \sa defaultSettings()
+  QString slicerDefaultSettingsFilePath()const;
+
   /// Return slicer user settings file path.
   /// \sa userSettings()
   QString slicerUserSettingsFilePath()const;
@@ -198,6 +218,28 @@ public:
   /// Return true is this instance of Slicer is running from an installed directory
   bool isInstalled()const;
 
+  /// \brief Return true if this instance of Slicer is a \a Release build.
+  ///
+  /// \copydetails qSlicerUtils::isRelease()
+  ///
+  /// \sa qSlicerUtils::isRelease()
+  bool isRelease()const;
+
+  /// Associate a module with a node type.
+  /// It is currently only used for determining which module can edit a specific node.
+  /// If multiple modules are registered for the same class then the node widget's
+  /// nodeEditable method is used for determining which module is the most suitable for editing.
+  Q_INVOKABLE void addModuleAssociatedNodeType(const QString& nodeClassName, const QString& moduleName);
+
+  /// Remove association between a module and a node type.
+  Q_INVOKABLE void removeModuleAssociatedNodeType(const QString& nodeClassName, const QString& moduleName);
+
+  /// List of all modules that are associated with the specified node type.
+  Q_INVOKABLE QStringList modulesAssociatedWithNodeType(const QString& nodeClassName) const;
+
+  /// List of all node types that are associated with any module.
+  Q_INVOKABLE QStringList allModuleAssociatedNodeTypes() const;
+
 #ifdef Slicer_USE_PYTHONQT
   /// Get python manager
   qSlicerCorePythonManager* corePythonManager()const;
@@ -205,6 +247,16 @@ public:
   /// Set the IO manager
   /// \note qSlicerCoreApplication takes ownership of the object
   void setCorePythonManager(qSlicerCorePythonManager* pythonManager);
+
+  /// Get python console
+  ctkPythonConsole* pythonConsole()const;
+
+  /// Set the python console
+  /// \note qSlicerCoreApplication will not take ownership of the object,
+  /// because it will be owned by the widget that it is part of
+  /// (either it is part of the main window or a top-level window).
+  void setPythonConsole(ctkPythonConsole* pythonConsole);
+
 #endif
 
 #ifdef Slicer_BUILD_EXTENSIONMANAGER_SUPPORT
@@ -232,6 +284,10 @@ public:
   /// Set coreCommandOptions
   /// \note qSlicerCoreApplication takes ownership of the object
   void setCoreCommandOptions(qSlicerCoreCommandOptions* options);
+
+  /// Get slicer application default settings.
+  /// \sa slicerDefaultSettingsFilePath()
+  Q_INVOKABLE QSettings* defaultSettings()const;
 
   /// Get slicer application user settings
   /// \note It will also instantiate a QSettings object if required.
@@ -300,11 +356,11 @@ public:
 
   static void loadLanguage();
 
-  /// If system certificates couldn't be found, load certicates bundled into 'Slicer.crt'.
+  /// Load certicates bundled into '<slicerHome>/<SLICER_SHARE_DIR>/Slicer.crt'.
   /// For more details, see Slicer/Base/QTCore/Resources/Certs/README
-  /// Returns \a False if 'Slicer.crt' also failed to be loaded.
+  /// Returns \a False if 'Slicer.crt' failed to be loaded.
   /// \sa QSslSocket::defaultCaCertificates()
-  static bool loadCaCertificates();
+  static bool loadCaCertificates(const QString& slicerHome);
 
   Q_INVOKABLE int registerResource(const QByteArray& data);
 
@@ -321,6 +377,7 @@ protected:
   virtual void handlePreApplicationCommandLineArguments();
 
   /// Set MRML Scene
+  /// \sa vtkSlicerApplicationLogic::SetMRMLSceneDataIO
   virtual void setMRMLScene(vtkMRMLScene * scene);
 
 protected slots:

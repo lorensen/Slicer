@@ -16,8 +16,8 @@
      PURPOSE.  See the above copyright notices for more information.
 
 =========================================================================*/
-#ifndef __itkHFieldToDeformationFieldImageFilter_h
-#define __itkHFieldToDeformationFieldImageFilter_h
+#ifndef itkHFieldToDeformationFieldImageFilter_h
+#define itkHFieldToDeformationFieldImageFilter_h
 
 #include <itkImageToImageFilter.h>
 
@@ -68,13 +68,13 @@ public:
   itkNewMacro(Self);
 
   /** Print internal ivars */
-  void PrintSelf(std::ostream& os, Indent indent) const
+  void PrintSelf(std::ostream& os, Indent indent) const ITK_OVERRIDE
   {
     this->Superclass::PrintSelf( os, indent );
   }
 
   // need to override GenerateData (This should be threaded)
-  void GenerateData();
+  void GenerateData() ITK_OVERRIDE;
 
   OutputPixelType ComputeDisplacement(typename InputImageType::ConstPointer input,
                                       typename InputImageType::IndexType ind,
@@ -82,10 +82,10 @@ public:
 protected:
   HFieldToDeformationFieldImageFilter()
   {
-  };
+  }
   virtual ~HFieldToDeformationFieldImageFilter()
   {
-  };
+  }
 private:
   HFieldToDeformationFieldImageFilter(const Self &); // purposely not implemented
   void operator=(const Self &);                      // purposely not implemented

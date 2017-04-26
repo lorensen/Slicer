@@ -16,7 +16,7 @@
 #define __vtkMRMLDisplayableNode_h
 
 // MRML includes
-#include "vtkMRMLStorableNode.h"
+#include "vtkMRMLTransformableNode.h"
 class vtkMRMLDisplayNode;
 
 // STD includes
@@ -40,10 +40,10 @@ class vtkMRMLDisplayNode;
 
 class vtkMRMLDisplayNode;
 
-class VTK_MRML_EXPORT vtkMRMLDisplayableNode : public vtkMRMLStorableNode
+class VTK_MRML_EXPORT vtkMRMLDisplayableNode : public vtkMRMLTransformableNode
 {
 public:
-  vtkTypeMacro(vtkMRMLDisplayableNode,vtkMRMLStorableNode);
+  vtkTypeMacro(vtkMRMLDisplayableNode,vtkMRMLTransformableNode);
   void PrintSelf(ostream& os, vtkIndent indent);
 
   //--------------------------------------------------------------------------
@@ -193,8 +193,16 @@ public:
   virtual int GetDisplayClassVisibility(const char* nodeClass);
   virtual void SetDisplayClassVisibility(const char* nodeClass, int visible);
 
-  /// Get bounding box in global RAS the form (xmin,xmax, ymin,ymax, zmin,zmax).
+  /// Get bounding box in global RAS form (xmin,xmax, ymin,ymax, zmin,zmax).
+  /// This method returns the bounds of the object with any transforms that may
+  /// be applied to it.
+  /// \sa GetBounds()
   virtual void GetRASBounds(double bounds[6]);
+
+  /// Get bounding box in global RAS form (xmin,xmax, ymin,ymax, zmin,zmax).
+  /// This method always returns the bounds of the untransformed object.
+  /// \sa GetRASBounds()
+  virtual void GetBounds(double bounds[6]);
 
   virtual const char* GetDisplayNodeReferenceRole();
 

@@ -10,7 +10,7 @@
 import sys
 import os
 import Tkinter
-from __main__ import slicer
+import slicer
 import qt
 
 class tpycl(object):
@@ -98,13 +98,14 @@ class tpycl(object):
     """ make a unique name for an instance using the classname and
     pointer in hex
     - assumes the string form of the instance will end with hex
-      encoding of the pointer, for example: '(vtkImageData)0x2a9a750'
+      encoding of the pointer, for example:
+      '(vtkCommonDataModelPython.vtkImageData)00000216A218BA08'
+    - name is valid for use as a tcl variable name
     """
-    # used to work with vtk 5.6
-    #return "%s%s" % (instance.GetClassName(), repr(instance).split()[-1][:-1])
-    # now just strip off the parens
-    return repr(instance).replace('(','').replace(')','')
-
+    return ''.join(
+        '_' if c == '.' else c
+        for c in repr(instance)
+        if c not in '()')
 
   def py_del(self,instanceName):
     """ deletes a named instance
@@ -243,7 +244,7 @@ class tpycl(object):
       cmd = sys.stdin.readline()[:-1]
       if cmd != "":
         result = self.tcl_eval( cmd )
-        if result != None:
+        if result is not None:
           print result
 
 if __name__ == "__main__":

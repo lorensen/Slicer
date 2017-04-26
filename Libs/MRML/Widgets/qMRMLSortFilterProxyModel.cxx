@@ -73,6 +73,8 @@ qMRMLSortFilterProxyModel::qMRMLSortFilterProxyModel(QObject *vparent)
   // correct values (which doesn't call filterAcceptsRow() on the up to date
   // value unless DynamicSortFilter is true).
   this->setDynamicSortFilter(true);
+
+  this->setFilterCaseSensitivity(Qt::CaseInsensitive);
 }
 
 //------------------------------------------------------------------------------
@@ -89,10 +91,7 @@ QStandardItem* qMRMLSortFilterProxyModel::sourceItem(const QModelIndex& sourceIn
     //Q_ASSERT(sceneModel);
     return NULL;
     }
-  else
-    {
   return sourceIndex.isValid() ? sceneModel->itemFromIndex(sourceIndex) : sceneModel->invisibleRootItem();
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -130,14 +129,37 @@ void qMRMLSortFilterProxyModel::addAttribute(const QString& nodeType,
 {
   Q_D(qMRMLSortFilterProxyModel);
   if (!d->NodeTypes.contains(nodeType) ||
-      (d->Attributes[nodeType].first == attributeName &&
-       d->Attributes[nodeType].second == attributeValue))
+      (d->Attributes.value(nodeType).first == attributeName &&
+       d->Attributes.value(nodeType).second == attributeValue))
     {
     return;
     }
   d->Attributes[nodeType] =
     qMRMLSortFilterProxyModelPrivate::AttributeType(attributeName, attributeValue);
   this->invalidateFilter();
+}
+
+//------------------------------------------------------------------------------
+void qMRMLSortFilterProxyModel::removeAttribute(const QString& nodeType,
+                                              const QString& attributeName)
+{
+  Q_D(qMRMLSortFilterProxyModel);
+  if (!d->NodeTypes.contains(nodeType) ||
+      d->Attributes.value(nodeType).first != attributeName)
+    {
+    return;
+    }
+  d->Attributes.remove(nodeType);
+  this->invalidateFilter();
+}
+
+//-----------------------------------------------------------------------------
+QVariant qMRMLSortFilterProxyModel::attributeFilter(const QString& nodeType,
+                                                    const QString& attributeName) const
+{
+  Q_UNUSED(attributeName);
+  Q_D(const qMRMLSortFilterProxyModel);
+  return d->Attributes.value(nodeType).second;
 }
 
 //------------------------------------------------------------------------------

@@ -11,8 +11,8 @@
   See License.txt or http://www.slicer.org/copyright/copyright.txt for details.
 
 ==========================================================================*/
-#ifndef __itkDiffusionTensor3DNearestNeighborInterpolateFunction_h
-#define __itkDiffusionTensor3DNearestNeighborInterpolateFunction_h
+#ifndef itkDiffusionTensor3DNearestNeighborInterpolateFunction_h
+#define itkDiffusionTensor3DNearestNeighborInterpolateFunction_h
 
 #include "itkDiffusionTensor3DInterpolateImageFunction.h"
 
@@ -39,10 +39,14 @@ public:
   typedef SmartPointer<const Self>                            ConstPointer;
   typedef ImageFunction<DiffusionImageType, DataType, double> ImageFunctionType;
   typedef typename Superclass::ContinuousIndexType            ContinuousIndexType;
+
+  /** Run-time type information (and related methods). */
+  itkTypeMacro(DiffusionTensor3DNearestNeighborInterpolateFunction, DiffusionTensor3DInterpolateImageFunction);
+
   itkNewMacro( Self );
   // /Evaluate the value of a tensor at a given position
 //  TensorDataType Evaluate( const PointType &point ) ;
-  TensorDataType EvaluateAtContinuousIndex( const ContinuousIndexType & index ) const;
+  TensorDataType EvaluateAtContinuousIndex( const ContinuousIndexType & index ) const ITK_OVERRIDE;
 
 protected:
 };

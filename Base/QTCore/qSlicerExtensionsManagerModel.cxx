@@ -203,6 +203,10 @@ public:
 #endif
   static bool validateExtensionMetadata(const ExtensionMetadataType &extensionMetadata);
 
+  static QStringList isExtensionCompatible(
+      const ExtensionMetadataType& metadata, const QString& slicerRevision,
+      const QString& slicerOs, const QString& slicerArch);
+
   void saveExtensionDescription(const QString& extensionDescriptionFile, const ExtensionMetadataType &allExtensionMetadata);
 
   qSlicerExtensionsManagerModel::ExtensionMetadataType retrieveExtensionMetadata(
@@ -420,17 +424,6 @@ bool hasPath(const QStringList& paths, const QString& pathToCheck)
 }
 
 // --------------------------------------------------------------------------
-QStringList appendToPathList(const QStringList& paths, const QString& pathToAppend, bool shouldExist = true)
-{
-  QStringList updatedPaths(paths);
-  if (!hasPath(paths, pathToAppend) && shouldExist ? QDir(pathToAppend).exists() : true)
-    {
-    updatedPaths << pathToAppend;
-    }
-  return updatedPaths;
-}
-
-// --------------------------------------------------------------------------
 QStringList appendToPathList(const QStringList& paths, const QStringList& pathsToAppend, bool shouldExist = true)
 {
   QStringList updatedPaths(paths);
@@ -559,11 +552,10 @@ void qSlicerExtensionsManagerModelPrivate::removeExtensionPathFromLauncherSettin
                          removeFromPathList(paths, this->extensionPaths(extensionName)),
                          "Paths", "path");
 #ifdef Slicer_USE_PYTHONQT
-  QString sep("<PATHSEP>");
-  QString pythonPath = settings.value("EnvironmentVariables/PYTHONPATH").toString();
-  QStringList pythonPaths = pythonPath.split(sep);
-  settings.setValue("EnvironmentVariables/PYTHONPATH",
-                    removeFromPathList(pythonPaths, this->extensionPythonPaths(extensionName)).join(sep));
+  QStringList pythonPaths = qSlicerExtensionsManagerModel::readArrayValues(settings, "PYTHONPATH", "path");
+  qSlicerExtensionsManagerModel::writeArrayValues(settings,
+                         removeFromPathList(pythonPaths, this->extensionPythonPaths(extensionName)),
+                         "PYTHONPATH", "path");
 #endif
 }
 
@@ -704,6 +696,7 @@ QStringList qSlicerExtensionsManagerModelPrivate::extensionLibraryPaths(const QS
                    << path + "/" + QString(Slicer_LIB_DIR).replace(Slicer_VERSION, this->SlicerVersion)
                    << path + "/" + QString(Slicer_CLIMODULES_LIB_DIR).replace(Slicer_VERSION, this->SlicerVersion)
                    << path + "/" + QString(Slicer_QTLOADABLEMODULES_LIB_DIR).replace(Slicer_VERSION, this->SlicerVersion)
+                   << path + "/" + QString(Slicer_THIRDPARTY_LIB_DIR)
                    );
 }
 
@@ -718,6 +711,7 @@ QStringList qSlicerExtensionsManagerModelPrivate::extensionPaths(const QString& 
   QString path = q->extensionInstallPath(extensionName);
   return appendToPathList(QStringList(), QStringList()
                    << path + "/" + QString(Slicer_CLIMODULES_BIN_DIR).replace(Slicer_VERSION, this->SlicerVersion)
+                   << path + "/" + QString(Slicer_THIRDPARTY_BIN_DIR)
                    );
 }
 
@@ -734,6 +728,7 @@ QStringList qSlicerExtensionsManagerModelPrivate::extensionPythonPaths(const QSt
   return appendToPathList(QStringList(), QStringList()
                           << path + "/" + QString(Slicer_QTSCRIPTEDMODULES_LIB_DIR).replace(Slicer_VERSION, this->SlicerVersion)
                           << path + "/" + QString(Slicer_QTLOADABLEMODULES_PYTHON_LIB_DIR).replace(Slicer_VERSION, this->SlicerVersion)
+                          << path + "/" + QString(PYTHON_SITE_PACKAGES_SUBDIR)
                           );
 }
 #endif
@@ -751,6 +746,42 @@ bool qSlicerExtensionsManagerModelPrivate::validateExtensionMetadata(
     valid = valid && !extensionMetadata.value(key).toString().isEmpty();
     }
   return valid;
+}
+
+// --------------------------------------------------------------------------
+QStringList qSlicerExtensionsManagerModelPrivate::isExtensionCompatible(
+    const ExtensionMetadataType& metadata, const QString& slicerRevision,
+    const QString& slicerOs, const QString& slicerArch)
+{
+  if (slicerRevision.isEmpty())
+    {
+    return QStringList() << QObject::tr("slicerRevision is not specified");
+    }
+  if (slicerOs.isEmpty())
+    {
+    return QStringList() << QObject::tr("slicerOs is not specified");
+    }
+  if (slicerArch.isEmpty())
+    {
+    return QStringList() << QObject::tr("slicerArch is not specified");
+    }
+  QStringList reasons;
+  QString extensionSlicerRevision = metadata.value("slicer_revision").toString();
+  if (slicerRevision != extensionSlicerRevision)
+    {
+    reasons << QObject::tr("extensionSlicerRevision [%1] is different from slicerRevision [%2]").arg(extensionSlicerRevision).arg(slicerRevision);
+    }
+  QString extensionArch = metadata.value("arch").toString();
+  if (slicerArch != extensionArch)
+    {
+    reasons << QObject::tr("extensionArch [%1] is different from slicerArch [%2]").arg(extensionArch).arg(slicerArch);
+    }
+  QString extensionOs = metadata.value("os").toString();
+  if (slicerOs != extensionOs)
+    {
+    reasons << QObject::tr("extensionOs [%1] is different from slicerOs [%2]").arg(extensionOs).arg(slicerOs);
+    }
+  return reasons;
 }
 
 // --------------------------------------------------------------------------
@@ -941,7 +972,9 @@ bool qSlicerExtensionsManagerModel::isExtensionInstalled(const QString& extensio
 {
   Q_D(const qSlicerExtensionsManagerModel);
   QModelIndexList foundIndexes = d->Model.match(
-        d->Model.index(0, qSlicerExtensionsManagerModelPrivate::NameColumn), qSlicerExtensionsManagerModelPrivate::NameRole, QVariant(extensionName));
+        d->Model.index(0, qSlicerExtensionsManagerModelPrivate::NameColumn),
+        qSlicerExtensionsManagerModelPrivate::NameRole, QVariant(extensionName),
+        /* hits = */ 1, /* flags= */ Qt::MatchExactly | Qt::MatchWrap);
   Q_ASSERT(foundIndexes.size() < 2);
   return (foundIndexes.size() != 0);
 }
@@ -1117,7 +1150,7 @@ qSlicerExtensionsManagerModelPrivate::downloadExtension(
 }
 
 // --------------------------------------------------------------------------
-void qSlicerExtensionsManagerModel::downloadAndInstallExtension(const QString& extensionId)
+bool qSlicerExtensionsManagerModel::downloadAndInstallExtension(const QString& extensionId)
 {
   Q_D(qSlicerExtensionsManagerModel);
 
@@ -1125,12 +1158,18 @@ void qSlicerExtensionsManagerModel::downloadAndInstallExtension(const QString& e
   if (!d->checkExtensionSettingsPermissions(error))
     {
     d->critical(error);
-    return;
+    return false;
     }
 
   qSlicerExtensionDownloadTask* const task = d->downloadExtension(extensionId);
+  if (!task)
+    {
+    d->critical("Failed to retrieve metadata for extension " + extensionId);
+    return false;
+    }
   connect(task, SIGNAL(finished(qSlicerExtensionDownloadTask*)),
           this, SLOT(onInstallDownloadFinished(qSlicerExtensionDownloadTask*)));
+  return true;
 }
 
 // --------------------------------------------------------------------------
@@ -1243,6 +1282,7 @@ bool qSlicerExtensionsManagerModel::installExtension(
 
   if (!this->extractExtensionArchive(extensionName, archiveFile, this->extensionsInstallPath()))
     {
+    // extractExtensionArchive has logged the error
     return false;
     }
 
@@ -1288,7 +1328,7 @@ bool qSlicerExtensionsManagerModel::installExtension(
     }
 
   // Gather information on dependency extensions
-  const QStringList dependencies = extensionIndexMetadata.value("depends").toStringList();
+  const QStringList dependencies = extensionIndexMetadata.value("depends").toString().split(" ");
   QHash<QString, ExtensionMetadataType> dependenciesMetadata;
   QStringList unresolvedDependencies;
   foreach (const QString& dependencyName, dependencies)
@@ -1348,9 +1388,19 @@ bool qSlicerExtensionsManagerModel::installExtension(
     if (result == QMessageBox::Yes)
       {
       // Install dependencies
+      msg.clear();
       foreach (const ExtensionMetadataType& dependency, dependenciesMetadata)
         {
-        this->downloadAndInstallExtension(dependency.value("extension_id").toString());
+        bool res = this->downloadAndInstallExtension(
+              dependency.value("extension_id").toString());
+        if (!res)
+          {
+          msg += QString("<li>%1</li>").arg(dependency.value("extensionname").toString());
+          }
+        }
+      if (!msg.isEmpty())
+        {
+        d->critical(QString("Error while installing dependent extensions:<ul>%1<ul>").arg(msg));
         }
       }
     }
@@ -2061,36 +2111,9 @@ QStringList qSlicerExtensionsManagerModel::isExtensionCompatible(
     {
     return QStringList() << tr("extensionName is not specified");
     }
-  if (slicerRevision.isEmpty())
-    {
-    return QStringList() << tr("slicerRevision is not specified");
-    }
-  if (slicerOs.isEmpty())
-    {
-    return QStringList() << tr("slicerOs is not specified");
-    }
-  if (slicerArch.isEmpty())
-    {
-    return QStringList() << tr("slicerArch is not specified");
-    }
-  QStringList reasons;
   ExtensionMetadataType metadata = this->extensionMetadata(extensionName);
-  QString extensionSlicerRevision = metadata.value("slicer_revision").toString();
-  if (slicerRevision != extensionSlicerRevision)
-    {
-    reasons << tr("extensionSlicerRevision [%1] is different from slicerRevision [%2]").arg(extensionSlicerRevision).arg(slicerRevision);
-    }
-  QString extensionArch = metadata.value("arch").toString();
-  if (slicerArch != extensionArch)
-    {
-    reasons << tr("extensionArch [%1] is different from slicerArch [%2]").arg(extensionArch).arg(slicerArch);
-    }
-  QString extensionOs = metadata.value("os").toString();
-  if (slicerOs != extensionOs)
-    {
-    reasons << tr("extensionOs [%1] is different from slicerOs [%2]").arg(extensionOs).arg(slicerOs);
-    }
-  return reasons;
+  return qSlicerExtensionsManagerModelPrivate::isExtensionCompatible(
+        metadata, slicerRevision, slicerOs, slicerArch);
 }
 
 // --------------------------------------------------------------------------
@@ -2182,6 +2205,7 @@ bool qSlicerExtensionsManagerModel::extractExtensionArchive(
 
   if (extensionName.isEmpty())
     {
+    d->critical("Corrupted extension package");
     return false;
     }
 
@@ -2205,6 +2229,7 @@ bool qSlicerExtensionsManagerModel::extractExtensionArchive(
   QString archiveBaseName = d->extractArchive(extensionsDir, archiveFile);
   if (archiveBaseName.isEmpty())
     {
+    // extractArchive has logged the error
     return false;
     }
   extensionsDir.cdUp();
@@ -2223,26 +2248,36 @@ bool qSlicerExtensionsManagerModel::extractExtensionArchive(
     srcPathToCopy = srcPathToCopy + "/" Slicer_BUNDLE_LOCATION "/" Slicer_EXTENSIONS_DIRBASENAME "-"
         + this->slicerRevision() + "/" + extensionName;
     }
+
+
+  // Remove intermediate directory (might be created and left there if running out of disk space)
+  // as it would make copyDirRecursively fail.
+  ctk::removeDirRecursively(intermediatePath);
+
   if (!ctk::copyDirRecursively(srcPathToCopy, intermediatePath))
     {
+    d->critical(QString("Failed to copy directory %1 into directory %2").arg(srcPathToCopy).arg(intermediatePath));
     return false;
     }
 
   //  Step2: <extensionName>-XXXXXX -> <extensionName>
   if (!ctk::copyDirRecursively(intermediatePath, dstPath))
     {
+    d->critical(QString("Failed to copy directory %1 into directory %2").arg(intermediatePath).arg(dstPath));
     return false;
     }
 
   //  Step3: Remove <extensionName>-XXXXXX
   if (!ctk::removeDirRecursively(intermediatePath))
     {
+    d->critical(QString("Failed to remove directory %1").arg(intermediatePath));
     return false;
     }
 
   //  Step4: Remove  <extensionName>/<archiveBaseName>
   if (!ctk::removeDirRecursively(srcPath))
     {
+    d->critical(QString("Failed to remove directory %1").arg(srcPath));
     return false;
     }
 

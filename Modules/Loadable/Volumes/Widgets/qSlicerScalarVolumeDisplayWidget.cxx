@@ -99,6 +99,9 @@ void qSlicerScalarVolumeDisplayWidgetPrivate::init()
                    q, SLOT(onPresetButtonClicked()));
   QObject::connect(this->CTLungPresetToolButton, SIGNAL(clicked()),
                    q, SLOT(onPresetButtonClicked()));
+  QObject::connect(this->DTIPresetToolButton, SIGNAL(clicked()),
+                   q, SLOT(onPresetButtonClicked()));
+
 }
 
 // --------------------------------------------------------------------------
@@ -186,6 +189,7 @@ void qSlicerScalarVolumeDisplayWidget::setMRMLVolumeNode(vtkMRMLScalarVolumeNode
                              volumeNode->GetImageData()->GetPointData() ?
                              volumeNode->GetImageData()->GetPointData()->GetScalars() :
                              0);
+  d->Histogram->setNumberOfBins(1000);
   d->Histogram->build();
   this->setEnabled(volumeNode != 0);
 
@@ -223,9 +227,6 @@ void qSlicerScalarVolumeDisplayWidget::updateTransferFunction()
     return;
     }
   double range[2] = {0,255};
-#if (VTK_MAJOR_VERSION <= 5)
-  imageData->GetScalarRange(range);
-#else
   vtkMRMLScalarVolumeDisplayNode* displayNode =
     this->volumeDisplayNode();
   if (displayNode)
@@ -236,7 +237,6 @@ void qSlicerScalarVolumeDisplayWidget::updateTransferFunction()
     {
     imageData->GetScalarRange(range);
     }
-#endif
   // AdjustRange call will take out points that are outside of the new
   // range, but it needs the points to be there in order to work, so call
   // RemoveAllPoints after it's done
@@ -374,7 +374,12 @@ void qSlicerScalarVolumeDisplayWidget::setPreset(const QString& presetName)
     window = 1400.;
     level = -500.;
     }
-
+  else if (presetName == "DTI")
+    {
+    colorNodeID = "vtkMRMLColorTableNodeRainbow";
+    window = 1.0;
+    level = 0.5;
+    }
   vtkMRMLNode* colorNode = this->mrmlScene()->GetNodeByID(colorNodeID.toLatin1());
   if (colorNode)
     {

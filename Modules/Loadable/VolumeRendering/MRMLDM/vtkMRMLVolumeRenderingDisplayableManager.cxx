@@ -21,7 +21,6 @@
 // Slicer includes
 #include "vtkImageGradientMagnitude.h"
 #include "vtkMRMLVolumeRenderingDisplayableManager.h"
-#include "vtkSlicerFixedPointVolumeRayCastMapper.h"
 #include "vtkSlicerVolumeRenderingLogic.h"
 
 #include "vtkMRMLCPURayCastVolumeRenderingDisplayNode.h"
@@ -267,11 +266,7 @@ void vtkMRMLVolumeRenderingDisplayableManager::SetupHistograms(vtkMRMLVolumeRend
   //gradient histogram
   vtkImageGradientMagnitude *grad = vtkImageGradientMagnitude::New();
   grad->SetDimensionality(3);
-#if (VTK_MAJOR_VERSION <= 5)
-  grad->SetInput(input);
-#else
   grad->SetInputData(input);
-#endif
   grad->Update();
 
   vtkKWHistogram *gradHisto = vtkKWHistogram::New();
@@ -284,55 +279,31 @@ void vtkMRMLVolumeRenderingDisplayableManager::SetupHistograms(vtkMRMLVolumeRend
 }
 
 //---------------------------------------------------------------------------
-int vtkMRMLVolumeRenderingDisplayableManager
-::GetMaxMemory(vtkVolumeMapper* volumeMapper,
+vtkIdType vtkMRMLVolumeRenderingDisplayableManager
+::GetMaxMemoryInBytes(vtkVolumeMapper* volumeMapper,
                vtkMRMLVolumeRenderingDisplayNode* vspNode)
 {
-
-  int memory = vspNode && vspNode->GetGPUMemorySize() ?
-    vspNode->GetGPUMemorySize() :
-    vtkMRMLVolumeRenderingDisplayableManager::DefaultGPUMemorySize;
-
-  int gpuRayCastMapper = 128*1024*1024;
-  if (memory <= 128)
+  int gpuMemorySize_megabytes = vtkMRMLVolumeRenderingDisplayableManager::DefaultGPUMemorySize;
+  if (vspNode && vspNode->GetGPUMemorySize() > 0)
     {
-    }
-  else if (memory <= 256)
-    {
-    gpuRayCastMapper = 256*1024*1024;
-    }
-  else if (memory <= 512)
-    {
-    gpuRayCastMapper = 512*1024*1024;
-    }
-  else if (memory <= 1024)
-    {
-    gpuRayCastMapper = 1024*1024*1024;
-    }
-  else if (memory <= 1536)
-    {
-    gpuRayCastMapper = 1536*1024*1024;
-    }
-  else if (memory <= 2048)
-    {
-    gpuRayCastMapper = 2047*1024*1024;
-    }
-  else if (memory <= 3072)
-    {
-    gpuRayCastMapper = 2047*1024*1024;
-    }
-  else if (memory <= 4096)
-    {
-    gpuRayCastMapper = 2047*1024*1024;
+    gpuMemorySize_megabytes = vspNode->GetGPUMemorySize();
     }
 
+  // Special case: for GPU volume raycast mapper, round up to nearest 128MB
   if (volumeMapper->IsA("vtkGPUVolumeRayCastMapper"))
     {
-    return gpuRayCastMapper;
+    if (gpuMemorySize_megabytes < 128)
+      {
+      gpuMemorySize_megabytes = 128;
+      }
+    else
+      {
+      gpuMemorySize_megabytes = ((gpuMemorySize_megabytes - 1) / 128 + 1) * 128;
+      }
     }
 
-  // By default, return the node memory
-  return memory * 1024 * 1024;
+  vtkIdType gpuMemorySize_bytes = vtkIdType(gpuMemorySize_megabytes) * vtkIdType(1024 * 1024);
+  return gpuMemorySize_bytes;
 }
 
 //---------------------------------------------------------------------------
@@ -452,7 +423,7 @@ void vtkMRMLVolumeRenderingDisplayableManager
   mapper->SetAutoAdjustSampleDistances( highDef ? 0 : 1);
   mapper->SetSampleDistance(this->GetSampleDistance(vspNode));
   mapper->SetImageSampleDistance(highDef ? 1. : 1.);
-  mapper->SetMaxMemoryInBytes(this->GetMaxMemory(mapper, vspNode));
+  mapper->SetMaxMemoryInBytes(this->GetMaxMemoryInBytes(mapper, vspNode));
 
   switch(vspNode->GetRaycastTechnique())
     {
@@ -486,13 +457,8 @@ int vtkMRMLVolumeRenderingDisplayableManager
     }
   vtkRenderWindow* window = this->GetRenderer()->GetRenderWindow();
 
-#if (VTK_MAJOR_VERSION <= 5)
-  volumeMapper->SetInput(vtkMRMLScalarVolumeNode::SafeDownCast(
-                           vspNode->GetVolumeNode())->GetImageData() );
-#else
   volumeMapper->SetInputData(vtkMRMLScalarVolumeNode::SafeDownCast(
                            vspNode->GetVolumeNode())->GetImageData() );
-#endif
   int supported = 0;
   if (volumeMapper->IsA("vtkFixedPointVolumeRayCastMapper"))
     {
@@ -537,7 +503,8 @@ void vtkMRMLVolumeRenderingDisplayableManager
     {
     vtkNew<vtkIntArray> events;
     events->InsertNextValue(vtkMRMLTransformableNode::TransformModifiedEvent);
-    events->InsertNextValue(vtkMRMLScalarVolumeNode::ImageDataModifiedEvent);
+    events->InsertNextValue(vtkMRMLVolumeNode::ImageDataModifiedEvent);
+    events->InsertNextValue(vtkCommand::ModifiedEvent);
     vtkObserveMRMLNodeEventsMacro(volumeNode, events.GetPointer());
     }
   this->SetupMapperFromVolumeNode(volumeNode, this->GetVolumeMapper(vspNode), 0);
@@ -552,13 +519,8 @@ void vtkMRMLVolumeRenderingDisplayableManager
   if (volumeMapper &&
       volumeMapper->GetNumberOfInputPorts() > index)
     {
-#if (VTK_MAJOR_VERSION <= 5)
-    vtkImageData* imageData = volumeNode ? volumeNode->GetImageData() : 0;
-    volumeMapper->SetInputConnection(index, imageData ? imageData->GetProducerPort() : 0);
-#else
     volumeMapper->SetInputConnection(
       index, volumeNode ? volumeNode->GetImageDataConnection() : 0);
-#endif
     }
 }
 
@@ -681,35 +643,16 @@ void vtkMRMLVolumeRenderingDisplayableManager::UpdateClipping(
 
   vtkNew<vtkPlanes> planes;
   vspNode->GetROINode()->GetTransformedPlanes(planes.GetPointer());
-  if ( planes->GetTransform() )
-    {
-    double zero[3] = {0,0,0};
-    double translation[3];
-    planes->GetTransform()->TransformPoint(zero, translation);
-
-    // apply the translation to the planes
-
-    int numPlanes = planes->GetNumberOfPlanes();
-    vtkPoints *points = planes->GetPoints();
-    for (int i=0; i<numPlanes && i<6; i++)
-      {
-      vtkPlane *plane = planes->GetPlane(i);
-      double origin[3];
-      plane->GetOrigin(origin);
-      points->GetData()->SetTuple3(i,
-                                   origin[0]-translation[0],
-                                   origin[1]-translation[1],
-                                   origin[2]-translation[2]);
-      }
-    }
   volumeMapper->SetClippingPlanes(planes.GetPointer());
 }
 
 //---------------------------------------------------------------------------
 void vtkMRMLVolumeRenderingDisplayableManager::TransformModified(vtkMRMLVolumeRenderingDisplayNode* vspNode)
 {
-  if (vspNode == NULL)
+  if (vspNode == NULL || vspNode != this->DisplayedNode)
     {
+    // Only the current DisplayedNode is visible, therefore we can safely ignore all other transform updates.
+    // Ideally, event management in the Volume Rendering displayable manager should be refactored to not observe irrelevant events.
     return;
     }
   vtkNew<vtkMatrix4x4> matrix;
@@ -910,6 +853,21 @@ void vtkMRMLVolumeRenderingDisplayableManager
 
       this->UpdateClipping(this->GetVolumeMapper(vspNode), vspNode);
       this->RequestRender();
+      }
+    else if(vtkMRMLVolumeNode::SafeDownCast(caller))
+      {
+        node = reinterpret_cast<vtkMRMLNode *>(caller);
+        vtkMRMLVolumeRenderingDisplayNode* vspNode =
+          this->VolumeRenderingLogic->GetVolumeRenderingDisplayNodeForViewNode(
+          vtkMRMLVolumeNode::SafeDownCast(node),
+          this->GetMRMLViewNode());
+        // We are notified about the change of all volume nodes that have a VR display node, but
+        // we should only request render if the currently displayed volume node is changed
+        if (vspNode && vspNode->GetVisibility())
+          {
+          this->SetupMapperFromParametersNode(vspNode);
+          this->RequestRender();
+          }
       }
     }
   else if (event == vtkCommand::StartEvent ||

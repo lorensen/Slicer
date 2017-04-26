@@ -23,10 +23,12 @@
 // VTK includes
 #include "vtkObject.h"
 #include "vtkInteractorStyle.h"
+#include "vtkSmartPointer.h"
 
 #include "vtkMRMLDisplayableManagerWin32Header.h"
 
 class vtkMRMLModelDisplayableManager;
+class vtkCellPicker;
 
 /// \brief Interactive manipulation of the camera.
 ///
@@ -62,6 +64,7 @@ public:
   /// Event bindings controlling the effects of pressing mouse buttons
   /// or moving the mouse.
   virtual void OnMouseMove();
+  virtual void OnLeave();
   virtual void OnLeftButtonDown();
   virtual void OnLeftButtonUp();
   virtual void OnMiddleButtonDown();
@@ -101,6 +104,8 @@ protected:
   vtkThreeDViewInteractorStyle();
   ~vtkThreeDViewInteractorStyle();
 
+  bool Pick(int x, int y, double pickPoint[3]);
+
   vtkMRMLCameraNode *CameraNode;
 
   double MotionFactor;
@@ -117,6 +122,9 @@ protected:
   ///
   /// A pointer back to the ModelDisplayableManager, useful for picking
   vtkMRMLModelDisplayableManager * ModelDisplayableManager;
+
+  /// For jump to slice feature (when mouse is moved while shift key is pressed)
+  vtkSmartPointer<vtkCellPicker> CellPicker;
 
 private:
   vtkThreeDViewInteractorStyle(const vtkThreeDViewInteractorStyle&);  /// Not implemented.

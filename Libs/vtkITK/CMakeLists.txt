@@ -4,13 +4,6 @@ project(vtkITK)
 cmake_minimum_required(VERSION 2.8.4)
 #-----------------------------------------------------------------------------
 
-#-----------------------------------------------------------------------------
-# See http://cmake.org/cmake/help/cmake-2-8-docs.html#section_Policies for details
-#-----------------------------------------------------------------------------
-if(POLICY CMP0017)
-  cmake_policy(SET CMP0017 OLD)
-endif()
-
 # --------------------------------------------------------------------------
 # Options
 # --------------------------------------------------------------------------
@@ -28,15 +21,6 @@ endif()
 #find_package(VTK REQUIRED)
 #include(${VTK_USE_FILE})
 
-if(${VTK_VERSION_MAJOR} GREATER 5)
-  # Minimum set of libraries already specified using components
-else()
-  set(VTK_LIBRARIES
-    vtkCommon
-    vtkFiltering
-    vtkImaging
-    )
-endif()
 #
 # ITK
 #
@@ -118,6 +102,7 @@ set(vtkITK_SRCS
   vtkITKTimeSeriesDatabase.cxx
   vtkITKIslandMath.cxx
   vtkITKGrowCutSegmentationImageFilter.cxx
+  vtkITKMorphologicalContourInterpolator.cxx
   )
 
 # these types are never instantiated, so they don't

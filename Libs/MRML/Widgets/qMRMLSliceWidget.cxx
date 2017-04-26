@@ -64,15 +64,12 @@ void qMRMLSliceWidgetPrivate::init()
   connect(this->SliceView, SIGNAL(resized(QSize)),
           this->SliceController, SLOT(setSliceViewSize(QSize)));
 
-#if (VTK_MAJOR_VERSION <= 5)
-  connect(this->SliceController, SIGNAL(imageDataChanged(vtkImageData*)),
-          this, SLOT(setImageData(vtkImageData*)));
-#else
   connect(this->SliceController, SIGNAL(imageDataConnectionChanged(vtkAlgorithmOutput*)),
           this, SLOT(setImageDataConnection(vtkAlgorithmOutput*)));
-#endif
   connect(this->SliceController, SIGNAL(renderRequested()),
           this->SliceView, SLOT(scheduleRender()), Qt::QueuedConnection);
+  connect(this->SliceController, SIGNAL(nodeAboutToBeEdited(vtkMRMLNode*)),
+          q, SIGNAL(nodeAboutToBeEdited(vtkMRMLNode*)));
 }
 
 // --------------------------------------------------------------------------
@@ -85,19 +82,11 @@ void qMRMLSliceWidgetPrivate::endProcessing()
 }
 
 // --------------------------------------------------------------------------
-#if (VTK_MAJOR_VERSION <= 5)
-void qMRMLSliceWidgetPrivate::setImageData(vtkImageData * imageData)
-{
-  //qDebug() << "qMRMLSliceWidgetPrivate::setImageData";
-  this->SliceView->setImageData(imageData);
-}
-#else
 void qMRMLSliceWidgetPrivate::setImageDataConnection(vtkAlgorithmOutput * imageDataConnection)
 {
   //qDebug() << "qMRMLSliceWidgetPrivate::setImageDataConnection";
   this->SliceView->setImageDataConnection(imageDataConnection);
 }
-#endif
 
 // --------------------------------------------------------------------------
 // qMRMLSliceView methods
@@ -108,6 +97,15 @@ qMRMLSliceWidget::qMRMLSliceWidget(QWidget* _parent) : Superclass(_parent)
 {
   Q_D(qMRMLSliceWidget);
   d->init();
+}
+
+// --------------------------------------------------------------------------
+qMRMLSliceWidget::qMRMLSliceWidget(qMRMLSliceWidgetPrivate* pimpl,
+                                   QWidget* _parent)
+  : Superclass(_parent)
+  , d_ptr(pimpl)
+{
+  // Note: You are responsible to call init() in the constructor of derived class.
 }
 
 // --------------------------------------------------------------------------
@@ -211,34 +209,18 @@ QString qMRMLSliceWidget::sliceOrientation()const
 }
 
 //---------------------------------------------------------------------------
-#if (VTK_MAJOR_VERSION <= 5)
-void qMRMLSliceWidget::setImageData(vtkImageData* newImageData)
-{
-  Q_D(qMRMLSliceWidget);
-  d->SliceController->setImageData(newImageData);
-}
-#else
 void qMRMLSliceWidget::setImageDataConnection(vtkAlgorithmOutput* newImageDataConnection)
 {
   Q_D(qMRMLSliceWidget);
   d->SliceController->setImageDataConnection(newImageDataConnection);
 }
-#endif
 
 //---------------------------------------------------------------------------
-#if (VTK_MAJOR_VERSION <= 5)
-vtkImageData* qMRMLSliceWidget::imageData() const
-{
-  Q_D(const qMRMLSliceWidget);
-  return d->SliceController->imageData();
-}
-#else
 vtkAlgorithmOutput* qMRMLSliceWidget::imageDataConnection() const
 {
   Q_D(const qMRMLSliceWidget);
   return d->SliceController->imageDataConnection();
 }
-#endif
 
 //---------------------------------------------------------------------------
 vtkInteractorObserver* qMRMLSliceWidget::interactorStyle()const

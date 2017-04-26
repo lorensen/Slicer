@@ -61,7 +61,8 @@ public:
   void updateNoneItem(bool resetRootIndex = true);
   void updateActionItems(bool resetRootIndex = true);
   void updateDelegate(bool force = false);
-  QString nodeTypeLabel()const;
+
+  bool hasPostItem(const QString& name)const;
 
   QComboBox*        ComboBox;
   qMRMLNodeFactory* MRMLNodeFactory;
@@ -71,6 +72,8 @@ public:
   bool              RemoveEnabled;
   bool              EditEnabled;
   bool              RenameEnabled;
+
+  QHash<QString, QString> NodeTypeLabels;
 
   bool SelectNodeUponCreation;
   QString NoneDisplay;

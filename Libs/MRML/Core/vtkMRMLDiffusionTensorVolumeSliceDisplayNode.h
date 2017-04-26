@@ -80,19 +80,15 @@ class VTK_MRML_EXPORT vtkMRMLDiffusionTensorVolumeSliceDisplayNode
 
   /// Return the glyph producer output for the input image data.
   /// \sa GetOutputPolyData()
-  virtual vtkAlgorithmOutput* GetOutputPolyDataConnection();
+  virtual vtkAlgorithmOutput* GetOutputMeshConnection();
 
   ///
   /// Update the pipeline based on this node attributes
-  virtual void UpdatePolyDataPipeline();
+  virtual void UpdateAssignedAttribute();
 
   ///
   /// Set ImageData for a volume slice
-#if (VTK_MAJOR_VERSION <= 5)
-  virtual void SetSliceImage(vtkImageData *image);
-#else
   virtual void SetSliceImagePort(vtkAlgorithmOutput *imagePort);
-#endif
 
   ///
   /// Set slice to RAS transformation

@@ -1,12 +1,17 @@
 import os
-from __main__ import vtk
-from __main__ import ctk
-from __main__ import qt
-from __main__ import slicer
-from EditOptions import EditOptions
-from EditorLib import EditorLib
+import vtk
+import ctk
+import qt
+import slicer
+from EditOptions import HelpButton
 import Effect
 
+__all__ = [
+  'ThresholdEffectOptions',
+  'ThresholdEffectTool',
+  'ThresholdEffectLogic',
+  'ThresholdEffect'
+  ]
 
 #########################################################
 #
@@ -76,7 +81,7 @@ class ThresholdEffectOptions(Effect.EffectOptions):
     self.connections.append( (self.threshold, 'valuesChanged(double,double)', self.onThresholdValuesChanged) )
     self.connections.append( (self.apply, 'clicked()', self.onApply) )
 
-    EditorLib.HelpButton(self.frame, "Set labels based on threshold range.  Note: this replaces the current label map values.")
+    HelpButton(self.frame, "Set labels based on threshold range.  Note: this replaces the current label map values.")
 
     # Add vertical spacer
     self.frame.layout().addStretch(1)
@@ -218,12 +223,8 @@ class ThresholdEffectTool(Effect.EffectTool):
     # feedback actor
     self.cursorMapper = vtk.vtkImageMapper()
     self.cursorDummyImage = vtk.vtkImageData()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      self.cursorDummyImage.AllocateScalars()
-      self.cursorMapper.SetInput( self.cursorDummyImage )
-    else:
-      self.cursorDummyImage.AllocateScalars(vtk.VTK_UNSIGNED_INT, 1)
-      self.cursorMapper.SetInputData( self.cursorDummyImage )
+    self.cursorDummyImage.AllocateScalars(vtk.VTK_UNSIGNED_INT, 1)
+    self.cursorMapper.SetInputData( self.cursorDummyImage )
     self.cursorActor = vtk.vtkActor2D()
     self.cursorActor.VisibilityOff()
     self.cursorActor.SetMapper( self.cursorMapper )
@@ -259,10 +260,7 @@ class ThresholdEffectTool(Effect.EffectTool):
     self.undoRedo.saveState()
 
     thresh = vtk.vtkImageThreshold()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      thresh.SetInput( self.editUtil.getBackgroundImage() )
-    else:
-      thresh.SetInputData( self.editUtil.getBackgroundImage() )
+    thresh.SetInputData( self.editUtil.getBackgroundImage() )
     thresh.ThresholdBetween(self.min, self.max)
     thresh.SetInValue( self.editUtil.getLabel() )
     thresh.SetOutValue( 0 )
@@ -307,21 +305,13 @@ class ThresholdEffectTool(Effect.EffectTool):
       self.thresh = vtk.vtkImageThreshold()
     sliceLogic = self.sliceWidget.sliceLogic()
     backgroundLogic = sliceLogic.GetBackgroundLayer()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      self.thresh.SetInput( backgroundLogic.GetReslice().GetOutput() )
-    else:
-      self.thresh.SetInputConnection( backgroundLogic.GetReslice().GetOutputPort() )
+    self.thresh.SetInputConnection( backgroundLogic.GetReslice().GetOutputPort() )
     self.thresh.ThresholdBetween( self.min, self.max )
     self.thresh.SetInValue( 1 )
     self.thresh.SetOutValue( 0 )
     self.thresh.SetOutputScalarTypeToUnsignedChar()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      self.map.SetInput( self.thresh.GetOutput() )
-      self.map.Update()
-      self.cursorMapper.SetInput( self.map.GetOutput() )
-    else:
-      self.map.SetInputConnection( self.thresh.GetOutputPort() )
-      self.cursorMapper.SetInputConnection( self.map.GetOutputPort() )
+    self.map.SetInputConnection( self.thresh.GetOutputPort() )
+    self.cursorMapper.SetInputConnection( self.map.GetOutputPort() )
 
     self.cursorActor.VisibilityOn()
 

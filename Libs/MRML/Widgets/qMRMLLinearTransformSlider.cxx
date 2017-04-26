@@ -75,7 +75,7 @@ void qMRMLLinearTransformSlider::setTypeOfTransform(TransformType _typeOfTransfo
   d->TypeOfTransform = _typeOfTransform;
   if (this->isRotation())
     {
-    this->setSuffix("°");
+    this->setSuffix(QString::fromLatin1("\xb0")); // "degree" character
     }
   this->onMRMLTransformNodeModified(d->MRMLTransformNode);
 }
@@ -194,7 +194,26 @@ void qMRMLLinearTransformSlider::onMRMLTransformNodeModified(vtkObject* caller)
     if (d->CoordinateReference == qMRMLLinearTransformSlider::GLOBAL)
       {
       d->OldPosition = _value;
-      this->setValue(_value);
+      // Only attempt to set the current slider value if the current value is reachable
+      // (otherwise the value would be truncated to the current slider range).
+      // If not reachable then choose closest (truncated) value and block signals to make sure we don't
+      // emit signals with the truncated value.
+      if (_value<this->minimum())
+        {
+        bool wasBlocked = this->blockSignals(true);
+        this->setValue(this->minimum());
+        this->blockSignals(wasBlocked);
+        }
+      else if (_value>this->maximum())
+        {
+        bool wasBlocked = this->blockSignals(true);
+        this->setValue(this->maximum());
+        this->blockSignals(wasBlocked);
+        }
+      else
+        {
+        this->setValue(_value);
+        }
       }
     else
       {
@@ -203,8 +222,7 @@ void qMRMLLinearTransformSlider::onMRMLTransformNodeModified(vtkObject* caller)
     }
   else if (this->isRotation())
     {
-    d->OldPosition = this->value();//this->sliderPosition();
-    //this->setValue(this->sliderPosition());
+    d->OldPosition = this->value();
     }
 }
 

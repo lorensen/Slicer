@@ -41,6 +41,7 @@
 
 #include <vtkMatrix4x4.h>
 #include <vtkPointData.h>
+#include <vtkSmartPointer.h>
 #include <vtkVersion.h>
 
 #include "teem/nrrd.h"
@@ -69,7 +70,7 @@ public:
   /// Get a space separated list of all keys in the header
   /// the string is allocated and deleted in this object.  This method
   /// does not support spaces in key names.
-  char* GetHeaderKeys();
+  const char* GetHeaderKeys();
 
   ///
   /// Get a list of keys in the header. Preferred method to use as it
@@ -79,6 +80,12 @@ public:
   ///
   /// Get a value given a key in the header
   const char* GetHeaderValue(const char *key);
+
+  /// Get label for specified axis
+  const char* GetAxisLabel(unsigned int axis);
+
+  /// Get unit for specified axis
+  const char* GetAxisUnit(unsigned int axis);
 
   virtual void PrintSelf(ostream& os, vtkIndent indent);
 
@@ -219,28 +226,22 @@ public:
       break;
     }
   }
-#if (VTK_MAJOR_VERSION <= 5)
-virtual vtkImageData * AllocateOutputData(vtkDataObject *out);
-virtual void AllocateOutputData(vtkImageData *out, int *uExtent)
-    { Superclass::AllocateOutputData(out, uExtent); }
-void AllocatePointData(vtkImageData *out);
-#else
 virtual vtkImageData * AllocateOutputData(vtkDataObject *out, vtkInformation* outInfo);
 virtual void AllocateOutputData(vtkImageData *out, vtkInformation* outInfo, int *uExtent)
     { Superclass::AllocateOutputData(out, outInfo, uExtent); }
 void AllocatePointData(vtkImageData *out, vtkInformation* outInfo);
-#endif
 
 protected:
   vtkNRRDReader();
   ~vtkNRRDReader();
 
-  vtkMatrix4x4* RasToIjkMatrix;
-  vtkMatrix4x4* MeasurementFrameMatrix;
-  vtkMatrix4x4* NRRDWorldToRasMatrix;
+  static bool GetPointType(Nrrd* nrrdTemp, int& pointDataType, int &numOfComponents);
 
-  char* HeaderKeys;
-  char* CurrentFileName;
+  vtkSmartPointer<vtkMatrix4x4> RasToIjkMatrix;
+  vtkSmartPointer<vtkMatrix4x4> MeasurementFrameMatrix;
+  vtkSmartPointer<vtkMatrix4x4> NRRDWorldToRasMatrix;
+
+  std::string CurrentFileName;
 
   Nrrd *nrrd;
 
@@ -252,13 +253,13 @@ protected:
   bool UseNativeOrigin;
 
   std::map <std::string, std::string> HeaderKeyValue;
+  std::string HeaderKeys; // buffer for returning key list
+
+  std::map<unsigned int, std::string> AxisLabels;
+  std::map<unsigned int, std::string> AxisUnits;
 
   virtual void ExecuteInformation();
-#if (VTK_MAJOR_VERSION <= 5)
-  virtual void ExecuteData(vtkDataObject *out);
-#else
   virtual void ExecuteDataWithInformation(vtkDataObject *output, vtkInformation* outInfo);
-#endif
 
   int tenSpaceDirectionReduce(Nrrd *nout, const Nrrd *nin, double SD[9]);
 

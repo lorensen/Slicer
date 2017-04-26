@@ -1,9 +1,8 @@
 """ This module is a place holder for convenient functions allowing to interact with CLI."""
 
 def createNode(cliModule, parameters = None):
-  '''Creates a new vtkMRMLCommandLineModuleNode for a specific module, with
-  optional parameters'''
-  import slicer.util
+  """Creates a new vtkMRMLCommandLineModuleNode for a specific module, with
+  optional parameters"""
   if not cliModule:
     return None
   cliLogic = cliModule.logic()
@@ -15,13 +14,13 @@ def createNode(cliModule, parameters = None):
   return node
 
 def setNodeParameters(node, parameters):
-  '''Sets parameters for a vtkMRMLCommandLineModuleNode given a dictionary
+  """Sets parameters for a vtkMRMLCommandLineModuleNode given a dictionary
   of (parameterName, parameterValue) pairs
   For vectors: provide a list, tuple or comma-separated string
   For enumerations, provide the single enumeration value
   For files and directories, provide a string
   For images, geometry, points and regions, provide a vtkMRMLNode
-  '''
+  """
   import slicer
   if not node:
     return None
@@ -46,30 +45,41 @@ def setNodeParameters(node, parameters):
     else:
       print "parameter ", key, " has unsupported type ", value.__class__.__name__
 
-def run(module, node = None, parameters = None, wait_for_completion = False, delete_temporary_files = True):
-  '''Runs a CLI, optionally given a node with optional parameters, returning
+def runSync(module, node=None, parameters=None, delete_temporary_files=True, update_display=True):
+  """Run a CLI synchronously, optionally given a node with optional parameters,
+  returning the node (or the new one if created)
+  node: existing parameter node (None by default)
+  parameters: dictionary of parameters for cli (None by default)
+  delete_temporary_files: remove temp files created during exectuion (True by default)
+  update_display: show output nodes after completion
+  """
+  return run(module, node=node, parameters=parameters, wait_for_completion=True, delete_temporary_files=delete_temporary_files)
+
+def run(module, node = None, parameters = None, wait_for_completion = False, delete_temporary_files = True, update_display=True):
+  """Runs a CLI, optionally given a node with optional parameters, returning
   back the node (or the new one if created)
   node: existing parameter node (None by default)
   parameters: dictionary of parameters for cli (None by default)
   wait_for_completion: block if True (False by default)
   delete_temporary_files: remove temp files created during exectuion (True by default)
-  '''
+  update_display: show output nodes after completion
+  """
   import slicer.util
   if node:
     setNodeParameters(node, parameters)
   else:
     node = createNode(module, parameters)
     if not node:
-      return
+      return None
 
   logic = module.logic()
 
   logic.SetDeleteTemporaryFiles(1 if delete_temporary_files else 0)
 
   if wait_for_completion:
-      logic.ApplyAndWait(node)
+      logic.ApplyAndWait(node, update_display)
   else:
-      logic.Apply(node)
+      logic.Apply(node, update_display)
   #widget = slicer.util.getModuleGui(module)
   #if not widget:
   #  print "Could not find widget representation for module"

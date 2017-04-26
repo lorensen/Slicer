@@ -11,8 +11,8 @@
   See License.txt or http://www.slicer.org/copyright/copyright.txt for details.
 
 ==========================================================================*/
-#ifndef __itkDiffusionTensor3DLinearInterpolateFunction_h
-#define __itkDiffusionTensor3DLinearInterpolateFunction_h
+#ifndef itkDiffusionTensor3DLinearInterpolateFunction_h
+#define itkDiffusionTensor3DLinearInterpolateFunction_h
 
 #include "itkDiffusionTensor3DInterpolateImageFunctionReimplementation.h"
 #include <itkLinearInterpolateImageFunction.h>
@@ -37,9 +37,12 @@ public:
   typedef LinearInterpolateImageFunction<ImageType,
                                          TCoordRep>                           LinearInterpolateImageFunctionType;
 
+  /** Run-time type information (and related methods). */
+  itkTypeMacro(DiffusionTensor3DLinearInterpolateFunction, DiffusionTensor3DInterpolateImageFunctionReimplementation);
+
   itkNewMacro(Self);
 protected:
-  void AllocateInterpolator();
+  void AllocateInterpolator() ITK_OVERRIDE;
 
   typename LinearInterpolateImageFunctionType::Pointer linearInterpolator[6];
 };

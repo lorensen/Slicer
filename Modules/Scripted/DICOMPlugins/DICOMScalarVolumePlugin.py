@@ -1,7 +1,9 @@
 import os
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 from DICOMLib import DICOMPlugin
 from DICOMLib import DICOMLoadable
+from DICOMLib import DICOMExportScalarVolume
+import logging
 
 #
 # This is the plugin to handle translation of scalar volumes
@@ -20,6 +22,7 @@ class DICOMScalarVolumePluginClass(DICOMPlugin):
     self.defaultStudyID = 'SLICER10001' #TODO: What should be the new study ID?
 
     self.tags['seriesDescription'] = "0008,103e"
+    self.tags['seriesUID'] = "0020,000E"
     self.tags['seriesNumber'] = "0020,0011"
     self.tags['position'] = "0020,0032"
     self.tags['orientation'] = "0020,0037"
@@ -31,6 +34,8 @@ class DICOMScalarVolumePluginClass(DICOMPlugin):
     self.tags['imageOrientationPatient'] = "0020,0037"
     self.tags['numberOfFrames'] = "0028,0008"
     self.tags['instanceUID'] = "0008,0018"
+    self.tags['windowCenter'] = "0028,1050"
+    self.tags['windowWidth'] = "0028,1051"
 
 
   def examineForImport(self,fileLists):
@@ -59,18 +64,13 @@ class DICOMScalarVolumePluginClass(DICOMPlugin):
     files parameter.
     """
 
-    # get the series description to use as base for volume name
-    name = slicer.dicomDatabase.fileValue(files[0],self.tags['seriesDescription'])
-    if name == "":
-      name = "Unknown"
-    num = slicer.dicomDatabase.fileValue(files[0],self.tags['seriesNumber'])
-    if num != "":
-      name = num + ": " + name
+    seriesUID = slicer.dicomDatabase.fileValue(files[0],self.tags['seriesUID'])
+    seriesName = self.defaultSeriesNodeName(seriesUID)
 
     # default loadable includes all files for series
-    loadable = DICOMLib.DICOMLoadable()
+    loadable = DICOMLoadable()
     loadable.files = files
-    loadable.name = name
+    loadable.name = seriesName
     loadable.tooltip = "%d files, first file: %s" % (len(loadable.files), loadable.files[0])
     loadable.selected = True
     # add it to the list of loadables later, if pixel data is available in at least one file
@@ -79,7 +79,6 @@ class DICOMScalarVolumePluginClass(DICOMPlugin):
     # position and orientation for later use
     positions = {}
     orientations = {}
-
 
     # make subseries volumes based on tag differences
     subseriesTags = [
@@ -135,9 +134,9 @@ class DICOMScalarVolumePluginClass(DICOMPlugin):
       if len(subseriesValues[tag]) > 1:
         for value in subseriesValues[tag]:
           # default loadable includes all files for series
-          loadable = DICOMLib.DICOMLoadable()
+          loadable = DICOMLoadable()
           loadable.files = subseriesFiles[tag,value]
-          loadable.name = name + " for %s of %s" % (tag,value)
+          loadable.name = seriesName + " for %s of %s" % (tag,value)
           loadable.tooltip = "%d files, first file: %s" % (len(loadable.files), loadable.files[0])
           loadable.selected = False
           loadables.append(loadable)
@@ -251,7 +250,7 @@ class DICOMScalarVolumePluginClass(DICOMPlugin):
             n += 1
 
         if spaceWarnings != 0:
-          print("Geometric issues were found with %d of the series.  Please use caution." % spaceWarnings)
+          logging.warning("Geometric issues were found with %d of the series.  Please use caution." % spaceWarnings)
 
     return loadables
 
@@ -305,7 +304,7 @@ class DICOMScalarVolumePluginClass(DICOMPlugin):
 
     if volumeNode:
       #
-      # create Subject Hierarchy nodes for the loaded series
+      # create subject hierarchy items for the loaded series
       #
       self.addSeriesInSubjectHierarchy(loadable,volumeNode)
 
@@ -329,23 +328,44 @@ class DICOMScalarVolumePluginClass(DICOMPlugin):
       selNode = appLogic.GetSelectionNode()
       selNode.SetReferenceActiveVolumeID(volumeNode.GetID())
       appLogic.PropagateVolumeSelection()
+      
+      #
+      # apply window/level from DICOM if available (the first pair that is found)
+      #   Note: There can be multiple presets (multiplicity 1-n) in the standard [1]. We have
+      #   a way to put these into the display node [2], but currently the slicer4 Volumes GUI
+      #   does not expose this (the slicer3 one did).
+      #   [1] http://medical.nema.org/medical/dicom/current/output/html/part06.html
+      #   [2] https://github.com/Slicer/Slicer/blob/3bfa2fc2b310d41c09b7a9e8f8f6c4f43d3bd1e2/Libs/MRML/Core/vtkMRMLScalarVolumeDisplayNode.h#L172
+      #
+      try:
+        windowCenter = float( slicer.dicomDatabase.fileValue(file,self.tags['windowCenter']) )
+        windowWidth = float( slicer.dicomDatabase.fileValue(file,self.tags['windowWidth']) )
+        displayNode = volumeNode.GetDisplayNode()
+        if displayNode:
+          logging.info('Window/level found in DICOM tags (center=' + str(windowCenter) + ', width=' + str(windowWidth) + ') has been applied to volume ' + volumeNode.GetName())
+          displayNode.SetAutoWindowLevel(False)
+          displayNode.SetWindowLevel(windowWidth, windowCenter)
+      except ValueError:
+        pass # DICOM tags cannot be parsed to floating point numbers
 
     return volumeNode
 
-  def examineForExport(self,node):
+  def examineForExport(self,subjectHierarchyItemID):
     """Return a list of DICOMExportable instances that describe the
     available techniques that this plugin offers to convert MRML
     data into DICOM data
     """
     # cannot export if there is no data node or the data node is not a volume
-    if node.GetAssociatedNode() == None or not node.GetAssociatedNode().IsA('vtkMRMLScalarVolumeNode'):
+    shn = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+    dataNode = shn.GetItemDataNode(subjectHierarchyItemID)
+    if dataNode is None or not dataNode.IsA('vtkMRMLScalarVolumeNode'):
       return []
 
     # Define basic properties of the exportable
     exportable = slicer.qSlicerDICOMExportable()
     exportable.name = self.loadType
     exportable.tooltip = "Creates a series of DICOM files from scalar volumes"
-    exportable.nodeID = node.GetID()
+    exportable.subjectHierarchyItemID = subjectHierarchyItemID
     exportable.pluginClass = self.__module__
     exportable.confidence = 0.5 # There could be more specialized volume types
 
@@ -360,43 +380,48 @@ class DICOMScalarVolumePluginClass(DICOMPlugin):
 
   def export(self,exportables):
     for exportable in exportables:
-      # Get node to export
-      node = slicer.mrmlScene.GetNodeByID(exportable.nodeID)
-      if node.GetAssociatedNode() == None or not node.GetAssociatedNode().IsA('vtkMRMLScalarVolumeNode'):
-        error = "Series '" + node.GetNameWithoutPostfix() + "' cannot be exported!"
-        print(error)
+      # Get volume node to export
+      shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+      if shNode is None:
+        error = "Invalid subject hierarchy"
+        logging.error(error)
+        return error
+      volumeNode = shNode.GetItemDataNode(exportable.subjectHierarchyItemID)
+      if volumeNode is None or not volumeNode.IsA('vtkMRMLScalarVolumeNode'):
+        error = "Series '" + shNode.GetItemName(exportable.subjectHierarchyItemID) + "' cannot be exported"
+        logging.error(error)
         return error
 
       # Get output directory and create a subdirectory. This is necessary
       # to avoid overwriting the files in case of multiple exportables, as
       # naming of the DICOM files is static
+      directoryName = 'ScalarVolume_' + str(exportable.subjectHierarchyItemID)
       directoryDir = qt.QDir(exportable.directory)
-      directoryDir.mkdir(exportable.nodeID)
-      directoryDir.cd(exportable.nodeID)
+      directoryDir.mkdir(directoryName)
+      directoryDir.cd(directoryName)
       directory = directoryDir.absolutePath()
-      print("Export scalar volume '" + node.GetAssociatedNode().GetName() + "' to directory " + directory)
+      logging.info("Export scalar volume '" + volumeNode.GetName() + "' to directory " + directory)
 
-      # Get study and patient nodes
-      studyNode = node.GetParentNode()
-      if studyNode == None:
-        error = "Unable to get study node for series '" + node.GetAssociatedNode().GetName() + "'"
-        print(error)
+      # Get study and patient items
+      studyItemID = shNode.GetItemParent(exportable.subjectHierarchyItemID)
+      if not studyItemID:
+        error = "Unable to get study for series '" + volumeNode.GetName() + "'"
+        logging.error(error)
         return error
-      patientNode = studyNode.GetParentNode()
-      if patientNode == None:
-        error = "Unable to get patient node for series '" + node.GetAssociatedNode().GetName() + "'"
-        print(error)
+      patientItemID = shNode.GetItemParent(studyItemID)
+      if not patientItemID:
+        error = "Unable to get patient for series '" + volumeNode.GetName() + "'"
+        logging.error(error)
         return error
 
       # Assemble tags dictionary for volume export
-      from vtkSlicerSubjectHierarchyModuleMRMLPython import vtkMRMLSubjectHierarchyConstants
       tags = {}
-      tags['Patient Name'] = exportable.tag(vtkMRMLSubjectHierarchyConstants.GetDICOMPatientNameTagName())
-      tags['Patient ID'] = exportable.tag(vtkMRMLSubjectHierarchyConstants.GetDICOMPatientIDTagName())
-      tags['Patient Comments'] = exportable.tag(vtkMRMLSubjectHierarchyConstants.GetDICOMPatientCommentsTagName())
+      tags['Patient Name'] = exportable.tag(slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMPatientNameTagName())
+      tags['Patient ID'] = exportable.tag(slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMPatientIDTagName())
+      tags['Patient Comments'] = exportable.tag(slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMPatientCommentsTagName())
       tags['Study ID'] = self.defaultStudyID
-      tags['Study Date'] = exportable.tag(vtkMRMLSubjectHierarchyConstants.GetDICOMStudyDateTagName())
-      tags['Study Description'] = exportable.tag(vtkMRMLSubjectHierarchyConstants.GetDICOMStudyDescriptionTagName())
+      tags['Study Date'] = exportable.tag(slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMStudyDateTagName())
+      tags['Study Description'] = exportable.tag(slicer.vtkMRMLSubjectHierarchyConstants.GetDICOMStudyDescriptionTagName())
       tags['Modality'] = exportable.tag('Modality')
       tags['Manufacturer'] = exportable.tag('Manufacturer')
       tags['Model'] = exportable.tag('Model')
@@ -405,13 +430,13 @@ class DICOMScalarVolumePluginClass(DICOMPlugin):
 
       # Validate tags
       if tags['Modality'] == "":
-        error = "Empty modality for series '" + node.GetAssociatedNode().GetName() + "'"
-        print(error)
+        error = "Empty modality for series '" + volumeNode.GetName() + "'"
+        logging.error(error)
         return error
       #TODO: more tag checks
 
       # Perform export
-      exporter = DICOMLib.DICOMExportScalarVolume(tags['Study ID'], node.GetAssociatedNode(), tags, directory)
+      exporter = DICOMExportScalarVolume(tags['Study ID'], volumeNode, tags, directory)
       exporter.export()
 
     # Success
@@ -440,9 +465,6 @@ class DICOMScalarVolumePlugin:
     and was partially funded by NIH grant 3P41RR013218.
     """
 
-    # don't show this module - it only appears in the DICOM module
-    parent.hidden = True
-
     # Add this extension to the DICOM module's list for discovery when the module
     # is created.  Since this module may be discovered before DICOM itself,
     # create the list if it doesn't already exist.
@@ -451,23 +473,3 @@ class DICOMScalarVolumePlugin:
     except AttributeError:
       slicer.modules.dicomPlugins = {}
     slicer.modules.dicomPlugins['DICOMScalarVolumePlugin'] = DICOMScalarVolumePluginClass
-
-#
-# DICOMScalarVolumeWidget
-#
-
-class DICOMScalarVolumeWidget:
-  def __init__(self, parent = None):
-    self.parent = parent
-
-  def setup(self):
-    # don't display anything for this widget - it will be hidden anyway
-    pass
-
-  def enter(self):
-    pass
-
-  def exit(self):
-    pass
-
-

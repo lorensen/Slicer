@@ -45,6 +45,8 @@ public:
   /// Reimplemented for internal reasons
   void setMRMLScene(vtkMRMLScene* scene);
 
+  virtual bool setEditedNode(vtkMRMLNode* node, QString role = QString(), QString context = QString());
+
 public slots:
 
   /// Set the transform to identity. Only for linear transforms.
@@ -63,10 +65,12 @@ protected:
 
 protected slots:
 
-  void onCoordinateReferenceButtonPressed(int id);
+  void onTranslateFirstButtonPressed(bool checked);
   void onNodeSelected(vtkMRMLNode* node);
-  void onTranslationRangeChanged(double newMin, double newMax);
   void onMRMLTransformNodeModified(vtkObject* caller);
+
+  void copyTransform();
+  void pasteTransform();
 
   void transformSelectedNodes();
   void untransformSelectedNodes();
@@ -74,6 +78,9 @@ protected slots:
 
   void onDisplaySectionClicked(bool);
   void onTransformableSectionClicked(bool);
+
+  void updateConvertButtonState();
+  void convert();
 
 protected:
   ///

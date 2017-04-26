@@ -15,9 +15,9 @@ set(${KIT}_INCLUDE_DIRECTORIES
 set(displayable_manager_SRCS
   vtkMRML${MODULE_NAME}DisplayableManager2D.cxx
   vtkMRML${MODULE_NAME}DisplayableManager3D.cxx
+  vtkMRMLLinear${MODULE_NAME}DisplayableManager3D.cxx
   )
 
-set(VTK_USE_INSTANTIATOR_NEW 1)
 VTK_MAKE_INSTANTIATOR3("${MODULE_NAME}Instantiator"
   displayable_manager_instantiator_SRCS
   "${displayable_manager_SRCS}"
@@ -31,14 +31,9 @@ set(${KIT}_SRCS
   ${displayable_manager_SRCS}
   )
 
-set(${KIT}_VTK_LIBRARIES)
-if(${VTK_VERSION_MAJOR} LESS 6)
-  set(${KIT}_VTK_LIBRARIES vtkRendering)
-endif()
-
 set(${KIT}_TARGET_LIBRARIES
   ${MRML_LIBRARIES}
-  ${${KIT}_VTK_LIBRARIES}
+  vtkSlicerTransformsModuleLogic
   )
 
 #-----------------------------------------------------------------------------

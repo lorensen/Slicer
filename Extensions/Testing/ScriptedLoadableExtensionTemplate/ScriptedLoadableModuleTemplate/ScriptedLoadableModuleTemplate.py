@@ -1,6 +1,6 @@
 import os
 import unittest
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
 
@@ -18,17 +18,19 @@ class ScriptedLoadableModuleTemplate(ScriptedLoadableModule):
     self.parent.title = "ScriptedLoadableModuleTemplate" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Examples"]
     self.parent.dependencies = []
-    self.parent.contributors = ["Jean-Christophe Fillion-Robin (Kitware), Steve Pieper (Isomics)"] # replace with "Firstname Lastname (Org)"
+    self.parent.contributors = ["John Doe (AnyWare Corp.)"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-    This is an example of scripted loadable module bundled in an extension.
-    It performs a simple thresholding on the input volume and optionally captures a screenshot.
-    """
+This is an example of scripted loadable module bundled in an extension.
+It performs a simple thresholding on the input volume and optionally captures a screenshot.
+"""
+    self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = """
-    This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc. and Steve Pieper, Isomics, Inc.  and was partially funded by NIH grant 3P41RR013218-12S1.
+This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc.
+and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
 """ # replace with organization, grant and thanks.
 
 #
-# qScriptedLoadableModuleTemplateWidget
+# ScriptedLoadableModuleTemplateWidget
 #
 
 class ScriptedLoadableModuleTemplateWidget(ScriptedLoadableModuleWidget):
@@ -55,8 +57,7 @@ class ScriptedLoadableModuleTemplateWidget(ScriptedLoadableModuleWidget):
     # input volume selector
     #
     self.inputSelector = slicer.qMRMLNodeComboBox()
-    self.inputSelector.nodeTypes = ( ("vtkMRMLScalarVolumeNode"), "" )
-    self.inputSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", 0 )
+    self.inputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
     self.inputSelector.selectNodeUponCreation = True
     self.inputSelector.addEnabled = False
     self.inputSelector.removeEnabled = False
@@ -71,8 +72,7 @@ class ScriptedLoadableModuleTemplateWidget(ScriptedLoadableModuleWidget):
     # output volume selector
     #
     self.outputSelector = slicer.qMRMLNodeComboBox()
-    self.outputSelector.nodeTypes = ( ("vtkMRMLScalarVolumeNode"), "" )
-    self.outputSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", 0 )
+    self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
     self.outputSelector.selectNodeUponCreation = True
     self.outputSelector.addEnabled = True
     self.outputSelector.removeEnabled = True
@@ -155,7 +155,7 @@ class ScriptedLoadableModuleTemplateLogic(ScriptedLoadableModuleLogic):
     if not volumeNode:
       logging.debug('hasImageData failed: no volume node')
       return False
-    if volumeNode.GetImageData() == None:
+    if volumeNode.GetImageData() is None:
       logging.debug('hasImageData failed: no image data in volume node')
       return False
     return True
@@ -228,7 +228,7 @@ class ScriptedLoadableModuleTemplateLogic(ScriptedLoadableModuleLogic):
 
     # Capture screenshot
     if enableScreenshots:
-      self.takeScreenshot('ScriptedLoadableModuleTemplate-Start','MyScreenshot',-1)
+      self.takeScreenshot('ScriptedLoadableModuleTemplateTest-Start','MyScreenshot',-1)
 
     logging.info('Processing completed')
 
@@ -286,5 +286,5 @@ class ScriptedLoadableModuleTemplateTest(ScriptedLoadableModuleTest):
 
     volumeNode = slicer.util.getNode(pattern="FA")
     logic = ScriptedLoadableModuleTemplateLogic()
-    self.assertTrue( logic.hasImageData(volumeNode) )
+    self.assertIsNotNone( logic.hasImageData(volumeNode) )
     self.delayDisplay('Test passed!')

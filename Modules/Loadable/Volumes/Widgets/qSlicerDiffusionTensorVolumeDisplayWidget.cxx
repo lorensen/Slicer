@@ -175,6 +175,16 @@ void qSlicerDiffusionTensorVolumeDisplayWidget::setMRMLVolumeNode(vtkMRMLDiffusi
         newVolumeDisplayNode->GetSliceGlyphDisplayNodes(d->VolumeNode);
       }
     Q_ASSERT(dtiSliceDisplayNodes.size());
+    d->RedSliceCheckBox->setChecked(dtiSliceDisplayNodes[0]->GetVisibility());
+    if (dtiSliceDisplayNodes.size() > 1)
+      {
+      d->YellowSliceCheckBox->setChecked(dtiSliceDisplayNodes[1]->GetVisibility());
+      }
+    if (dtiSliceDisplayNodes.size() > 2)
+      {
+      d->GreenSliceCheckBox->setChecked(dtiSliceDisplayNodes[1]->GetVisibility());
+      }
+
     glyphableVolumeSliceNode = dtiSliceDisplayNodes[0];
     }
   // The update tasks are also needed when scene is closed (newVolumeDisplayNode is NULL)
@@ -239,28 +249,10 @@ void qSlicerDiffusionTensorVolumeDisplayWidget::synchronizeSliceDisplayNodes()
 //----------------------------------------------------------------------------
 void qSlicerDiffusionTensorVolumeDisplayWidget::setVolumeScalarInvariant(int scalarInvariant)
 {
-  Q_D(qSlicerDiffusionTensorVolumeDisplayWidget);
   vtkMRMLDiffusionTensorVolumeDisplayNode* volumeDisplayNode = this->volumeDisplayNode();
   if (!volumeDisplayNode)
     {
     return;
-    }
-  /// As described in but #3323, having a scalar (like FA) as the invariant
-  /// mode with the glyphs visible leads to a crash.  This appears to be
-  /// deep in the pipeline for glyphing. (TODO: fix the pipeline).
-  /// So the solution (workaround) here is to turn off any visible slice
-  /// glyphs when changing the invarient to anything other than color by
-  /// orientation and to disable the glyping panel.
-  if (scalarInvariant ==  vtkMRMLDiffusionTensorDisplayPropertiesNode::ColorOrientation)
-    {
-    d->glyphsOnSlicesDisplaySetEnabled(true);
-    }
-  else
-    {
-    d->glyphsOnSlicesDisplaySetEnabled(false);
-    this->setRedSliceVisible(false);
-    this->setYellowSliceVisible(false);
-    this->setGreenSliceVisible(false);
     }
   volumeDisplayNode->SetScalarInvariant(scalarInvariant);
 }

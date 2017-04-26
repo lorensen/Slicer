@@ -83,7 +83,7 @@ void qMRMLSliderWidgetPrivate::setAndObserveSelectionNode()
   if (this->MRMLScene)
     {
     selectionNode = vtkMRMLSelectionNode::SafeDownCast(
-      this->MRMLScene->GetNthNodeByClass(0, "vtkMRMLSelectionNode"));
+      this->MRMLScene->GetNodeByID("vtkMRMLSelectionNodeSingleton"));
     }
 
   q->qvtkReconnect(this->SelectionNode, selectionNode,
@@ -203,7 +203,14 @@ void qMRMLSliderWidget::updateWidgetFromUnitNode()
       {
       if (d->Flags.testFlag(qMRMLSliderWidget::Precision))
         {
-        this->setDecimals(unitNode->GetPrecision());
+        // setDecimals overwrites values therefore it is important
+        // to call it only when it is necessary (without this check,
+        // for example a setValue call may be ineffective if the min/max
+        // value is changing at the same time)
+        if (this->decimals()!=unitNode->GetPrecision())
+          {
+          this->setDecimals(unitNode->GetPrecision());
+          }
         }
       if (d->Flags.testFlag(qMRMLSliderWidget::Prefix))
         {

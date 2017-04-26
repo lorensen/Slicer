@@ -21,7 +21,6 @@ vtkMRMLAnnotationRulerNode::vtkMRMLAnnotationRulerNode()
   this->HideFromEditors = false;
   this->DistanceAnnotationFormat = NULL;
   this->SetDistanceAnnotationFormat("%.0f mm");
-  this->Resolution = 5;
   this->ModelID1 = NULL;
   this->ModelID2 = NULL;
 }
@@ -52,28 +51,25 @@ void vtkMRMLAnnotationRulerNode::WriteXML(ostream& of, int nIndent)
 {
   Superclass::WriteXML(of, nIndent);
 
-  vtkIndent indent(nIndent);
-
-  of << indent << " rulerDistanceAnnotationFormat=\"";
+  of << " rulerDistanceAnnotationFormat=\"";
   if (this->DistanceAnnotationFormat)
     {
-      of << this->DistanceAnnotationFormat << "\"";
+    of << this->DistanceAnnotationFormat << "\"";
     }
   else
     {
-      of << "\"";
+    of << "\"";
     }
-  of << indent << " rulerResolution=\""<< this->Resolution << "\"";
 
   if (this->ModelID1)
     {
-    of << indent << " modelID1=\"" << this->ModelID1 << "\"";
+    of << " modelID1=\"" << this->ModelID1 << "\"";
     }
   if (this->ModelID2)
     {
-    of << indent << " modelID2=\"" << this->ModelID2 << "\"";
+    of << " modelID2=\"" << this->ModelID2 << "\"";
     }
-  of << indent << " distanceMeasurement=\"" << this->GetDistanceMeasurement() << "\"";
+  of << " distanceMeasurement=\"" << this->GetDistanceMeasurement() << "\"";
 }
 
 
@@ -95,14 +91,7 @@ void vtkMRMLAnnotationRulerNode::ReadXMLAttributes(const char** atts)
     std::string attValue(*(atts++));
 
 
-    if (!strcmp(attName, "rulerResolution"))
-      {
-
-    std::stringstream ss;
-        ss << attValue;
-        ss >> this->Resolution;
-      }
-    else if (!strcmp(attName, "rulerDistanceAnnotationFormat"))
+    if (!strcmp(attName, "rulerDistanceAnnotationFormat"))
       {
       this->SetDistanceAnnotationFormat(attValue.c_str());
       }
@@ -128,7 +117,6 @@ void vtkMRMLAnnotationRulerNode::Copy(vtkMRMLNode *anode)
 
   //this->SetPosition1(node->GetPosition1());
   //this->SetPosition2(node->GetPosition2());
-  //this->SetResolution(node->GetResolution());
   //this->SetDistanceAnnotationFormat(node->GetDistanceAnnotationFormat());
   //this->SetModelID1(node->GetModelID1());
   //this->SetModelID2(node->GetModelID2());
@@ -181,7 +169,6 @@ void vtkMRMLAnnotationRulerNode::PrintAnnotationInfo(ostream& os, vtkIndent inde
     {
       os  << "(None)" << "\n";
     }
-  os << indent << "rulerResolution: " << this->Resolution << "\n";
 
   os << indent << "Model 1: " << (this->ModelID1 ? this->ModelID1 : "none") << "\n";
   os << indent << "Model 2: " << (this->ModelID2 ? this->ModelID2 : "none") << "\n";
@@ -341,43 +328,6 @@ void vtkMRMLAnnotationRulerNode::SetLineColour(double initColor[3])
       return;
     }
   node->SetSelectedColor(initColor);
-}
-
-//----------------------------------------------------------------------------
-void vtkMRMLAnnotationRulerNode::ApplyTransformMatrix(vtkMatrix4x4* transformMatrix)
-{
-  double (*matrix)[4] = transformMatrix->Element;
-  double xyzIn[3];
-  double xyzOut[3];
-  double *p = NULL;
-
-  // first point
-  p = this->GetPosition1();
-  if (p)
-    {
-    xyzIn[0] = p[0];
-    xyzIn[1] = p[1];
-    xyzIn[2] = p[2];
-
-    xyzOut[0] = matrix[0][0]*xyzIn[0] + matrix[0][1]*xyzIn[1] + matrix[0][2]*xyzIn[2] + matrix[0][3];
-    xyzOut[1] = matrix[1][0]*xyzIn[0] + matrix[1][1]*xyzIn[1] + matrix[1][2]*xyzIn[2] + matrix[1][3];
-    xyzOut[2] = matrix[2][0]*xyzIn[0] + matrix[2][1]*xyzIn[1] + matrix[2][2]*xyzIn[2] + matrix[2][3];
-    this->SetPosition1(xyzOut);
-    }
-
-  // second point
-  p = this->GetPosition2();
-  if (p)
-    {
-    xyzIn[0] = p[0];
-    xyzIn[1] = p[1];
-    xyzIn[2] = p[2];
-
-    xyzOut[0] = matrix[0][0]*xyzIn[0] + matrix[0][1]*xyzIn[1] + matrix[0][2]*xyzIn[2] + matrix[0][3];
-    xyzOut[1] = matrix[1][0]*xyzIn[0] + matrix[1][1]*xyzIn[1] + matrix[1][2]*xyzIn[2] + matrix[1][3];
-    xyzOut[2] = matrix[2][0]*xyzIn[0] + matrix[2][1]*xyzIn[1] + matrix[2][2]*xyzIn[2] + matrix[2][3];
-    this->SetPosition2(xyzOut);
-    }
 }
 
 //---------------------------------------------------------------------------

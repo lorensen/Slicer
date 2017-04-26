@@ -26,22 +26,28 @@
 #include <vtkMRMLModelDisplayNode.h>
 #include <vtkMRMLModelHierarchyNode.h>
 #include <vtkMRMLModelNode.h>
-#include <vtkMRMLProceduralColorNode.h>
 #include <vtkMRMLClipModelsNode.h>
+#include <vtkMRMLColorNode.h>
 #include <vtkMRMLScene.h>
 #include <vtkMRMLSliceNode.h>
 #include <vtkMRMLViewNode.h>
 #include <vtkMRMLInteractionNode.h>
+#include <vtkMRMLModelNode.h>
 #include <vtkMRMLSelectionNode.h>
 #include <vtkMRMLTransformNode.h>
 
 // VTK includes
+#include <vtkAlgorithm.h>
 #include <vtkAlgorithmOutput.h>
 #include <vtkAssignAttribute.h>
 #include <vtkCellArray.h>
+#include <vtkExtractGeometry.h>
+#include <vtkExtractPolyDataGeometry.h>
+#include <vtkClipDataSet.h>
 #include <vtkClipPolyData.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkDataSetAttributes.h>
+#include <vtkDataSetMapper.h>
 #include <vtkGeneralTransform.h>
 #include <vtkImageActor.h>
 #include <vtkImageData.h>
@@ -53,12 +59,14 @@
 #include <vtkObjectFactory.h>
 #include <vtkPlane.h>
 #include <vtkPointData.h>
+#include <vtkPointSet.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
 #include <vtkRenderWindowInteractor.h>
 #include <vtkSmartPointer.h>
-#include <vtkTransformPolyDataFilter.h>
+#include <vtkTransformFilter.h>
 #include <vtkVersion.h>
+#include <vtkWeakPointer.h>
 
 // for picking
 #include <vtkCellPicker.h>
@@ -91,7 +99,7 @@ public:
   std::map<std::string, int>                       DisplayedVisibility;
   std::map<std::string, vtkMRMLDisplayableNode *>  DisplayableNodes;
   std::map<std::string, int>                       RegisteredModelHierarchies;
-  std::map<std::string, vtkTransformPolyDataFilter *> DisplayNodeTransformPolyDataFilters;
+  std::map<std::string, vtkTransformFilter *>      DisplayNodeTransformFilters;
 
   vtkMRMLSliceNode *   RedSliceNode;
   vtkMRMLSliceNode *   GreenSliceNode;
@@ -107,6 +115,7 @@ public:
   int                     RedSliceClipState;
   int                     YellowSliceClipState;
   int                     GreenSliceClipState;
+  int                     ClippingMethod;
   bool                    ClippingOn;
 
   bool                         ModelHierarchiesPresent;
@@ -123,7 +132,9 @@ public:
   vtkIdType    PickedCellID;
   vtkIdType    PickedPointID;
 
-  vtkMRMLSelectionNode*   SelectionNode;
+  // Used for caching the node pointer so that we do not have to search in the scene each time.
+  // We do not add an observer therefore we can let the selection node deleted without our knowledge.
+  vtkWeakPointer<vtkMRMLSelectionNode>   SelectionNode;
 };
 
 //---------------------------------------------------------------------------
@@ -136,7 +147,6 @@ vtkMRMLModelDisplayableManager::vtkInternal::vtkInternal()
   this->RedSliceNode = 0;
   this->GreenSliceNode = 0;
   this->YellowSliceNode = 0;
-  this->SelectionNode = 0;
 
   this->ModelHierarchiesPresent = false;
   this->UpdateHierachyRequested = false;
@@ -170,6 +180,7 @@ void vtkMRMLModelDisplayableManager::vtkInternal::CreateClipSlices()
   this->RedSliceClipState = vtkMRMLClipModelsNode::ClipOff;
   this->YellowSliceClipState = vtkMRMLClipModelsNode::ClipOff;
   this->GreenSliceClipState = vtkMRMLClipModelsNode::ClipOff;
+  this->ClippingMethod = vtkMRMLClipModelsNode::Straight;
 
   this->ClippingOn = false;
 }
@@ -204,27 +215,22 @@ vtkMRMLModelDisplayableManager::~vtkMRMLModelDisplayableManager()
   vtkSetMRMLNodeMacro(this->Internal->RedSliceNode, 0);
   vtkSetMRMLNodeMacro(this->Internal->GreenSliceNode, 0);
   vtkSetMRMLNodeMacro(this->Internal->YellowSliceNode, 0);
-  vtkSetMRMLNodeMacro(this->Internal->SelectionNode, 0);
-
+  this->Internal->SelectionNode = 0; // WeakPointer, therefore must not use vtkSetMRMLNodeMacro
   // release the DisplayedModelActors
   this->Internal->DisplayedActors.clear();
 
   // release transforms
-  std::map<std::string, vtkTransformPolyDataFilter *>::iterator tit;
-  for (tit = this->Internal->DisplayNodeTransformPolyDataFilters.begin();
-       tit != this->Internal->DisplayNodeTransformPolyDataFilters.end(); tit++ )
+  std::map<std::string, vtkTransformFilter *>::iterator tit;
+  for (tit = this->Internal->DisplayNodeTransformFilters.begin();
+       tit != this->Internal->DisplayNodeTransformFilters.end(); tit++ )
     {
-    vtkTransformPolyDataFilter  *transformFilter = (*tit).second;
-#if (VTK_MAJOR_VERSION <= 5)
-    transformFilter->SetInput(0);
-#else
+    vtkTransformFilter  *transformFilter = (*tit).second;
     transformFilter->SetInputConnection(0);
-#endif
     transformFilter->SetTransform(0);
     transformFilter->Delete();
     }
 
-  this->Internal->DisplayNodeTransformPolyDataFilters.clear();
+  this->Internal->DisplayNodeTransformFilters.clear();
 
   delete this->Internal;
 }
@@ -240,8 +246,8 @@ void vtkMRMLModelDisplayableManager::PrintSelf ( ostream& os, vtkIndent indent )
   os << indent << "RedSliceClipState = " << this->Internal->RedSliceClipState << "\n";
   os << indent << "YellowSliceClipState = " << this->Internal->YellowSliceClipState << "\n";
   os << indent << "GreenSliceClipState = " << this->Internal->GreenSliceClipState << "\n";
+  os << indent << "ClippingMethod = " << this->Internal->ClippingMethod << "\n";
   os << indent << "ClippingOn = " << (this->Internal->ClippingOn ? "true" : "false") << "\n";
-
   os << indent << "ModelHierarchiesPresent = " << this->Internal->ModelHierarchiesPresent << "\n";
 
   os << indent << "PickedNodeID = " << this->Internal->PickedNodeID.c_str() << "\n";
@@ -309,7 +315,6 @@ int vtkMRMLModelDisplayableManager::UpdateClipSlicesFromMRML()
     }
 
   // update Slice nodes
-  vtkMRMLSliceNode *node= 0;
   vtkMRMLSliceNode *nodeRed= 0;
   vtkMRMLSliceNode *nodeGreen= 0;
   vtkMRMLSliceNode *nodeYellow= 0;
@@ -318,7 +323,7 @@ int vtkMRMLModelDisplayableManager::UpdateClipSlicesFromMRML()
   int nnodes = this->GetMRMLScene()->GetNodesByClass("vtkMRMLSliceNode", snodes);
   for (int n=0; n<nnodes; n++)
     {
-    node = vtkMRMLSliceNode::SafeDownCast (snodes[n]);
+    vtkMRMLSliceNode *node = vtkMRMLSliceNode::SafeDownCast (snodes[n]);
     // TODO use perhaps SliceLogic to get the name instead of "Red" etc.
     if (!strcmp(node->GetLayoutName(), "Red"))
       {
@@ -332,7 +337,6 @@ int vtkMRMLModelDisplayableManager::UpdateClipSlicesFromMRML()
       {
       nodeYellow = node;
       }
-    node = 0;
     }
 
   if (nodeRed != this->Internal->RedSliceNode)
@@ -417,6 +421,12 @@ int vtkMRMLModelDisplayableManager::UpdateClipSlicesFromMRML()
     this->Internal->YellowSliceClipState = this->Internal->ClipModelsNode->GetYellowSliceClipState();
     }
 
+  if (this->Internal->ClipModelsNode->GetClippingMethod() != this->Internal->ClippingMethod)
+    {
+    modifiedState = 1;
+    this->Internal->ClippingMethod = this->Internal->ClipModelsNode->GetClippingMethod();
+    }
+
   // compute clipping on/off
   if (this->Internal->ClipModelsNode->GetRedSliceClipState() == vtkMRMLClipModelsNode::ClipOff &&
       this->Internal->ClipModelsNode->GetGreenSliceClipState() == vtkMRMLClipModelsNode::ClipOff &&
@@ -492,17 +502,17 @@ void vtkMRMLModelDisplayableManager::ProcessMRMLNodesEvents(vtkObject *caller,
       vtkMRMLDisplayableNode::SafeDownCast(caller);
     switch (event)
       {
-       case vtkMRMLDisplayableNode::DisplayModifiedEvent:
+      case vtkMRMLDisplayableNode::DisplayModifiedEvent:
          // don't go any further if the modified display node is not a model
-         if (!this->IsModelDisplayable(displayableNode) &&
-             !this->IsModelDisplayable(
-               reinterpret_cast<vtkMRMLDisplayNode*>(callData)))
+        if (!this->IsModelDisplayable(displayableNode) &&
+            !this->IsModelDisplayable(
+              reinterpret_cast<vtkMRMLDisplayNode*>(callData)))
           {
           requestRender = false;
           break;
           }
       case vtkCommand::ModifiedEvent:
-      case vtkMRMLModelNode::PolyDataModifiedEvent:
+      case vtkMRMLModelNode::MeshModifiedEvent:
         requestRender = this->OnMRMLDisplayableModelNodeModifiedEvent(
           displayableNode);
         break;
@@ -683,12 +693,12 @@ bool vtkMRMLModelDisplayableManager::IsModelDisplayable(vtkMRMLDisplayableNode* 
     /// issue 2666: don't manage annotation nodes - don't show lines between the control points
     return false;
     }
-  if (modelNode && modelNode->GetPolyData())
+  if (modelNode && modelNode->GetMesh())
     {
     return true;
     }
-  // Maybe a model node has no polydata but its display nodes have output
-  // polydata (e.g. vtkMRMLGlyphableVolumeSliceDisplayNode).
+  // Maybe a model node has no mesh but its display nodes have output
+  //  (e.g. vtkMRMLGlyphableVolumeSliceDisplayNode).
   bool displayable = false;
   for (int i = 0; i < node->GetNumberOfDisplayNodes(); ++i)
     {
@@ -714,7 +724,7 @@ bool vtkMRMLModelDisplayableManager::IsModelDisplayable(vtkMRMLDisplayNode* node
     /// issue 2666: don't manage annotation nodes - don't show lines between the control points
     return false;
     }
-  return modelDisplayNode->GetOutputPolyData() ? true : false;
+  return modelDisplayNode->GetOutputMesh() ? true : false;
 }
 
 //---------------------------------------------------------------------------
@@ -735,7 +745,12 @@ bool vtkMRMLModelDisplayableManager::OnMRMLDisplayableModelNodeModifiedEvent(
   for (int i=0; i<ndnodes; i++)
     {
     vtkMRMLDisplayNode *dnode = modelNode->GetNthDisplayNode(i);
-    assert(dnode);
+    if (dnode == 0)
+      {
+      // display node has been removed
+      updateMRML = true;
+      break;
+      }
     bool visible = (dnode->GetVisibility() == 1) && this->IsModelDisplayable(dnode);
     bool hasActor =
       this->Internal->DisplayedActors.find(dnode->GetID()) != this->Internal->DisplayedActors.end();
@@ -832,7 +847,7 @@ void vtkMRMLModelDisplayableManager::UpdateModelsFromMRML()
     this->Internal->DisplayedNodes.clear();
     this->Internal->DisplayedClipState.clear();
     this->Internal->DisplayedVisibility.clear();
-    this->Internal->DisplayNodeTransformPolyDataFilters.clear();
+    this->Internal->DisplayNodeTransformFilters.clear();
     this->UpdateModelHierarchies();
     }
 
@@ -865,7 +880,7 @@ void vtkMRMLModelDisplayableManager::UpdateModelsFromMRML()
         }
       this->UpdateModifiedModel(model);
       }
-    } // end while
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -878,7 +893,7 @@ void vtkMRMLModelDisplayableManager::UpdateModifiedModel(vtkMRMLDisplayableNode 
 
 //---------------------------------------------------------------------------
 void vtkMRMLModelDisplayableManager
-::UpdateModelPolyData(vtkMRMLDisplayableNode *displayableNode)
+::UpdateModelMesh(vtkMRMLDisplayableNode *displayableNode)
 {
   int ndnodes = displayableNode->GetNumberOfDisplayNodes();
   int i;
@@ -928,66 +943,41 @@ void vtkMRMLModelDisplayableManager
 
     int clipping = displayNode->GetClipping();
     int visibility = displayNode->GetVisibility();
-#if (VTK_MAJOR_VERSION <= 5)
-    vtkPolyData *polyData = NULL;
-#else
-    vtkAlgorithmOutput *polyDataConnection = NULL;
-#endif
+    vtkAlgorithmOutput *meshConnection = NULL;
     if (this->IsModelDisplayable(modelDisplayNode))
       {
-#if (VTK_MAJOR_VERSION <= 5)
-      polyData = modelDisplayNode->GetOutputPolyData();
-#else
-      polyDataConnection = modelDisplayNode->GetOutputPolyDataConnection();
-#endif
+      meshConnection = modelDisplayNode->GetOutputMeshConnection();
       }
     if (hdnode)
       {
       clipping = hdnode->GetClipping();
       //visibility = hdnode->GetVisibility();
-#if (VTK_MAJOR_VERSION <= 5)
-      polyData = hierarchyModelDisplayNode ?
-        hierarchyModelDisplayNode->GetPolyData() : polyData;
-#else
-      polyDataConnection = hierarchyModelDisplayNode ?
-        hierarchyModelDisplayNode->GetPolyDataConnection() : polyDataConnection;
-#endif
+      meshConnection = hierarchyModelDisplayNode ?
+        hierarchyModelDisplayNode->GetMeshConnection() : meshConnection;
       }
-    // hierarchy display nodes may not have poly data pointer
-#if (VTK_MAJOR_VERSION <= 5)
-    if (polyData == 0 &&
-#else
-    if (polyDataConnection == 0 &&
-#endif
+    // hierarchy display nodes may not have mesh pointer
+    if (meshConnection == 0 &&
         this->IsModelDisplayable(modelNode))
       {
-#if (VTK_MAJOR_VERSION <= 5)
-      polyData = modelNode ? modelNode->GetPolyData() : NULL;
-#else
-      polyDataConnection = modelNode ? modelNode->GetPolyDataConnection() : NULL;
-#endif
+      meshConnection = modelNode ? modelNode->GetMeshConnection() : NULL;
       }
-#if (VTK_MAJOR_VERSION <= 5)
-    bool hasPolyData = (polyData != 0);
-#else
-    bool hasPolyData = (polyDataConnection != 0);
-#endif
+    bool hasMesh = (meshConnection != 0);
 
-    if (!hasPolyData)
+    if (!hasMesh)
       {
       continue;
       }
 
-    // create TransformPolyDataFilter for non-linear transform
-    vtkTransformPolyDataFilter* transformFilter = NULL;
+    // create TransformFilter for non-linear transform
+    vtkTransformFilter* transformFilter = NULL;
     if (hasNonLinearTransform)
       {
-      std::map<std::string, vtkTransformPolyDataFilter *>::iterator tit;
-      tit = this->Internal->DisplayNodeTransformPolyDataFilters.find(displayNode->GetID());
-      if (tit == this->Internal->DisplayNodeTransformPolyDataFilters.end() )
+      std::map<std::string, vtkTransformFilter *>::iterator tit;
+      tit = this->Internal->DisplayNodeTransformFilters.find(displayNode->GetID());
+      if (tit == this->Internal->DisplayNodeTransformFilters.end() )
         {
-        transformFilter = vtkTransformPolyDataFilter::New();
-        this->Internal->DisplayNodeTransformPolyDataFilters[displayNode->GetID()] = transformFilter;
+        transformFilter = vtkTransformFilter::New();
+        this->Internal->DisplayNodeTransformFilters[displayNode->GetID()] = transformFilter;
         }
       else
         {
@@ -995,15 +985,9 @@ void vtkMRMLModelDisplayableManager
         }
       }
 
-#if (VTK_MAJOR_VERSION <= 5)
-    if (transformFilter && polyData)
-      {
-      transformFilter->SetInput(polyData);
-#else
     if (transformFilter)
       {
-      transformFilter->SetInputConnection(polyDataConnection);
-#endif
+      transformFilter->SetInputConnection(meshConnection);
       transformFilter->SetTransform(worldTransform);
       }
 
@@ -1023,35 +1007,22 @@ void vtkMRMLModelDisplayableManager
       if (modelDisplayNode && cit != this->Internal->DisplayedClipState.end() && cit->second == clipping )
         {
         this->Internal->DisplayedVisibility[modelDisplayNode->GetID()] = visibility;
-        // make sure that we are looking at the current polydata (most of the code in here
-        // assumes a display node will never change what polydata it wants to view and hence
+        // make sure that we are looking at the current mesh (most of the code in here
+        // assumes a display node will never change what mesh it wants to view and hence
         // caches information to skip steps if the display node has already rendered. but we
-        // can have rendered a display node but not rendered its current polydata.
+        // can have rendered a display node but not rendered its current mesh.
         vtkActor *actor = vtkActor::SafeDownCast(prop);
         if (actor)
           {
-          vtkPolyDataMapper *mapper = vtkPolyDataMapper::SafeDownCast(actor->GetMapper());
+          vtkMapper *mapper = actor->GetMapper();
 
-#if (VTK_MAJOR_VERSION <= 5)
-          if (transformFilter && polyData)
-            {
-            mapper->SetInput(transformFilter->GetOutput());
-#else
           if (transformFilter)
             {
             mapper->SetInputConnection(transformFilter->GetOutputPort());
-#endif
             }
-#if (VTK_MAJOR_VERSION <= 5)
-          else if (mapper && mapper->GetInput() != polyData
-                   && !(this->Internal->ClippingOn && clipping))
-            {
-            mapper->SetInput(polyData);
-#else
           else if (mapper && !(this->Internal->ClippingOn && clipping))
             {
-            mapper->SetInputConnection(polyDataConnection);
-#endif
+            mapper->SetInputConnection(meshConnection);
             }
           }
         vtkMRMLTransformNode* tnode = displayableNode->GetParentTransformNode();
@@ -1064,51 +1035,46 @@ void vtkMRMLModelDisplayableManager
         }
       }
 
-    vtkClipPolyData *clipper = 0;
-    vtkActor * actor = vtkActor::SafeDownCast(prop);
+    vtkActor *actor = vtkActor::SafeDownCast(prop);
+    vtkAlgorithm *clipper = 0;
     if(actor)
       {
+      vtkMRMLModelNode::MeshTypeHint meshType = modelNode ? modelNode->GetMeshType() : vtkMRMLModelNode::PolyDataMeshType;
       if (this->Internal->ClippingOn && modelDisplayNode != 0 && clipping)
         {
-        clipper = this->CreateTransformedClipper(displayableNode);
+        clipper = this->CreateTransformedClipper(modelNode->GetParentTransformNode(), meshType);
         }
 
-      vtkPolyDataMapper *mapper = vtkPolyDataMapper::New();
+      vtkMapper *mapper = NULL;
+      if (meshType == vtkMRMLModelNode::UnstructuredGridMeshType)
+        {
+        mapper = vtkDataSetMapper::New();
+        }
+      else //if (meshType == vtkMRMLModelNode::PolyDataMeshType) // unknown when new. need to set type
+        {
+        mapper = vtkPolyDataMapper::New();
+        }
 
       if (clipper)
         {
-#if (VTK_MAJOR_VERSION <= 5)
-        clipper->SetInput(polyData);
-        clipper->Update();
-        mapper->SetInput(clipper->GetOutput());
-#else
-        clipper->SetInputConnection(polyDataConnection);
+        if (transformFilter) clipper->SetInputConnection(transformFilter->GetOutputPort());
+        else clipper->SetInputConnection(meshConnection);
         mapper->SetInputConnection(clipper->GetOutputPort());
-#endif
         }
       else if (transformFilter)
         {
-#if (VTK_MAJOR_VERSION <= 5)
-        transformFilter->Update();
-        mapper->SetInput(transformFilter->GetOutput());
-#else
         mapper->SetInputConnection(transformFilter->GetOutputPort());
-#endif
         }
       else
         {
-#if (VTK_MAJOR_VERSION <= 5)
-        mapper->SetInput(polyData);
-#else
-        mapper->SetInputConnection(polyDataConnection);
-#endif
+        mapper->SetInputConnection(meshConnection);
         }
 
       actor->SetMapper(mapper);
       mapper->Delete();
       }
 
-    if (hasPolyData && ait == this->Internal->DisplayedActors.end())
+    if (hasMesh && ait == this->Internal->DisplayedActors.end())
       {
       this->GetRenderer()->AddViewProp(prop);
       this->Internal->DisplayedActors[modelDisplayNode->GetID()] = prop;
@@ -1134,7 +1100,7 @@ void vtkMRMLModelDisplayableManager
         }
       prop->Delete();
       }
-    else if (!hasPolyData)
+    else if (!hasMesh)
       {
       prop->Delete();
       }
@@ -1157,15 +1123,15 @@ void vtkMRMLModelDisplayableManager
 //---------------------------------------------------------------------------
 void vtkMRMLModelDisplayableManager::UpdateModel(vtkMRMLDisplayableNode *model)
 {
-  this->UpdateModelPolyData(model);
+  this->UpdateModelMesh(model);
 
   vtkEventBroker *broker = vtkEventBroker::GetInstance();
   vtkEventBroker::ObservationVector observations;
-  // observe polydata;
-  if (!broker->GetObservationExist(model, vtkMRMLModelNode::PolyDataModifiedEvent,
+  // observe mesh;
+  if (!broker->GetObservationExist(model, vtkMRMLModelNode::MeshModifiedEvent,
                                          this, this->GetMRMLNodesCallbackCommand()))
     {
-    broker->AddObservation(model, vtkMRMLModelNode::PolyDataModifiedEvent,
+    broker->AddObservation(model, vtkMRMLModelNode::MeshModifiedEvent,
                            this, this->GetMRMLNodesCallbackCommand());
     this->Internal->DisplayableNodes[model->GetID()] = model;
     }
@@ -1358,8 +1324,8 @@ void vtkMRMLModelDisplayableManager::RemoveModelProps()
         }
       else
         {
-        if ((clipIter->second && !this->Internal->ClippingOn) ||
-            (this->Internal->ClippingOn && clipIter->second != clipModel))
+
+        if (clipIter->second  || (this->Internal->ClippingOn && clipIter->second != clipModel))
           {
           this->GetRenderer()->RemoveViewProp(iter->second);
           removedIDs.push_back(iter->first);
@@ -1470,7 +1436,7 @@ void vtkMRMLModelDisplayableManager::RemoveDisplayableNodeObservers(vtkMRMLDispl
   if (model != 0)
     {
     observations = broker->GetObservations(
-      model, vtkMRMLModelNode::PolyDataModifiedEvent, this, this->GetMRMLNodesCallbackCommand() );
+      model, vtkMRMLModelNode::MeshModifiedEvent, this, this->GetMRMLNodesCallbackCommand() );
     broker->RemoveObservations(observations);
     observations = broker->GetObservations(
       model, vtkMRMLDisplayableNode::DisplayModifiedEvent, this, this->GetMRMLNodesCallbackCommand() );
@@ -1563,251 +1529,84 @@ void vtkMRMLModelDisplayableManager::SetModelDisplayProperty(vtkMRMLDisplayableN
       vtkImageActor *imageActor = vtkImageActor::SafeDownCast(prop);
       prop->SetUserMatrix(matrixTransformToWorld.GetPointer());
 
-      bool visible = mrmlDisplayNode->GetVisibility(this->GetMRMLViewNode()->GetID());
+      bool visible = modelDisplayNode->GetVisibility(this->GetMRMLViewNode()->GetID());
       prop->SetVisibility(visible);
-      this->Internal->DisplayedVisibility[mrmlDisplayNode->GetID()] = visible;
+      this->Internal->DisplayedVisibility[modelDisplayNode->GetID()] = visible;
 
-      if (actor)
+      vtkMapper* mapper = actor ? actor->GetMapper() : NULL;
+      if (mapper)
         {
-        actor->GetMapper()->SetScalarVisibility(mrmlDisplayNode->GetScalarVisibility());
-        // if the scalars are visible, set active scalars, try to get the lookup
-        // table
-        if (mrmlDisplayNode->GetScalarVisibility())
+        mapper->SetScalarVisibility(modelDisplayNode->GetScalarVisibility());
+        // if the scalars are visible, set active scalars, the lookup table
+        // and the scalar range
+        if (visible && modelDisplayNode->GetScalarVisibility())
           {
-          if (mrmlDisplayNode->GetColorNode() != 0)
+          // Check if using point data or cell data
+          vtkMRMLModelNode* modelNode = vtkMRMLModelNode::SafeDownCast(model);
+          if (this->IsCellScalarsActive(modelDisplayNode, modelNode))
             {
-            vtkMRMLProceduralColorNode* proceduralColorNode =
-              vtkMRMLProceduralColorNode::SafeDownCast(mrmlDisplayNode->GetColorNode());
-            // FreeSurfer procedural color nodes are a special case, they're
-            // color tables that have been defined procedurally, so the nodes
-            // don't have valid color transfer functions (ctf is non null, but
-            // aren't initialized)
-            if (proceduralColorNode &&
-                proceduralColorNode->GetColorTransferFunction() != 0 &&
-                !proceduralColorNode->IsA("vtkMRMLFreeSurferProceduralColorNode"))
-              {
-              if (0)
-                {
-                // setting the range on a color transfer function will not work
-                // so stub out this code and copy into a look up table
-                vtkNew<vtkColorTransferFunction> ctf;
-                ctf->DeepCopy(proceduralColorNode->GetColorTransferFunction());
-                actor->GetMapper()->SetLookupTable(ctf.GetPointer());
-                }
-              else
-                {
-                // since setting the range is a no-op on color transfer functions,
-                // copy into a color look up table with, for now 256 entries
-                const int numEntries = 256;
-                vtkColorTransferFunction *ctf = NULL;
-                ctf = proceduralColorNode->GetColorTransferFunction();
-                double *ctfRange = ctf->GetRange();
-                double bareTable[numEntries*3];
-                ctf->GetTable(ctfRange[0], ctfRange[1], numEntries, bareTable);
-                vtkDebugMacro("Changing a color xfer function to a lut, range used = " << ctfRange[0] << ", " << ctfRange[1]);
-                vtkNew<vtkLookupTable> lut;
-                lut->SetNumberOfTableValues(numEntries);
-                for (vtkIdType i = 0; i < numEntries; ++i)
-                  {
-                  int baseIndex = i * 3;
-                  lut->SetTableValue(i,
-                                     bareTable[baseIndex],
-                                     bareTable[baseIndex + 1],
-                                     bareTable[baseIndex + 2],
-                                     1.0);
-                  }
-                actor->GetMapper()->SetLookupTable(lut.GetPointer());
-                }
-              }
-            else if (mrmlDisplayNode->GetColorNode()->GetLookupTable() != 0)
-              {
-              // \tbd: Could slow down if done too often
-              // copy lut so that they are not shared between the mappers
-              // vtk sets scalar range on lut while rendering
-              // that may cause performance problem if lut's are shared
-              vtkNew<vtkLookupTable> lut;
-              lut->DeepCopy( mrmlDisplayNode->GetColorNode()->GetLookupTable());
-              actor->GetMapper()->SetLookupTable(lut.GetPointer());
-              }
-            // the mapper uses the lookup table scalar range so that
-            // it doesn't reset the table range from it's own scalar
-            // range value. An alternate implementation is to do the
-            // deep copy, keep the use lookup table scalar range off
-            // on the mapper, and set the scalar range on the mapper
-            // and let it do the setting in vtkMapper.cxx
+            mapper->SetScalarModeToUseCellData();
+            mapper->SetColorModeToDefault();
+            }
+          else
+            {
+            mapper->SetScalarModeToUsePointData();
+            mapper->SetColorModeToMapScalars();
+            }
 
-            // figure out which scalar range to use
-            int scalarRangeFlag = mrmlDisplayNode->GetScalarRangeFlag();
+          // The renderer uses the lookup table scalar range to
+          // render colors. By default, UseLookupTableScalarRange
+          // is set to false and SetScalarRange can be used on the
+          // mapper to map scalars into the lookup table. When set
+          // to true, SetScalarRange has no effect and it is necessary
+          // to force the scalarRange on the lookup table manually.
+          // Whichever way is used, the look up table range needs
+          // to be changed to render the correct scalar values, thus
+          // one lookup table can not be shared by multiple mappers
+          // if any of those mappers needs to map using its scalar
+          // values range. It is therefore necessary to make a copy
+          // of the colorNode vtkLookupTable in order not to impact
+          // that lookup table original range.
+          vtkLookupTable* dNodeLUT = modelDisplayNode->GetColorNode() ?
+                                     modelDisplayNode->GetColorNode()->GetLookupTable() : NULL;
+          vtkNew<vtkLookupTable> lut;
+          lut->DeepCopy(dNodeLUT);
+          mapper->SetLookupTable(lut.GetPointer());
 
-            double *mapperTableRange = actor->GetMapper()->GetLookupTable()->GetRange();
-            // start with the new mapper range as the current mapper table range
-            double newMapperRange[2];
-            newMapperRange[0] = mapperTableRange[0];
-            newMapperRange[1] = mapperTableRange[1];
-            // use the scalar range set on the display node
-            if (scalarRangeFlag ==
-                vtkMRMLDisplayNode::UseDisplayNodeScalarRange)
-              {
-              double *range = modelDisplayNode->GetScalarRange();
-              if (range &&
-                  (range[0] != mapperTableRange[0] ||
-                   range[1] != mapperTableRange[1]))
-                {
-                newMapperRange[0] = range[0];
-                newMapperRange[1] = range[1];
-                }
-              }
-            // use the scalar range of the data array
-            else if (scalarRangeFlag ==
-                     vtkMRMLDisplayNode::UseDataScalarRange)
-              {
-              vtkPointData *pointData = NULL;
-              if (modelDisplayNode->GetInputPolyData())
-                {
-                pointData = modelDisplayNode->GetInputPolyData()->GetPointData();
-                }
-              if (pointData &&
-                  pointData->GetArray(modelDisplayNode->GetActiveScalarName()))
-                {
-                double *range = pointData->GetArray(
-                  modelDisplayNode->GetActiveScalarName())->GetRange();
-                if (range)
-                  {
-                  newMapperRange[0] = range[0];
-                  newMapperRange[1] = range[1];
-                  }
-                }
-              }
-            // use the scalar range of the data type used in the array
-            else if (scalarRangeFlag ==
-                     vtkMRMLDisplayNode::UseDataTypeScalarRange)
-              {
-              vtkPointData *pointData = modelDisplayNode->GetInputPolyData() ?
-                modelDisplayNode->GetInputPolyData()->GetPointData() : NULL;
-              vtkDataArray *dataArray = pointData ?
-                pointData->GetArray(modelDisplayNode->GetActiveScalarName()) : NULL;
-              if (dataArray)
-                {
-                double min = dataArray->GetDataTypeMin();
-                double max = dataArray->GetDataTypeMax();
-                if (min != mapperTableRange[0] ||
-                    max != mapperTableRange[1])
-                  {
-                  newMapperRange[0] = min;
-                  newMapperRange[1] = max;
-                  }
-                }
-              }
-            // default case, use the range from the scalars to colors
-            else
-              // if (scalarRangeFlag ==
-              // vtkMRMLDisplayNode::UseColorNodeScalarRange)
-              {
-              // tbd: may not be required due to the deep copy
-              double *lutRange = NULL;
-              // make the exception for the freesurfer nodes
-              if (proceduralColorNode &&
-                  proceduralColorNode->GetColorTransferFunction() != 0 &&
-                  !proceduralColorNode->IsA("vtkMRMLFreeSurferProceduralColorNode"))
-                {
-                lutRange =  proceduralColorNode->GetColorTransferFunction()->GetRange();
-                }
-              else if (modelDisplayNode->GetColorNode()->GetLookupTable() != 0)
-                {
-                lutRange = modelDisplayNode->GetColorNode()->GetLookupTable()->GetRange();
-                }
-              if (lutRange &&
-                  (lutRange[0] != mapperTableRange[0] ||
-                   lutRange[1] != mapperTableRange[1]))
-                {
-                newMapperRange[0] = lutRange[0];
-                newMapperRange[1] = lutRange[1];
-                }
-              } // default scalar range flag
+          // Set scalar range
+          mapper->SetScalarRange(modelDisplayNode->GetScalarRange());
+          }
 
-            actor->GetMapper()->SelectColorArray(
-              this->GetActiveScalarName(modelDisplayNode,
-                                        vtkMRMLModelNode::SafeDownCast(model)));
-            bool cellScalarsActive = this->IsCellScalarsActive(modelDisplayNode,
-                                                               vtkMRMLModelNode::SafeDownCast(model));
-            if (!cellScalarsActive)
-              {
-              // set the scalar range
-              //actor->GetMapper()->SetScalarRange(modelDisplayNode->GetScalarRange());
-              //if (!(mrmlDisplayNode->IsA("vtkMRMLFiberBundleDisplayNode")))
-              //  {
-              // WHY need this, does not show glyph colors otherwise
-              //actor->GetMapper()->SetScalarModeToUsePointFieldData();
-              // }
-              actor->GetMapper()->SetScalarModeToUsePointData();
-              actor->GetMapper()->SetColorModeToMapScalars();
-              }
-            else
-              {
-              actor->GetMapper()->SetScalarModeToUseCellFieldData();
-              actor->GetMapper()->SetColorModeToDefault();
-              }
-            bool isFiberDisplayNode = mrmlDisplayNode->IsA("vtkMRMLFiberBundleDisplayNode");
-            if (isFiberDisplayNode)
-              {
-              // for fiber bundle display nodes, don't use the new scalar range options
-              actor->GetMapper()->UseLookupTableScalarRangeOff();
-              actor->GetMapper()->SetScalarRange(modelDisplayNode->GetScalarRange());
-              }
-            else
-              {
-              actor->GetMapper()->UseLookupTableScalarRangeOn();
-              if  (newMapperRange[0] != mapperTableRange[0] ||
-                   newMapperRange[1] != mapperTableRange[1])
-                {
-                actor->GetMapper()->SetScalarRange(newMapperRange);
-                if (actor->GetMapper()->GetLookupTable()->IsA("vtkColorTransferFunction"))
-                  {
-                  vtkWarningMacro("Setting the range on a color transfer function will not work!");
-                  }
-                actor->GetMapper()->GetLookupTable()->SetRange(newMapperRange);
-                vtkDebugMacro("Mapper use lookup table scalar range = "
-                              << actor->GetMapper()->GetUseLookupTableScalarRange()
-                              << ", newMapperRange = "
-                              << newMapperRange[0] << ", " << newMapperRange[1]);
-                }
-              }
-            } // Color node
-          } // scalar visibility
-
-        actor->GetProperty()->SetRepresentation(modelDisplayNode->GetRepresentation());
-        actor->GetProperty()->SetPointSize(modelDisplayNode->GetPointSize());
-        actor->GetProperty()->SetLineWidth(modelDisplayNode->GetLineWidth());
-        actor->GetProperty()->SetLighting(modelDisplayNode->GetLighting());
-        actor->GetProperty()->SetInterpolation(modelDisplayNode->GetInterpolation());
-        actor->GetProperty()->SetShading(modelDisplayNode->GetShading());
-        actor->GetProperty()->SetFrontfaceCulling(modelDisplayNode->GetFrontfaceCulling());
-        actor->GetProperty()->SetBackfaceCulling(modelDisplayNode->GetBackfaceCulling());
+        vtkProperty* actorProperties = actor->GetProperty();
+        actorProperties->SetRepresentation(modelDisplayNode->GetRepresentation());
+        actorProperties->SetPointSize(modelDisplayNode->GetPointSize());
+        actorProperties->SetLineWidth(modelDisplayNode->GetLineWidth());
+        actorProperties->SetLighting(modelDisplayNode->GetLighting());
+        actorProperties->SetInterpolation(modelDisplayNode->GetInterpolation());
+        actorProperties->SetShading(modelDisplayNode->GetShading());
+        actorProperties->SetFrontfaceCulling(modelDisplayNode->GetFrontfaceCulling());
+        actorProperties->SetBackfaceCulling(modelDisplayNode->GetBackfaceCulling());
 
         if (modelDisplayNode->GetSelected())
           {
           vtkDebugMacro("Model display node " << modelDisplayNode->GetName() << " is selected...");
-          actor->GetProperty()->SetColor(modelDisplayNode->GetSelectedColor());
-          actor->GetProperty()->SetAmbient(modelDisplayNode->GetSelectedAmbient());
-          actor->GetProperty()->SetSpecular(modelDisplayNode->GetSelectedSpecular());
+          actorProperties->SetColor(modelDisplayNode->GetSelectedColor());
+          actorProperties->SetAmbient(modelDisplayNode->GetSelectedAmbient());
+          actorProperties->SetSpecular(modelDisplayNode->GetSelectedSpecular());
           }
         else
           {
           //vtkWarningMacro("Model display node " << modelDisplayNode->GetName() << " is not selected...");
-          actor->GetProperty()->SetColor(modelDisplayNode->GetColor());
-          actor->GetProperty()->SetAmbient(modelDisplayNode->GetAmbient());
-          actor->GetProperty()->SetSpecular(modelDisplayNode->GetSpecular());
+          actorProperties->SetColor(modelDisplayNode->GetColor());
+          actorProperties->SetAmbient(modelDisplayNode->GetAmbient());
+          actorProperties->SetSpecular(modelDisplayNode->GetSpecular());
           }
-        actor->GetProperty()->SetOpacity(modelDisplayNode->GetOpacity());
-        actor->GetProperty()->SetDiffuse(modelDisplayNode->GetDiffuse());
-        actor->GetProperty()->SetSpecularPower(modelDisplayNode->GetPower());
-        actor->GetProperty()->SetEdgeVisibility(modelDisplayNode->GetEdgeVisibility());
-        actor->GetProperty()->SetEdgeColor(modelDisplayNode->GetEdgeColor());
-#if (VTK_MAJOR_VERSION <= 5)
-        if (modelDisplayNode->GetTextureImageData() != 0)
-#else
+        actorProperties->SetOpacity(modelDisplayNode->GetOpacity());
+        actorProperties->SetDiffuse(modelDisplayNode->GetDiffuse());
+        actorProperties->SetSpecularPower(modelDisplayNode->GetPower());
+        actorProperties->SetEdgeVisibility(modelDisplayNode->GetEdgeVisibility());
+        actorProperties->SetEdgeColor(modelDisplayNode->GetEdgeColor());
         if (modelDisplayNode->GetTextureImageDataConnection() != 0)
-#endif
           {
           if (actor->GetTexture() == 0)
             {
@@ -1815,33 +1614,28 @@ void vtkMRMLModelDisplayableManager::SetModelDisplayProperty(vtkMRMLDisplayableN
             actor->SetTexture(texture);
             texture->Delete();
             }
-#if (VTK_MAJOR_VERSION <= 5)
-          actor->GetTexture()->SetInput(modelDisplayNode->GetTextureImageData());
-#else
           actor->GetTexture()->SetInputConnection(modelDisplayNode->GetTextureImageDataConnection());
-#endif
           actor->GetTexture()->SetInterpolate(modelDisplayNode->GetInterpolateTexture());
-          actor->GetProperty()->SetColor(1., 1., 1.);
+          actorProperties->SetColor(1., 1., 1.);
+
+          // Force actors to be treated as opaque. Otherwise, transparent
+          // elements in the texture cause the actor to be treated as
+          // translucent, i.e. rendered without writing to the depth buffer.
+          // See http://www.na-mic.org/Bug/view.php?id=4253.
+          if (actorProperties->GetOpacity() == 1.0)
+            {
+            actor->ForceOpaqueOn();
+            }
           }
         else
           {
           actor->SetTexture(0);
+          actor->ForceOpaqueOff();
           }
         }
       else if (imageActor)
         {
-#if (VTK_MAJOR_VERSION <= 5)
-        if (modelDisplayNode->GetTextureImageData() != 0)
-          {
-          imageActor->SetInput(modelDisplayNode->GetTextureImageData());
-          }
-        else
-          {
-          imageActor->SetInput(0);
-          }
-#else
         imageActor->GetMapper()->SetInputConnection(modelDisplayNode->GetTextureImageDataConnection());
-#endif
         imageActor->SetDisplayExtent(-1, 0, 0, 0, 0, 0);
         }
       }
@@ -1857,13 +1651,9 @@ const char* vtkMRMLModelDisplayableManager
   if (displayNode)
     {
     vtkMRMLModelDisplayNode *modelDisplayNode = vtkMRMLModelDisplayNode::SafeDownCast(displayNode);
-    if (modelDisplayNode && modelDisplayNode->GetOutputPolyData())
+    if (modelDisplayNode && modelDisplayNode->GetOutputMesh())
       {
-#if (VTK_MAJOR_VERSION <= 5)
-      modelDisplayNode->GetOutputPolyData()->Update();
-#else
-      modelDisplayNode->GetOutputPolyDataConnection()->GetProducer()->Update();
-#endif
+      modelDisplayNode->GetOutputMeshConnection()->GetProducer()->Update();
       }
     activeScalarName = displayNode->GetActiveScalarName();
     }
@@ -1873,17 +1663,13 @@ const char* vtkMRMLModelDisplayableManager
     }
   if (modelNode)
     {
-    if (modelNode->GetPolyData())
+    if (modelNode->GetMesh())
       {
-#if (VTK_MAJOR_VERSION <= 5)
-      modelNode->GetPolyData()->Update();
-#else
-     vtkAlgorithmOutput *polyDataConnection = modelNode->GetPolyDataConnection();
-     if (polyDataConnection != NULL)
-       {
-       polyDataConnection->GetProducer()->Update();
-       }
-#endif
+      vtkAlgorithmOutput *meshConnection = modelNode->GetMeshConnection();
+      if (meshConnection != NULL)
+        {
+        meshConnection->GetProducer()->Update();
+        }
       }
     activeScalarName =
       modelNode->GetActiveCellScalarName(vtkDataSetAttributes::SCALARS);
@@ -1911,16 +1697,10 @@ bool vtkMRMLModelDisplayableManager
     return (displayNode->GetActiveAttributeLocation() ==
             vtkAssignAttribute::CELL_DATA);
     }
-  if (modelNode)
+  if (modelNode &&
+      modelNode->GetActiveCellScalarName(vtkDataSetAttributes::SCALARS))
     {
-    if (modelNode->GetActiveCellScalarName(vtkDataSetAttributes::SCALARS))
-      {
-      return true;
-      }
-    if (modelNode->GetActivePointScalarName(vtkDataSetAttributes::SCALARS))
-      {
-      return false;
-      }
+    return true;
     }
   return false;
 }
@@ -1935,16 +1715,13 @@ vtkProp3D * vtkMRMLModelDisplayableManager::GetActorByID(const char *id)
     return (0);
     }
 
-  std::map<std::string, vtkProp3D *>::iterator iter;
-  // search for matching string (can't use find, since it would look for
-  // matching pointer not matching content)
-  for(iter=this->Internal->DisplayedActors.begin(); iter != this->Internal->DisplayedActors.end(); iter++)
+  std::map<std::string, vtkProp3D *>::iterator iter =
+    this->Internal->DisplayedActors.find(std::string(id));
+  if (iter != this->Internal->DisplayedActors.end())
     {
-    if ( iter->first.c_str() && !strcmp( iter->first.c_str(), id ) )
-      {
-      return (iter->second);
-      }
+    return iter->second;
     }
+
   return (0);
 }
 
@@ -2048,28 +1825,28 @@ int vtkMRMLModelDisplayableManager::Pick(int x, int y)
     {
     this->Internal->CellPicker->GetPickPosition(pickPoint);
     this->SetPickedCellID(this->Internal->CellPicker->GetCellId());
-    // get the pointer to the poly data that the cell was in
-    vtkPolyData *polyData = vtkPolyData::SafeDownCast(this->Internal->CellPicker->GetDataSet());
-    if (polyData != 0)
+    // get the pointer to the mesh that the cell was in
+    vtkPointSet *mesh = vtkPointSet::SafeDownCast(this->Internal->CellPicker->GetDataSet());
+    if (mesh != 0)
       {
-      // now find the model this poly data belongs to
+      // now find the model this mesh belongs to
       std::map<std::string, vtkMRMLDisplayNode *>::iterator modelIter;
       for (modelIter = this->Internal->DisplayedNodes.begin();
            modelIter != this->Internal->DisplayedNodes.end();
            modelIter++)
         {
-        vtkDebugMacro("Checking model " << modelIter->first.c_str() << "'s polydata");
+        vtkDebugMacro("Checking model " << modelIter->first.c_str() << "'s mesh");
         if (modelIter->second != 0)
           {
           if (vtkMRMLModelDisplayNode::SafeDownCast(modelIter->second) &&
-              vtkMRMLModelDisplayNode::SafeDownCast(modelIter->second)->GetOutputPolyData() == polyData)
+              vtkMRMLModelDisplayNode::SafeDownCast(modelIter->second)->GetOutputMesh() == mesh)
             {
-            vtkDebugMacro("Found matching poly data, pick was on model " << modelIter->first.c_str());
+            vtkDebugMacro("Found matching mesh, pick was on model " << modelIter->first.c_str());
             this->Internal->PickedNodeID = modelIter->first;
 
             // figure out the closest vertex in the picked cell to the picked RAS
             // point. Only doing this on model nodes for now.
-            vtkCell *cell = polyData->GetCell(this->GetPickedCellID());
+            vtkCell *cell = mesh->GetCell(this->GetPickedCellID());
             if (cell != 0)
               {
               int numPoints = cell->GetNumberOfPoints();
@@ -2078,7 +1855,7 @@ int vtkMRMLModelDisplayableManager::Pick(int x, int y)
               for (int p = 0; p < numPoints; p++)
                 {
                 int pointId = cell->GetPointId(p);
-                double *pointCoords = polyData->GetPoint(pointId);
+                double *pointCoords = mesh->GetPoint(pointId);
                 if (pointCoords != 0)
                   {
                   double distance = sqrt(pow(pointCoords[0]-pickPoint[0], 2) +
@@ -2213,20 +1990,17 @@ vtkMRMLModelHierarchyLogic* vtkMRMLModelDisplayableManager::GetModelHierarchyLog
 }
 
 //---------------------------------------------------------------------------
-vtkClipPolyData* vtkMRMLModelDisplayableManager::CreateTransformedClipper(
-    vtkMRMLDisplayableNode *model)
+vtkAlgorithm* vtkMRMLModelDisplayableManager
+::CreateTransformedClipper(vtkMRMLTransformNode *tnode, vtkMRMLModelNode::MeshTypeHint type)
 {
-  vtkClipPolyData *clipper = vtkClipPolyData::New();
-  clipper->SetValue( 0.0);
-
-  vtkMRMLTransformNode* tnode = model->GetParentTransformNode();
   vtkNew<vtkMatrix4x4> transformToWorld;
   transformToWorld->Identity();
+  vtkSmartPointer<vtkImplicitBoolean> slicePlanes;
   if (tnode != 0 && tnode->IsTransformToWorldLinear())
     {
+    slicePlanes = vtkSmartPointer<vtkImplicitBoolean>::New();
     tnode->GetMatrixTransformToWorld(transformToWorld.GetPointer());
 
-    vtkNew<vtkImplicitBoolean> slicePlanes;
 
     if (this->Internal->ClipType == vtkMRMLClipModelsNode::ClipIntersection)
       {
@@ -2278,14 +2052,52 @@ vtkClipPolyData* vtkMRMLModelDisplayableManager::CreateTransformedClipper(
     vtkMatrix4x4::Multiply4x4(transformToWorld.GetPointer(), sliceMatrix, mat.GetPointer());
     planeDirection = (this->Internal->YellowSliceClipState == vtkMRMLClipModelsNode::ClipNegativeSpace) ? -1 : 1;
     this->SetClipPlaneFromMatrix(mat.GetPointer(), planeDirection, yellowSlicePlane.GetPointer());
-
-    clipper->SetClipFunction(slicePlanes.GetPointer());
     }
   else
     {
-    clipper->SetClipFunction(this->Internal->SlicePlanes);
+    slicePlanes = this->Internal->SlicePlanes;
     }
-  return clipper;
+  if (type == vtkMRMLModelNode::UnstructuredGridMeshType)
+    {
+    if (this->Internal->ClippingMethod == vtkMRMLClipModelsNode::Straight)
+      {
+      vtkClipDataSet* clipper = vtkClipDataSet::New();
+      clipper->SetClipFunction(slicePlanes);
+      return clipper;
+      }
+    else
+      {
+      vtkExtractGeometry* clipper = vtkExtractGeometry::New();
+      clipper->SetImplicitFunction(slicePlanes);
+      clipper->ExtractInsideOff();
+      if (this->Internal->ClippingMethod == vtkMRMLClipModelsNode::WholeCellsWithBoundary)
+        {
+        clipper->ExtractBoundaryCellsOn();
+        }
+      return clipper;
+      }
+    }
+  else
+    {
+    if (this->Internal->ClippingMethod == vtkMRMLClipModelsNode::Straight)
+      {
+      vtkClipPolyData* clipper = vtkClipPolyData::New();
+      clipper->SetValue(0.0);
+      clipper->SetClipFunction(slicePlanes);
+      return clipper;
+      }
+    else
+      {
+      vtkExtractPolyDataGeometry* clipper = vtkExtractPolyDataGeometry::New();
+      clipper->SetImplicitFunction(slicePlanes);
+      clipper->ExtractInsideOff();
+      if (this->Internal->ClippingMethod == vtkMRMLClipModelsNode::WholeCellsWithBoundary)
+        {
+        clipper->ExtractBoundaryCellsOn();
+        }
+      return clipper;
+      }
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -2347,20 +2159,14 @@ void vtkMRMLModelDisplayableManager::OnInteractorStyleEvent(int eventid)
   return;
 }
 
+//---------------------------------------------------------------------------
 vtkMRMLSelectionNode* vtkMRMLModelDisplayableManager::GetSelectionNode()
 {
+  // If selection node is set then use that, otherwise find selection node in the scene
   if (this->Internal->SelectionNode == 0)
     {
-    std::vector<vtkMRMLNode *> selectionNodes;
-    if (this->GetMRMLScene())
-      {
-      this->GetMRMLScene()->GetNodesByClass("vtkMRMLSelectionNode", selectionNodes);
-      }
-
-    if (selectionNodes.size() > 0)
-      {
-      this->Internal->SelectionNode = vtkMRMLSelectionNode::SafeDownCast(selectionNodes[0]);
-      }
+    this->Internal->SelectionNode = vtkMRMLSelectionNode::SafeDownCast(
+          this->GetMRMLScene()->GetNodeByID("vtkMRMLSelectionNodeSingleton"));
     }
   return this->Internal->SelectionNode;
 }

@@ -44,6 +44,8 @@
 // SubjectHierarchy Plugins includes
 #include "qSlicerSubjectHierarchyPluginHandler.h"
 #include "qSlicerSubjectHierarchyVolumesPlugin.h"
+#include "qSlicerSubjectHierarchyLabelMapsPlugin.h"
+#include "qSlicerSubjectHierarchyDiffusionTensorVolumesPlugin.h"
 
 
 //-----------------------------------------------------------------------------
@@ -149,10 +151,12 @@ void qSlicerVolumesModule::setup()
   ioManager->registerIO(new qSlicerVolumesReader(volumesLogic,this));
   ioManager->registerIO(new qSlicerNodeWriter(
     "Volumes", QString("VolumeFile"),
-    QStringList() << "vtkMRMLVolumeNode", this));
+    QStringList() << "vtkMRMLVolumeNode", true, this));
 
   // Register Subject Hierarchy core plugins
   qSlicerSubjectHierarchyPluginHandler::instance()->registerPlugin(new qSlicerSubjectHierarchyVolumesPlugin());
+  qSlicerSubjectHierarchyPluginHandler::instance()->registerPlugin(new qSlicerSubjectHierarchyLabelMapsPlugin());
+  qSlicerSubjectHierarchyPluginHandler::instance()->registerPlugin(new qSlicerSubjectHierarchyDiffusionTensorVolumesPlugin());
 }
 
 //-----------------------------------------------------------------------------
@@ -165,4 +169,12 @@ qSlicerAbstractModuleRepresentation* qSlicerVolumesModule::createWidgetRepresent
 vtkMRMLAbstractLogic* qSlicerVolumesModule::createLogic()
 {
   return vtkSlicerVolumesLogic::New();
+}
+
+//-----------------------------------------------------------------------------
+QStringList qSlicerVolumesModule::associatedNodeTypes() const
+{
+  return QStringList()
+    << "vtkMRMLVolumeNode"
+    << "vtkMRMLVolumeDisplayNode";
 }

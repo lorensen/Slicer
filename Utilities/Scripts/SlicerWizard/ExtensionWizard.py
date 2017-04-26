@@ -7,16 +7,20 @@ import textwrap
 
 from urlparse import urlparse
 
-try:
-  import git
-
-  from . import GithubHelper
-
-  from .GithubHelper import NotSet
-
-  _haveGit = True
-
-except ImportError:
+# If Python is not built with SSL support then do not even try to import
+# GithubHelper (it would throw missing attribute error for HTTPSConnection)
+import httplib
+if hasattr(httplib, "HTTPSConnection"):
+  # SSL is available
+  try:
+    import git
+    from . import GithubHelper
+    from .GithubHelper import NotSet
+    _haveGit = True
+  except ImportError:
+    _haveGit = False
+else:
+  logging.debug("ExtensionWizard: git support is disabled because httplib.HTTPSConnection is not available")
   _haveGit = False
 
 from . import __version__, __version_info__
@@ -134,7 +138,13 @@ class ExtensionWizard(object):
     """
 
     try:
-      r = getRepo(args.destination)
+      r = None
+
+      if args.localExtensionsDir:
+        r = SourceTreeDirectory(args.localExtensionsDir, os.path.relpath(args.destination, args.localExtensionsDir))
+
+      else:
+        r = getRepo(args.destination)
 
       if r is None:
         xd = ExtensionDescription(sourcedir=args.destination)
@@ -467,8 +477,8 @@ class ExtensionWizard(object):
         try:
           odPath = os.path.join(xiRepo.working_tree_dir, xdf)
           od = ExtensionDescription(filepath=odPath)
-          if od.scmurl != "NA":
-            oldRef = od.scmurl
+          if od.scmrevision != "NA":
+            oldRef = od.scmrevision
 
         except:
           oldRef = None
@@ -561,6 +571,7 @@ class ExtensionWizard(object):
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--test", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--dryRun", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--localExtensionsDir", help=argparse.SUPPRESS)
 
     parser.add_argument("--create", metavar="<TYPE:>NAME",
                         help="create TYPE extension NAME"
@@ -604,13 +615,22 @@ class ExtensionWizard(object):
     # Add built-in templates
     scriptPath = os.path.dirname(os.path.realpath(__file__))
 
-    self._templateManager.addPath( # Run from source directory
-      os.path.join(scriptPath, "..", "..", "Templates"))
-
-    self._templateManager.addPath( # Run from install
-      os.path.join(scriptPath, "..", "..", "..", "share",
-                   "Slicer-%s.%s" % tuple(__version_info__[:2]),
-                   "Wizard", "Templates"))
+    candidateBuiltInTemplatePaths = [
+        os.path.join(scriptPath, "..", "..", "..", "Utilities", "Templates"), # Run from source directory
+        os.path.join(scriptPath, "..", "..", "..", "share", # Run from install
+                     "Slicer-%s.%s" % tuple(__version_info__[:2]),
+                     "Wizard", "Templates")
+        ]
+    descriptionFileTemplate = None
+    for candidate in candidateBuiltInTemplatePaths:
+        if os.path.exists(candidate):
+            self._templateManager.addPath(candidate)
+            descriptionFileTemplate = os.path.join(candidate, "Extensions", "extension_description.s4ext.in")
+    if descriptionFileTemplate is None or not os.path.exists(descriptionFileTemplate):
+      logging.warning("failed to locate template 'Extensions/extension_description.s4ext.in' "
+                      "in these directories: %s" % candidateBuiltInTemplatePaths)
+    else:
+      ExtensionDescription.DESCRIPTION_FILE_TEMPLATE = descriptionFileTemplate
 
     # Add user-specified template paths and keys
     self._templateManager.parseArguments(args)

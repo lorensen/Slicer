@@ -22,6 +22,8 @@
 #include "vtkMRMLScene.h"
 
 // VTK includes
+#include <vtkBoundingBox.h>
+#include <vtkNew.h>
 #include <vtkObjectFactory.h>
 
 // STD includes
@@ -48,9 +50,7 @@ void vtkMRMLMarkupsFiducialNode::WriteXML(ostream& of, int nIndent)
 {
   Superclass::WriteXML(of,nIndent);
 
-  vtkIndent indent(nIndent);
-
-  //of << indent << " locked=\"" << this->Locked << "\"";
+  //of << " locked=\"" << this->Locked << "\"";
 }
 
 //----------------------------------------------------------------------------
@@ -138,6 +138,25 @@ vtkMRMLStorageNode* vtkMRMLMarkupsFiducialNode::CreateDefaultStorageNode()
 }
 
 //-------------------------------------------------------------------------
+void vtkMRMLMarkupsFiducialNode::CreateDefaultDisplayNodes()
+{
+  if (this->GetDisplayNode() != NULL &&
+      vtkMRMLMarkupsDisplayNode::SafeDownCast(this->GetDisplayNode()) != NULL)
+    {
+    // display node already exists
+    return;
+    }
+  if (this->GetScene()==NULL)
+    {
+    vtkErrorMacro("vtkMRMLMarkupsFiducialNode::CreateDefaultDisplayNodes failed: scene is invalid");
+    return;
+    }
+  vtkNew<vtkMRMLMarkupsDisplayNode> dispNode;
+  this->GetScene()->AddNode(dispNode.GetPointer());
+  this->SetAndObserveDisplayNodeID(dispNode->GetID());
+}
+
+//-------------------------------------------------------------------------
 vtkMRMLMarkupsDisplayNode *vtkMRMLMarkupsFiducialNode::GetMarkupsDisplayNode()
 {
   vtkMRMLDisplayNode *displayNode = this->GetDisplayNode();
@@ -167,12 +186,6 @@ int vtkMRMLMarkupsFiducialNode::AddFiducial(double x, double y, double z,
 }
 
 //-------------------------------------------------------------------------
-#if (VTK_MAJOR_VERSION < 6)
-int vtkMRMLMarkupsFiducialNode::AddFiducialFromArray(double pos[3])
-{
-  return this->AddFiducialFromArray(pos, std::string());
-}
-#endif
 
 //-------------------------------------------------------------------------
 int vtkMRMLMarkupsFiducialNode::AddFiducialFromArray(double pos[3], std::string label)
@@ -184,15 +197,9 @@ int vtkMRMLMarkupsFiducialNode::AddFiducialFromArray(double pos[3], std::string 
 void vtkMRMLMarkupsFiducialNode::GetNthFiducialPosition(int n, double pos[3])
 {
   vtkVector3d point= this->GetMarkupPointVector(n, 0);
-#if (VTK_MAJOR_VERSION <= 5)
-  pos[0] = point.X();
-  pos[1] = point.Y();
-  pos[2] = point.Z();
-#else
   pos[0] = point.GetX();
   pos[1] = point.GetY();
   pos[2] = point.GetZ();
-#endif
 }
 
 //-------------------------------------------------------------------------
@@ -265,4 +272,46 @@ void vtkMRMLMarkupsFiducialNode::SetNthFiducialWorldCoordinates(int n, double co
 void vtkMRMLMarkupsFiducialNode::GetNthFiducialWorldCoordinates(int n, double coords[4])
 {
   this->GetMarkupPointWorld(n, 0, coords);
+}
+
+//---------------------------------------------------------------------------
+void vtkMRMLMarkupsFiducialNode::GetRASBounds(double bounds[6])
+{
+  vtkBoundingBox box;
+  box.GetBounds(bounds);
+
+  int numberOfMarkups = this->GetNumberOfMarkups();
+  if (numberOfMarkups == 0)
+    {
+    return;
+    }
+  double markup_RAS[4] = { 0, 0, 0, 1 };
+
+  for (int i = 0; i < numberOfMarkups; i++)
+    {
+    this->GetNthFiducialWorldCoordinates(i, markup_RAS);
+    box.AddPoint(markup_RAS);
+    }
+  box.GetBounds(bounds);
+}
+
+//---------------------------------------------------------------------------
+void vtkMRMLMarkupsFiducialNode::GetBounds(double bounds[6])
+{
+   vtkBoundingBox box;
+  box.GetBounds(bounds);
+
+  int numberOfMarkups = this->GetNumberOfMarkups();
+  if (numberOfMarkups == 0)
+    {
+    return;
+    }
+  double markupPos[4] = { 0, 0, 0 };
+
+  for (int i = 0; i < numberOfMarkups; i++)
+    {
+    this->GetNthFiducialPosition(i, markupPos);
+    box.AddPoint(markupPos);
+    }
+  box.GetBounds(bounds);
 }

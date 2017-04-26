@@ -39,6 +39,7 @@ vtkMRMLNodeNewMacro(vtkMRMLNRRDStorageNode);
 vtkMRMLNRRDStorageNode::vtkMRMLNRRDStorageNode()
 {
   this->CenterImage = 0;
+  this->DefaultWriteFileExtension = "nhdr";
 }
 
 //----------------------------------------------------------------------------
@@ -50,12 +51,10 @@ vtkMRMLNRRDStorageNode::~vtkMRMLNRRDStorageNode()
 void vtkMRMLNRRDStorageNode::WriteXML(ostream& of, int nIndent)
 {
   Superclass::WriteXML(of, nIndent);
-  vtkIndent indent(nIndent);
 
   std::stringstream ss;
   ss << this->CenterImage;
-  of << indent << " centerImage=\"" << ss.str() << "\"";
-
+  of << " centerImage=\"" << ss.str() << "\"";
 }
 
 //----------------------------------------------------------------------------
@@ -167,7 +166,7 @@ int vtkMRMLNRRDStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
 
   std::string fullName = this->GetFullNameFromFileName();
 
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("ReadData: File name not specified");
     return 0;
@@ -287,20 +286,12 @@ int vtkMRMLNRRDStorageNode::ReadDataInternal(vtkMRMLNode *refNode)
 
 
   vtkNew<vtkImageChangeInformation> ici;
-#if (VTK_MAJOR_VERSION <= 5)
-  ici->SetInput (reader->GetOutput());
-#else
   ici->SetInputConnection(reader->GetOutputPort());
-#endif
   ici->SetOutputSpacing( 1, 1, 1 );
   ici->SetOutputOrigin( 0, 0, 0 );
   ici->Update();
 
-#if (VTK_MAJOR_VERSION <= 5)
-  volNode->SetAndObserveImageData (ici->GetOutput());
-#else
   volNode->SetImageDataConnection(ici->GetOutputPort());
-#endif
   return 1;
 }
 
@@ -365,7 +356,7 @@ int vtkMRMLNRRDStorageNode::WriteDataInternal(vtkMRMLNode *refNode)
     }
 
   std::string fullName = this->GetFullNameFromFileName();
-  if (fullName == std::string(""))
+  if (fullName.empty())
     {
     vtkErrorMacro("WriteData: File name not specified");
     return 0;
@@ -373,11 +364,7 @@ int vtkMRMLNRRDStorageNode::WriteDataInternal(vtkMRMLNode *refNode)
   // Use here the NRRD Writer
   vtkNew<vtkNRRDWriter> writer;
   writer->SetFileName(fullName.c_str());
-#if (VTK_MAJOR_VERSION <= 5)
-  writer->SetInput(volNode->GetImageData() );
-#else
   writer->SetInputConnection(volNode->GetImageDataConnection());
-#endif
   writer->SetUseCompression(this->GetUseCompression());
 
   // set volume attributes
@@ -487,7 +474,7 @@ int vtkMRMLNRRDStorageNode::ParseDiffusionInformation(vtkNRRDReader *reader,vtkD
       rep = atoi(value.c_str());
       for (int i=0;i<rep-1;i++) {
         grad->InsertNextTuple3(g[0],g[1],g[2]);
-        factor->InsertNextValue(sqrt(g[0]*g[0]+g[1]*g[1]+g[2]*g[2]));
+        factor->InsertNextValue(sqrt( g[0]*g[0]+g[1]*g[1]+g[2]*g[2] ));
       }
     }
    pos = (unsigned int)keys.find(tag,pos+1);
@@ -508,7 +495,9 @@ int vtkMRMLNRRDStorageNode::ParseDiffusionInformation(vtkNRRDReader *reader,vtkD
   bvalues->SetNumberOfTuples(grad->GetNumberOfTuples());
   for (int i=0; i<grad->GetNumberOfTuples();i++)
     {
-    bvalues->SetValue(i,bval*factor->GetValue(i)/range[1]);
+    // note: this is norm^2, per the NA-MIC NRRD DWI convention
+    // http://wiki.na-mic.org/Wiki/index.php/NAMIC_Wiki:DTI:Nrrd_format
+    bvalues->SetValue(i, bval * (pow(factor->GetValue(i)/range[1], 2)));
     }
   return 1;
 }
@@ -525,12 +514,6 @@ void vtkMRMLNRRDStorageNode::InitializeSupportedWriteFileTypes()
 {
   this->SupportedWriteFileTypes->InsertNextValue("NRRD (.nrrd)");
   this->SupportedWriteFileTypes->InsertNextValue("NRRD (.nhdr)");
-}
-
-//----------------------------------------------------------------------------
-const char* vtkMRMLNRRDStorageNode::GetDefaultWriteFileExtension()
-{
-  return "nhdr";
 }
 
 //----------------------------------------------------------------------------

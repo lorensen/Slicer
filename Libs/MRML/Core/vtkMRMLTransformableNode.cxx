@@ -21,7 +21,9 @@ Version:   $Revision: 1.14 $
 
 // VTK includes
 #include <vtkCommand.h>
+#include <vtkGeneralTransform.h>
 #include <vtkIntArray.h>
+#include <vtkNew.h>
 #include <vtkTransform.h>
 #include <vtkMatrix4x4.h>
 
@@ -135,7 +137,7 @@ void vtkMRMLTransformableNode::ProcessMRMLEvents ( vtkObject *caller,
   vtkMRMLTransformNode *tnode = this->GetParentTransformNode();
   if (tnode == caller)
     {
-    this->InvokeEvent(vtkMRMLTransformableNode::TransformModifiedEvent, NULL);
+    this->InvokeCustomModifiedEvent(vtkMRMLTransformableNode::TransformModifiedEvent, NULL);
     }
 }
 
@@ -149,77 +151,93 @@ bool vtkMRMLTransformableNode::CanApplyNonLinearTransforms()const
 //-----------------------------------------------------------
 void vtkMRMLTransformableNode::ApplyTransformMatrix(vtkMatrix4x4* transformMatrix)
 {
-  vtkTransform* transform = vtkTransform::New();
+  vtkNew<vtkTransform> transform;
   transform->SetMatrix(transformMatrix);
-  this->ApplyTransform(transform);
-  transform->Delete();
+  this->ApplyTransform(transform.GetPointer());
 }
 
 //-----------------------------------------------------------
-void vtkMRMLTransformableNode::ApplyTransform(vtkAbstractTransform* transform)
+void vtkMRMLTransformableNode::ApplyTransform(vtkAbstractTransform* vtkNotUsed(transform))
 {
-  vtkHomogeneousTransform* linearTransform = vtkHomogeneousTransform::SafeDownCast(transform);
-  if (linearTransform)
-    {
-    this->ApplyTransformMatrix(linearTransform->GetMatrix());
-    return;
-    }
-  if (!this->CanApplyNonLinearTransforms())
-    {
-    vtkErrorMacro("Can't apply a non-linear transform");
-    return;
-    }
+  vtkErrorMacro("ApplyTransform is not implemented for node type "<<this->GetClassName());
 }
 
 //-----------------------------------------------------------
-void vtkMRMLTransformableNode::TransformPointToWorld(const double in[4], double out[4])
+bool vtkMRMLTransformableNode::HardenTransform()
 {
-  // get the nodes's transform node
-  vtkMRMLTransformNode* tnode = this->GetParentTransformNode();
-  if (tnode != NULL && tnode->IsTransformToWorldLinear())
+  vtkMRMLTransformNode* transformNode = this->GetParentTransformNode();
+  if (!transformNode)
     {
-    vtkMatrix4x4* transformToWorld = vtkMatrix4x4::New();
-    transformToWorld->Identity();
-    tnode->GetMatrixTransformToWorld(transformToWorld);
-    transformToWorld->MultiplyPoint(in, out);
-    transformToWorld->Delete();
+    // already in the world coordinate system
+    return true;
     }
-  else if (tnode == NULL)
+  if (transformNode->IsTransformToWorldLinear())
     {
-    for (int i=0; i<4; i++)
-      {
-      out[i] = in[i];
-      }
+    vtkNew<vtkMatrix4x4> hardeningMatrix;
+    transformNode->GetMatrixTransformToWorld(hardeningMatrix.GetPointer());
+    this->ApplyTransformMatrix(hardeningMatrix.GetPointer());
     }
   else
     {
-    vtkErrorMacro("TransformPointToWorld: not a linear transform");
+    vtkNew<vtkGeneralTransform> hardeningTransform;
+    transformNode->GetTransformToWorld(hardeningTransform.GetPointer());
+    this->ApplyTransform(hardeningTransform.GetPointer());
     }
+
+  this->SetAndObserveTransformNodeID(NULL);
+  return true;
 }
 
 //-----------------------------------------------------------
-void vtkMRMLTransformableNode::TransformPointFromWorld(const double in[4], double out[4])
+void vtkMRMLTransformableNode::TransformPointToWorld(const double inLocal[3], double outWorld[3])
 {
-  // get the nodes's transform node
   vtkMRMLTransformNode* tnode = this->GetParentTransformNode();
-  if (tnode != NULL && tnode->IsTransformToWorldLinear())
+  if (tnode == NULL)
     {
-    vtkMatrix4x4* transformToWorld = vtkMatrix4x4::New();
-    transformToWorld->Identity();
-    tnode->GetMatrixTransformToWorld(transformToWorld);
-    transformToWorld->Invert();
-    transformToWorld->MultiplyPoint(in, out);
-    transformToWorld->Delete();
+    // not transformed
+    outWorld[0] = inLocal[0];
+    outWorld[1] = inLocal[1];
+    outWorld[2] = inLocal[2];
+    return;
     }
-  else if (tnode == NULL)
+
+  // Get transform
+  vtkNew<vtkGeneralTransform> transformToWorld;
+  tnode->GetTransformToWorld(transformToWorld.GetPointer());
+
+  // Convert coordinates
+  transformToWorld->TransformPoint(inLocal, outWorld);
+}
+
+//-----------------------------------------------------------
+void vtkMRMLTransformableNode::TransformPointFromWorld(const double inWorld[3], double outLocal[3])
+{
+  vtkMRMLTransformNode* tnode = this->GetParentTransformNode();
+  if (tnode == NULL)
     {
-    for (int i=0; i<4; i++)
-      {
-      out[i] = in[i];
-      }
+    // not transformed
+    outLocal[0] = inWorld[0];
+    outLocal[1] = inWorld[1];
+    outLocal[2] = inWorld[2];
+    return;
     }
-  else
-    {
-    vtkErrorMacro("TransformPointToWorld: not a linear transform");
-    }
+
+  // Get transform
+  vtkNew<vtkGeneralTransform> transformFromWorld;
+  tnode->GetTransformFromWorld(transformFromWorld.GetPointer());
+
+  // Convert coordinates
+  transformFromWorld->TransformPoint(inWorld, outLocal);
+}
+
+//---------------------------------------------------------------------------
+void vtkMRMLTransformableNode::TransformPointToWorld(const vtkVector3d &inLocal, vtkVector3d &outWorld)
+{
+  this->TransformPointToWorld(inLocal.GetData(),outWorld.GetData());
+}
+
+//---------------------------------------------------------------------------
+void vtkMRMLTransformableNode::TransformPointFromWorld(const vtkVector3d &inWorld, vtkVector3d &outLocal)
+{
+  this->TransformPointFromWorld(inWorld.GetData(),outLocal.GetData());
 }

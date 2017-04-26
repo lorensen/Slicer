@@ -11,8 +11,8 @@
   See License.txt or http://www.slicer.org/copyright/copyright.txt for details.
 
 ==========================================================================*/
-#ifndef __itkDiffusionTensor3DAbsCorrectionFilter_h
-#define __itkDiffusionTensor3DAbsCorrectionFilter_h
+#ifndef itkDiffusionTensor3DAbsCorrection_h
+#define itkDiffusionTensor3DAbsCorrection_h
 
 #include "itkUnaryFunctorImageFilter.h"
 #include "vnl/vnl_math.h"
@@ -107,6 +107,9 @@ public:
                                                                 typename TOutputImage::PixelType> >  Superclass;
   typedef SmartPointer<Self>       Pointer;
   typedef SmartPointer<const Self> ConstPointer;
+
+  /** Run-time type information (and related methods). */
+  itkTypeMacro(DiffusionTensor3DAbsCorrectionFilter, UnaryFunctorImageFilter);
 
   /** Method for creation through the object factory. */
   itkNewMacro( Self );
